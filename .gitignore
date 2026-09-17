@@ -1,0 +1,9 @@
+.worktrees/
+build/
+vsxmake*/
+external/
+*.zip
+
+dist/
+.xmake/
+*.bak

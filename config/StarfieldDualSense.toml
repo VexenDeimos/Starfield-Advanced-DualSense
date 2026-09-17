@@ -1,0 +1,94 @@
+# Starfield DualSense v0.3.89
+#
+# =============================================================================
+# SYNTAX NOTES
+# =============================================================================
+# Boolean switches: true or false (no quotes)
+#   Example: AdaptiveTriggers = true
+#
+# Numeric strengths/volumes: decimal numbers (no quotes)
+#   Example: SpeakerVolume = 0.8
+#
+# String choices: use quotes
+#   Example: OperatingMode = "Full"
+
+# =============================================================================
+# RUNTIME / RECONNECT
+# =============================================================================
+# Valid values: "Full" or "ReconnectFixOnly"
+# "ReconnectFixOnly" runs only the passive DualSense reconnect repair.
+OperatingMode = "Full"
+
+# Restore native DualSense recognition after a physical reconnect.
+# Forced on while OperatingMode = "ReconnectFixOnly".
+DualSenseReconnectFix = true
+
+# =============================================================================
+# ADAPTIVE TRIGGERS
+# =============================================================================
+AdaptiveTriggers = true
+# Overall adaptive-trigger strength. Valid range: 0.0-1.0
+TriggerStrength = 1.0
+
+# =============================================================================
+# HAPTICS
+# =============================================================================
+AdvancedHaptics = true
+# Overall gameplay-haptic strength. Valid range: 0.0-1.0
+HapticStrength = 1.0
+
+# Boostpack-only haptics. The boostpack strength is multiplied by the global
+# HapticStrength setting above. Valid boostpack range: 0.0-2.0
+BoostpackHaptics = true
+BoostpackHapticsStrength = 1.0
+
+# Music-only haptics. Gameplay haptics retain priority.
+# Valid music strength range: 0.0-2.0
+MusicHapticsEnabled = false
+MusicHapticsStrength = 0.1
+
+# =============================================================================
+# CONTROLLER SPEAKER
+# =============================================================================
+ControllerSpeaker = true
+# Master controller-speaker volume. Valid range: 0.0-1.0
+SpeakerVolume = 0.8
+
+# REMOTE/RADIO VOICE ONLY. This does not affect weapon sounds.
+# Valid values: "Both" or "ControllerOnly"
+# "Both" = qualifying remote/radio VO through normal Starfield audio and the
+#          controller speaker.
+# "ControllerOnly" = qualifying remote/radio VO is removed from normal output
+#                    only after controller playback is accepted.
+SpeakerOutputMode = "ControllerOnly"
+SpeakerComms = true
+
+# Scanner/interface sounds routed to the controller speaker.
+SpeakerScannerUI = true
+
+# Weapon sounds remain additive to Starfield's normal weapon mix.
+SpeakerWeapons = true
+# Weapon-only controller-speaker volume. Valid range: 0.0-1.0
+SpeakerWeaponsVolume = 1.0
+
+# Digipick sounds, including engagement/equip, minigame cues, and Undo.
+SpeakerDigipick = true
+
+# Supported crafting/research station sounds.
+SpeakerCrafting = true
+
+# Real boostpack audio mirrored to the controller speaker.
+SpeakerBoostpack = true
+# Boostpack-only controller-speaker volume. Valid range: 0.0-1.0
+SpeakerBoostpackVolume = 1.0
+
+# =============================================================================
+# CONTROLLER FEATURES
+# =============================================================================
+Lightbar = true
+Touchpad = true
+
+# =============================================================================
+# DIAGNOSTICS
+# =============================================================================
+DebugLogging = false

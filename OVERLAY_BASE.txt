@@ -1,0 +1,5 @@
+StarfieldDualSense v0.3.00 Remote VO filesystem-resolution probe overlay
+
+Apply this overlay over the complete v0.2.99 Remote VO WEM source-probe source tree.
+
+This build keeps the proven one-shot remote/radio external-source VO event 0x89E658E8 and resolves the captured Wwise path against exactly two read-only filesystem candidates: the path exactly as supplied and the running Starfield executable directory + Data + captured path. It reports existence/open results and bounded WEM RIFF metadata when readable. There is no VO repost, decoder, BA2/archive parsing or extraction, secondary-output experiment, or desktop/WASAPI loopback capture.
