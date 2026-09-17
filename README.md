@@ -110,6 +110,8 @@ Starfield's built-in accessibility trigger option can conflict with SAD's trigge
 
 Install a version of **SFSE** compatible with your installed Starfield runtime.
 
+Located here: https://www.nexusmods.com/starfield/mods/106
+
 SAD is an SFSE plugin and is loaded from the standard SFSE plugin directory.
 
 ### 2. Install SAD
@@ -123,7 +125,9 @@ Data\SFSE\Plugins\StarfieldDualSense.toml
 
 ### 3. Optional: install in-game menu support
 
-If you want to change SAD settings from inside the game, install the compatible SFSE menu framework used by the project.
+If you want to change SAD settings from inside the game, install the compatible SFSE Menu Framework mod.
+
+Located here: https://www.nexusmods.com/starfield/mods/18201
 
 If you do **not** want the in-game menu, skip that part and edit:
 
