@@ -33,6 +33,27 @@ Where controller-speaker audio is supported, SAD prefers **real Starfield audio*
 
 ---
 
+## Touchpad Controls
+
+When `Touchpad = true`, SAD adds native DualSense touchpad shortcuts:
+
+| Gesture | Action |
+| --- | --- |
+| **Swipe Up** | Open Inventory |
+| **Swipe Down** | Open Missions |
+| **Swipe Left** | Open Powers |
+| **Swipe Right** | Open Skills |
+| **Press the right side of the touchpad** | Open Map |
+| **Press Create** | Open Photo Mode |
+
+The **left side of the touchpad click remains native to Starfield** and keeps its normal POV behavior.
+
+If **Powers have not been unlocked yet**, swiping left uses Starfield's native `QuickPowers` action and falls back to the **Data Menu** — the main character menu — instead of opening the Powers screen.
+
+These shortcuts use Starfield's native input actions rather than simulating keyboard presses.
+
+---
+
 ## Requirements
 
 ### Required
