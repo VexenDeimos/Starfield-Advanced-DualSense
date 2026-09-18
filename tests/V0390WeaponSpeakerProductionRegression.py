@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,6 +38,6 @@ assert (
     not in plugin
 )
 
-print("PASS v0.3.89 weapon speaker production pipeline is independent of DebugLogging")
+print("PASS v0.3.90 weapon speaker production pipeline is independent of DebugLogging")
 print("PASS production resolver performs no diagnostic WEM extraction")
 print("PASS diagnostic WEM directories are versionless")

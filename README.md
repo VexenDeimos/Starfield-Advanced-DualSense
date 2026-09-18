@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.3.89-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.90-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)

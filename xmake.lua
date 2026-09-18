@@ -1,6 +1,6 @@
 set_xmakever("3.0.0")
 set_project("StarfieldDualSense")
-set_version("0.3.89")
+set_version("0.3.90")
 set_arch("x64")
 set_languages("c++23")
 set_encodings("utf-8")
@@ -1752,7 +1752,7 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             author = "AD Mixon",
             description = "Native DualSense support for Starfield on PC"
         })
-        set_version("0.3.89")
+        set_version("0.3.90")
         set_license("GPL-3.0-or-later")
         add_includedirs("include")
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")

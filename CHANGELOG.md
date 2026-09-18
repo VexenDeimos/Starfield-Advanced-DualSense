@@ -1,3 +1,7 @@
+﻿## 0.3.90 - 2026-09-17
+
+- Fixed weapon sounds not playing through the DualSense controller speaker when `DebugLogging` was disabled.
+
 ## 0.3.89 - 2026-09-12
 
 ## v0.3.89-r2 Music Haptics Strength - 2026-09-13

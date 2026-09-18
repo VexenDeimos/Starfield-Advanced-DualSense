@@ -78,7 +78,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.3.89-production-music-haptics";
+    constexpr std::string_view kVersion = "0.3.90";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
