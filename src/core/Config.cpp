@@ -146,10 +146,6 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.lightbar);
         } else if (key == "Touchpad") {
             parseBool(value, config.touchpad);
-        } else if (key == "PreferNativeUSB") {
-            parseBool(value, config.preferNativeUSB);
-        } else if (key == "AllowDSXFallback") {
-            parseBool(value, config.allowDSXFallback);
         } else if (key == "DebugLogging") {
             parseBool(value, config.debugLogging);
         }

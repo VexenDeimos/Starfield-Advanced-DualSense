@@ -430,15 +430,6 @@ namespace sds
                 },
 
                 {
-                    "PreferNativeUSB",
-                    boolText(config.preferNativeUSB)
-                },
-                {
-                    "AllowDSXFallback",
-                    boolText(config.allowDSXFallback)
-                },
-
-                {
                     "DebugLogging",
                     boolText(config.debugLogging)
                 },
@@ -546,11 +537,7 @@ namespace sds
 
         if (
             current_.operatingMode !=
-                defaults.operatingMode ||
-            current_.preferNativeUSB !=
-                defaults.preferNativeUSB ||
-            current_.allowDSXFallback !=
-                defaults.allowDSXFallback) {
+                defaults.operatingMode) {
             restartRequired_ = true;
         }
 
@@ -647,24 +634,6 @@ namespace sds
 
         if (key == "Touchpad") {
             current_.touchpad = value;
-            return true;
-        }
-
-        if (key == "PreferNativeUSB") {
-            if (current_.preferNativeUSB != value) {
-                restartRequired_ = true;
-            }
-
-            current_.preferNativeUSB = value;
-            return true;
-        }
-
-        if (key == "AllowDSXFallback") {
-            if (current_.allowDSXFallback != value) {
-                restartRequired_ = true;
-            }
-
-            current_.allowDSXFallback = value;
             return true;
         }
 

@@ -8,7 +8,7 @@
 
 namespace
 {
-    constexpr std::array<std::string_view, 27> kExpectedKeys{
+    constexpr std::array<std::string_view, 25> kExpectedKeys{
         "OperatingMode",
         "DualSenseReconnectFix",
         "AdaptiveTriggers",
@@ -33,16 +33,12 @@ namespace
         "SpeakerBoostpackVolume",
         "Lightbar",
         "Touchpad",
-        "PreferNativeUSB",
-        "AllowDSXFallback",
         "DebugLogging",
     };
 
     bool isRestartRequired(std::string_view key)
     {
-        return key == "OperatingMode" ||
-               key == "PreferNativeUSB" ||
-               key == "AllowDSXFallback";
+        return key == "OperatingMode";
     }
 }
 
@@ -89,7 +85,7 @@ int main()
 
     expect(
         descriptors.size() == kExpectedKeys.size(),
-        "exactly 27 public settings have descriptors");
+        "exactly 25 public settings have descriptors");
 
     for (const auto expectedKey : kExpectedKeys) {
         std::size_t matches = 0;

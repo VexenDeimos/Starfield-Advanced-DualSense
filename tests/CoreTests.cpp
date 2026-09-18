@@ -1085,7 +1085,6 @@ int runCoreTests()
     expect(defaults.speakerOutputMode == sds::SpeakerOutputMode::Both, "config defaults speaker output mode to Both");
     expect(defaults.speakerComms && defaults.speakerScannerUI && defaults.speakerWeapons && defaults.speakerDigipick && defaults.speakerCrafting && defaults.speakerShipSystems, "config defaults all speaker categories on");
     expect(defaults.lightbar && defaults.touchpad, "config defaults visual/touch on");
-    expect(defaults.preferNativeUSB && defaults.allowDSXFallback, "config defaults backend preference");
     expect(!defaults.debugLogging, "config defaults debug logging off");
 
     const auto parsed = sds::loadConfig(R"(
@@ -1099,8 +1098,6 @@ SpeakerComms = false
 SpeakerShipSystems = false
 Lightbar = false
 Touchpad = false
-PreferNativeUSB = false
-AllowDSXFallback = false
 DebugLogging = true
 UnknownFutureOption = 123
 )");
@@ -1111,7 +1108,6 @@ UnknownFutureOption = 123
     expect(parsed.speakerOutputMode == sds::SpeakerOutputMode::ControllerOnly, "config parses speaker output mode");
     expect(!sds::speakerCategoryEnabled(parsed, sds::SpeakerCategory::Comms) && !sds::speakerCategoryEnabled(parsed, sds::SpeakerCategory::ShipSystems), "config parses speaker category toggles");
     expect(!parsed.lightbar && !parsed.touchpad, "config parses feature booleans");
-    expect(!parsed.preferNativeUSB && !parsed.allowDSXFallback, "config parses backend booleans");
     expect(parsed.debugLogging, "config parses debug logging");
 
     const auto invalid = sds::loadConfig("TriggerStrength = nope\nAdaptiveTriggers = maybe\n");

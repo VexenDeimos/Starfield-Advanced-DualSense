@@ -57,8 +57,6 @@ namespace sds
             else if (key == "SpeakerBoostpack") value = c.speakerBoostpack;
             else if (key == "Lightbar") value = c.lightbar;
             else if (key == "Touchpad") value = c.touchpad;
-            else if (key == "PreferNativeUSB") value = c.preferNativeUSB;
-            else if (key == "AllowDSXFallback") value = c.allowDSXFallback;
             else if (key == "DebugLogging") value = c.debugLogging;
             else return false;
             return true;
@@ -172,7 +170,7 @@ namespace sds
             ImGuiMCP::TextUnformatted("Starfield Advanced DualSense (SAD)");
             ImGuiMCP::TextWrapped(
                 "%s",
-                "SAD 1.0 settings UI running over the retained StarfieldDualSense 0.3.89 production baseline.");
+                "Settings for the current Starfield Advanced DualSense runtime.");
             ImGuiMCP::TextWrapped(
                 "%s",
                 "The SFSE Menu Framework is an optional runtime dependency. Without it, controller functionality continues and the TOML file remains authoritative.");
@@ -183,7 +181,7 @@ namespace sds
             if (!g_settings) return;
 
             ImGuiMCP::TextUnformatted("Starfield Advanced DualSense");
-            ImGuiMCP::TextUnformatted("SAD 1.0 Settings");
+            ImGuiMCP::TextUnformatted("SAD Settings");
             ImGuiMCP::Separator();
 
             if (ImGuiMCP::BeginTabBar("##SADSettingsTabs")) {

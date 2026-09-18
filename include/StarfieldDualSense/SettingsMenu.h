@@ -17,7 +17,6 @@ namespace sds
         AdaptiveTriggers,
         ControllerSpeaker,
         ControllerFeatures,
-        ConnectionCompatibility,
         DiagnosticsStatus,
         About,
     };
@@ -39,19 +38,18 @@ namespace sds
         float maxValue;
     };
 
-    inline constexpr std::array<std::string_view, 9> kSettingsMenuTabLabels{
+    inline constexpr std::array<std::string_view, 8> kSettingsMenuTabLabels{
         "General",
         "Haptics",
         "Music",
         "Adaptive Triggers",
         "Controller Speaker",
         "Controller Features",
-        "Connection / Compatibility",
         "Diagnostics / Status",
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 27> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 25> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -81,9 +79,6 @@ namespace sds
 
         { "Lightbar", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "Touchpad", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
-
-        { "PreferNativeUSB", SettingsMenuTab::ConnectionCompatibility, SettingsControlKind::Boolean, 0.0F, 0.0F },
-        { "AllowDSXFallback", SettingsMenuTab::ConnectionCompatibility, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
         { "DebugLogging", SettingsMenuTab::DiagnosticsStatus, SettingsControlKind::Boolean, 0.0F, 0.0F },
     }};

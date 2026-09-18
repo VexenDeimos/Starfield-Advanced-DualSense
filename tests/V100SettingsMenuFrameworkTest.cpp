@@ -17,19 +17,18 @@ namespace
         float maxValue;
     };
 
-    constexpr std::array<std::string_view, 9> kExpectedTabs{
+    constexpr std::array<std::string_view, 8> kExpectedTabs{
         "General",
         "Haptics",
         "Music",
         "Adaptive Triggers",
         "Controller Speaker",
         "Controller Features",
-        "Connection / Compatibility",
         "Diagnostics / Status",
         "About",
     };
 
-    constexpr std::array<ExpectedControl, 27> kExpectedControls{{
+    constexpr std::array<ExpectedControl, 25> kExpectedControls{{
         { "OperatingMode", sds::SettingsMenuTab::General, sds::SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", sds::SettingsMenuTab::General, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -60,9 +59,6 @@ namespace
         { "Lightbar", sds::SettingsMenuTab::ControllerFeatures, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "Touchpad", sds::SettingsMenuTab::ControllerFeatures, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
 
-        { "PreferNativeUSB", sds::SettingsMenuTab::ConnectionCompatibility, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
-        { "AllowDSXFallback", sds::SettingsMenuTab::ConnectionCompatibility, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
-
         { "DebugLogging", sds::SettingsMenuTab::DiagnosticsStatus, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
     }};
 
@@ -85,13 +81,13 @@ int main()
     };
 
     const auto tabs = sds::settingsMenuTabLabels();
-    expect(tabs.size() == kExpectedTabs.size(), "nine SAD settings tabs exist");
+    expect(tabs.size() == kExpectedTabs.size(), "eight SAD settings tabs exist");
     for (std::size_t i = 0; i < kExpectedTabs.size() && i < tabs.size(); ++i) {
         expect(tabs[i] == kExpectedTabs[i], std::string("tab label: ") + std::string(kExpectedTabs[i]));
     }
 
     const auto controls = sds::settingsMenuControls();
-    expect(controls.size() == 27, "exactly 27 public controls are mapped");
+    expect(controls.size() == 25, "exactly 25 public controls are mapped");
 
     for (const auto& expected : kExpectedControls) {
         std::size_t matches = 0;

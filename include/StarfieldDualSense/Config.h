@@ -38,8 +38,6 @@ namespace sds
         bool speakerShipSystems{ true };
         bool lightbar{ true };
         bool touchpad{ true };
-        bool preferNativeUSB{ true };
-        bool allowDSXFallback{ true };
         bool debugLogging{ false };
 
         [[nodiscard]] static constexpr Config defaults() noexcept

@@ -81,8 +81,6 @@ int main()
         "OperatingMode = \"Full\"\n"
         "MusicHapticsStrength    =    1.0\n"
         "SpeakerWeapons = true\n"
-        "PreferNativeUSB = true\n"
-        "AllowDSXFallback = true\n"
         "FutureSettingFromAnotherVersion = 123 # KEEP UNKNOWN\n"
         "# USER COMMENT B - KEEP THIS TOO\n");
 
@@ -317,16 +315,6 @@ int main()
         reloaded.current().speakerOutputMode ==
             sds::SpeakerOutputMode::ControllerOnly,
         "saved SpeakerOutputMode reloads correctly");
-
-    expect(
-        reloaded.setBool(
-            "PreferNativeUSB",
-            false),
-        "setBool accepts PreferNativeUSB");
-
-    expect(
-        reloaded.restartRequired(),
-        "PreferNativeUSB change requires restart");
 
     expect(
         !reloaded.setBool(

@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 27>
+    inline constexpr std::array<SettingDescriptor, 25>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -56,9 +56,6 @@ namespace sds
 
             { "Lightbar", "Lightbar", "Enable SAD's DualSense lightbar behavior.", SettingApplyMode::Live },
             { "Touchpad", "Touchpad", "Enable SAD's DualSense touchpad integration.", SettingApplyMode::Live },
-
-            { "PreferNativeUSB", "Prefer Native USB", "Prefer direct native DualSense USB access for advanced controller features.", SettingApplyMode::RestartRequired },
-            { "AllowDSXFallback", "Allow DSX Fallback", "Allow the DSX-compatible fallback path when native USB is unavailable.", SettingApplyMode::RestartRequired },
 
             { "DebugLogging", "Debug Logging", "Enable detailed diagnostic logging for troubleshooting and hardware validation.", SettingApplyMode::Live },
         }};
