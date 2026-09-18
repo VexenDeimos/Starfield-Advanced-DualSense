@@ -60,8 +60,8 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 - **Starfield for PC**
 - **Windows**
-- **Sony DualSense or DualSense Edge controller**
-  DualSense Edge is supported as a standard DualSense controller.
+- **Sony DualSense or DualSense Edge controller**  
+  DualSense Edge is supported as a standard DualSense controller.  
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
 - **USB cable / wired controller connection**
 - **SFSE (Starfield Script Extender)** — required to load the SAD plugin DLL
