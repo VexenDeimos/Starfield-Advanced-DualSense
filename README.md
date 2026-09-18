@@ -25,7 +25,7 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Digipick Feedback** | Real Digipick sounds through the controller speaker plus tactile feedback for rotation, shape selection, successful insertion, and puzzle completion. |
 | **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research station sounds through the controller speaker. |
 | **Boostpack Feedback** | Dedicated boostpack haptics and real boostpack audio through the controller speaker. |
-| **Touchpad & Lightbar** | DualSense-specific controller features integrated into the runtime. |
+| **Touchpad & Lightbar** | Native touchpad shortcuts plus dynamic lightbar feedback that changes color based on the player's current health. |
 | **Reconnect Repair** | Repairs the Starfield timing problem that can cause a reconnected DualSense to fall back to a generic/Xbox-style controller path. |
 | **ReconnectFixOnly Mode** | Runs only the passive reconnect repair if you want Starfield's native DualSense handling without the rest of SAD's feedback stack. |
 
@@ -48,9 +48,23 @@ When `Touchpad = true`, SAD adds native DualSense touchpad shortcuts:
 
 The **left side of the touchpad click remains native to Starfield** and keeps its normal POV behavior.
 
-If **Powers have not been unlocked yet**, swiping left uses Starfield's native `QuickPowers` action and falls back to the **Data Menu** — the main character menu — instead of opening the Powers screen.
+If **Powers have not been unlocked yet**, swiping left uses Starfield's native `QuickPowers` action and falls back to the **Data Menu** â€” the main character menu â€” instead of opening the Powers screen.
 
 These shortcuts use Starfield's native input actions rather than simulating keyboard presses.
+
+---
+
+## Lightbar Feedback
+
+When `Lightbar = true`, SAD uses the DualSense lightbar as a visual health indicator:
+
+| Player Health | Lightbar |
+| --- | --- |
+| **Above 50%** | Blue |
+| **25%–50%** | Orange |
+| **Below 25%** | Red |
+
+The lightbar updates from Starfield's actual player-health state rather than using timers or simulated status.
 
 ---
 
@@ -64,11 +78,11 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
   DualSense Edge is supported as a standard DualSense controller.  
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
 - **USB cable / wired controller connection**
-- **SFSE (Starfield Script Extender)** — required to load the SAD plugin DLL
+- **SFSE (Starfield Script Extender)** â€” required to load the SAD plugin DLL
 
 ### Optional
 
-- **SFSE Menu Framework / compatible in-game settings menu support** — only needed if you want to change SAD settings from inside Starfield
+- **SFSE Menu Framework / compatible in-game settings menu support** â€” only needed if you want to change SAD settings from inside Starfield
 
 You do **not** need the in-game menu to use SAD. If you prefer, configure the mod entirely through `StarfieldDualSense.toml`.
 
@@ -76,7 +90,7 @@ You do **not** need the in-game menu to use SAD. If you prefer, configure the mo
 
 ---
 
-## Wired DualSense — No DSX Required
+## Wired DualSense â€” No DSX Required
 
 SAD is designed around a **real wired DualSense**, just like PC games that expose native DualSense features.
 
@@ -98,7 +112,7 @@ Software that masks, remaps, or virtualizes the DualSense can interfere with nat
 
 Before using SAD's adaptive-trigger system, open Starfield's own settings and set:
 
-**Settings → Accessibility → Adaptive Triggers → OFF**
+**Settings â†’ Accessibility â†’ Adaptive Triggers â†’ OFF**
 
 Starfield's built-in accessibility trigger option can conflict with SAD's trigger presentation, so SAD expects that setting to be disabled.
 
@@ -147,7 +161,7 @@ Connect the controller with a USB cable before launching the game.
 
 ### 5. Disable Starfield's own Adaptive Triggers accessibility option
 
-Set **Settings → Accessibility → Adaptive Triggers** to **OFF** as shown above.
+Set **Settings â†’ Accessibility â†’ Adaptive Triggers** to **OFF** as shown above.
 
 ---
 
@@ -311,7 +325,7 @@ If SAD is not behaving as expected, start with these checks:
 1. Connect the DualSense directly by **USB**.
 2. Confirm **SFSE** is installed and compatible with your Starfield runtime.
 3. Confirm `StarfieldDualSense.dll` and `StarfieldDualSense.toml` are under `Data\SFSE\Plugins`.
-4. Set Starfield's **Accessibility → Adaptive Triggers** option to **OFF**.
+4. Set Starfield's **Accessibility â†’ Adaptive Triggers** option to **OFF**.
 5. Temporarily disable DSX, DualSenseX, reWASD, or other controller virtualization/remapping software.
 6. Check your TOML settings and enable `DebugLogging` only when diagnostic logs are actually needed.
 
