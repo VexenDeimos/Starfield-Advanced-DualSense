@@ -226,7 +226,7 @@ namespace
         }
 
         const auto root = dataPath / "SFSE" / "Plugins" / "StarfieldDualSenseDiagnostics" /
-            "v0.3.47" / "ShatteredSpaceWemCapture";
+            "ShatteredSpaceWemCapture";
         const auto eventHex = captureEventHex(eventId);
         const auto directory = root / capturePathComponent(weaponIdentity) / std::string(action) / eventHex;
         std::error_code errorCode{};
@@ -340,7 +340,7 @@ namespace
         }
 
         const auto root = dataPath / "SFSE" / "Plugins" / "StarfieldDualSenseDiagnostics" /
-            capturePathComponent(diagnosticVersion) / "UiWemCandidates";
+            "UiWemCandidates";
         const auto eventHex = captureEventHex(eventId);
         const auto directory = root / capturePathComponent(label) / eventHex;
         std::error_code errorCode{};
@@ -698,9 +698,7 @@ sds::WwiseEventMediaResolver& sds::WwiseEventMediaResolver::operator=(WwiseEvent
 sds::WwiseResolverPrepareResult sds::WwiseEventMediaResolver::prepare(bool debugLogging)
 {
     WwiseResolverPrepareResult result{};
-    if (!debugLogging) {
-        return result;
-    }
+    (void)debugLogging;
     result.attempted = true;
 
     if (catalog_) {
@@ -1108,10 +1106,8 @@ sds::WwiseEventResolverRunResult sds::WwiseEventMediaResolver::runImpl(
     std::span<const WwiseObservedWeaponEvent> observedEvents)
 {
     WwiseEventResolverRunResult run{};
-    if (!debugLogging) {
-        return run;
-    }
     run.attempted = true;
+    run.diagnosticExtractionEnabled = debugLogging;
 
     const auto preparation = prepare(debugLogging);
     run.indexedArchives = preparation.indexedArchives;
@@ -1237,7 +1233,7 @@ sds::WwiseEventResolverRunResult sds::WwiseEventMediaResolver::runImpl(
     }
 
     const auto diagnosticRoot = dataPath_ / "SFSE" / "Plugins" / "StarfieldDualSenseDiagnostics" /
-        "v0.3.21" / "MaelstromWwise";
+        "MaelstromWwise";
 
     for (const auto eventId : resolverEvents()) {
         WwiseEventResolutionRecord eventRecord{};
@@ -1346,13 +1342,17 @@ sds::WwiseEventResolverRunResult sds::WwiseEventMediaResolver::runImpl(
             mediaRecord.packedSize = chosen->packedSize;
             mediaRecord.unpackedSize = chosen->unpackedSize;
             mediaRecord.structure = inspectWemStructure(payload.bytes);
-            mediaRecord.extraction = writeResolvedWemDiagnostic(
-                diagnosticRoot,
-                eventRecord.semantic,
-                eventId,
-                mediaId,
-                mediaRecord.originalName,
-                payload.bytes);
+            if (debugLogging) {
+                mediaRecord.extraction = writeResolvedWemDiagnostic(
+                    diagnosticRoot,
+                    eventRecord.semantic,
+                    eventId,
+                    mediaId,
+                    mediaRecord.originalName,
+                    payload.bytes);
+            } else {
+                mediaRecord.extraction.status = "disabled";
+            }
 
             considerWeaponCandidate(
                 run,
@@ -1367,11 +1367,7 @@ sds::WwiseEventResolverRunResult sds::WwiseEventMediaResolver::runImpl(
         }
 
         if (!eventRecord.media.empty()) {
-            const bool extracted = std::any_of(eventRecord.media.begin(), eventRecord.media.end(), [](const auto& media) {
-                return media.extraction.status == "written" || media.extraction.status == "written-duplicate" ||
-                    media.extraction.status == "exists-same";
-            });
-            eventRecord.status = extracted ? WwiseEventResolutionStatus::Resolved : WwiseEventResolutionStatus::PartiallyResolved;
+            eventRecord.status = WwiseEventResolutionStatus::Resolved;
         } else if (!mediaIds.empty() && eventRecord.status != WwiseEventResolutionStatus::UnsupportedBoundary) {
             eventRecord.status = WwiseEventResolutionStatus::PartiallyResolved;
         } else if (eventRecord.status != WwiseEventResolutionStatus::UnsupportedBoundary && !eventRecord.metadataSource.empty()) {
@@ -1398,9 +1394,11 @@ sds::WwiseEventResolverRunResult sds::WwiseEventMediaResolver::runImpl(
 std::string sds::formatWwiseResolverRunHeader(const WwiseEventResolverRunResult& result)
 {
     std::ostringstream out;
-    out << "Wwise event resolver: ACTIVE diagnostic-only events=" << resolverEvents().size()
-        << " playback=no repost=no stopOriginal=no archiveWrites=no extractResolvedWem=yes attempted="
-        << (result.attempted ? "yes" : "no") << " archives=" << result.indexedArchives.size();
+    out << "Wwise event resolver: ACTIVE events=" << resolverEvents().size()
+        << " playback=preparation repost=no stopOriginal=no archiveWrites=no extractResolvedWem="
+        << (result.diagnosticExtractionEnabled ? "yes" : "no")
+        << " attempted=" << (result.attempted ? "yes" : "no")
+        << " archives=" << result.indexedArchives.size();
     if (!result.error.empty()) {
         out << " error=\"" << result.error << "\"";
     }

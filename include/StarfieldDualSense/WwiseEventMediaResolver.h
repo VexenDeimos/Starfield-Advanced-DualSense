@@ -122,6 +122,7 @@ namespace sds
     struct WwiseEventResolverRunResult
     {
         bool attempted{ false };
+        bool diagnosticExtractionEnabled{ false };
         std::vector<std::filesystem::path> indexedArchives{};
         std::vector<WwiseEventResolutionRecord> events{};
         std::vector<WwisePcmWeaponVariantCandidate> weaponVariants{};

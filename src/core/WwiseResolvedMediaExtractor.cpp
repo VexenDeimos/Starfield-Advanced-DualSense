@@ -6,7 +6,7 @@
 #include <sstream>
 #include <vector>
 namespace {
-[[maybe_unused]] constexpr std::string_view kDiagnosticRelativePath = "Data/SFSE/Plugins/StarfieldDualSenseDiagnostics/v0.3.21/MaelstromWwise";
+[[maybe_unused]] constexpr std::string_view kDiagnosticRelativePath = "Data/SFSE/Plugins/StarfieldDualSenseDiagnostics/MaelstromWwise";
 std::string sanitize(std::string_view in){std::string s(in);auto dot=s.find_last_of('.');if(dot!=std::string::npos)s.resize(dot);std::string o;for(unsigned char c:s){char x=(std::isalnum(c)||c=='_'||c=='-'||c=='.')?(char)c:'_';if(x=='_'&&!o.empty()&&o.back()=='_')continue;o.push_back(x);}while(!o.empty()&&o.front()=='.')o.erase(o.begin());if(o.empty())o="media";if(o.size()>96)o.resize(96);return o;}
 std::string unsafeReason(std::string_view s){
     if(s.empty())return "unsafe original name: empty";

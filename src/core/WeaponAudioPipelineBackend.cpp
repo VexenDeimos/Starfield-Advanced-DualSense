@@ -57,7 +57,7 @@ namespace
 
         sds::WeaponAudioStartupBatch resolveStartup() override
         {
-            const auto prepared = resolver_.prepare(true);
+            const auto prepared = resolver_.prepare(false);
             if (!prepared.ready) {
                 throw std::runtime_error(
                     prepared.error.empty() ? "Wwise resolver preparation failed" : prepared.error);
@@ -276,7 +276,7 @@ namespace
 
             if (options_.prepareWeapons) {
                 correlation_ = std::make_unique<sds::WeaponSfxMediaCorrelation>(resolver_);
-                auto run = resolver_.run(true);
+                auto run = resolver_.run(false);
                 if (!run.attempted) {
                     throw std::runtime_error(
                         run.error.empty() ? "Wwise weapon resolver run was not attempted" : run.error);

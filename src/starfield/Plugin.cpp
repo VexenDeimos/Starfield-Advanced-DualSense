@@ -2491,7 +2491,8 @@ namespace
         // Keep producer/cache ownership stable across live speaker toggles.
         // ControllerSpeakerManager is the runtime policy authority.
         const bool uiSpeakerPlaybackEnabled = true;
-        g_weaponAudioPipelineEnabled = config.debugLogging;
+        g_weaponAudioPipelineEnabled =
+            config.operatingMode == sds::OperatingMode::Full;
         const bool uiAudioDiscoveryEnabled = config.debugLogging;
         const bool shipBallisticHapticsEnabled = config.adaptiveTriggers || config.advancedHaptics;
         const bool shipLaserHapticsEnabled = shipBallisticHapticsEnabled;
@@ -3614,7 +3615,7 @@ namespace
                 }
                 if (g_weaponSfxDiscovery) {
                     pluginLog(
-                        "Weapon SFX discovery: ACTIVE diagnostic-only mode=exact-target-set batch=6-shattered-space-wem-capture operatorTargets=2 startupNameScan=disabled onePassResolution=live-event workerResolution=background wemCapture=targeted-v0347 captureRoot=Data/SFSE/Plugins/StarfieldDualSenseDiagnostics/v0.3.47/ShatteredSpaceWemCapture "
+                        "Weapon SFX discovery: ACTIVE diagnostic-only mode=exact-target-set batch=6-shattered-space-wem-capture operatorTargets=2 startupNameScan=disabled onePassResolution=live-event workerResolution=background wemCapture=targeted-v0347 captureRoot=Data/SFSE/Plugins/StarfieldDualSenseDiagnostics/ShatteredSpaceWemCapture "
                         "internalWwise=zero-external fireWindowMs=-150/+350 "
                         "reloadWindowMs=-2500/+250 drawHolsterWindowMs=-250/+750 "
                         "markerLogging=candidates-only playback=no repost=no stopOriginal=no synthetic=no");
