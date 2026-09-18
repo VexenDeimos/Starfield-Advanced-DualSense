@@ -79,6 +79,7 @@ The lightbar updates from Starfield's actual player-health state rather than usi
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
 - **USB cable / wired controller connection**
 - **SFSE (Starfield Script Extender)** — required to load the SAD plugin DLL
+- **Address Library for SFSE Plugins** — required by SAD/CommonLibSF for runtime address relocation
 
 ### Optional
 
@@ -86,7 +87,7 @@ The lightbar updates from Starfield's actual player-health state rather than usi
 
 You do **not** need the in-game menu to use SAD. If you prefer, configure the mod entirely through `StarfieldDualSense.toml`.
 
-> **Important SFSE distinction:** SFSE itself is required because SAD is an SFSE plugin. The **menu framework is optional**. Without the menu framework, SAD still runs normally and reads its settings from the TOML file.
+> **Important dependency distinction:** **SFSE and Address Library for SFSE Plugins are required.** The **menu framework is optional**. Without the menu framework, SAD still runs normally and reads its settings from the TOML file.
 
 ---
 
@@ -130,7 +131,15 @@ Located here: https://www.nexusmods.com/starfield/mods/106
 
 SAD is an SFSE plugin and is loaded from the standard SFSE plugin directory.
 
-### 2. Install SAD
+### 2. Install Address Library for SFSE Plugins
+
+Install **Address Library for SFSE Plugins**.
+
+Located here: https://www.nexusmods.com/starfield/mods/3256
+
+SAD uses CommonLibSF relocation support and requires Address Library at runtime.
+
+### 3. Install SAD
 
 A normal runtime installation places these files under your Starfield `Data` directory:
 
@@ -141,7 +150,7 @@ Data\SFSE\Plugins\StarfieldDualSense.toml
 
 You can also install SAD with a mod manager such as **Vortex** or **Mod Organizer 2 (MO2)** instead of copying the files manually.
 
-### 3. Optional: install in-game menu support
+### 4. Optional: install in-game menu support
 
 If you want to change SAD settings from inside the game, install the compatible SFSE Menu Framework mod.
 
@@ -155,11 +164,11 @@ Data\SFSE\Plugins\StarfieldDualSense.toml
 
 directly.
 
-### 4. Connect the DualSense by USB
+### 5. Connect the DualSense by USB
 
 Connect the controller with a USB cable before launching the game.
 
-### 5. Disable Starfield's own Adaptive Triggers accessibility option
+### 6. Disable Starfield's own Adaptive Triggers accessibility option
 
 Set **Settings → Accessibility → Adaptive Triggers** to **OFF** as shown above.
 
@@ -324,10 +333,11 @@ If SAD is not behaving as expected, start with these checks:
 
 1. Connect the DualSense directly by **USB**.
 2. Confirm **SFSE** is installed and compatible with your Starfield runtime.
-3. Confirm `StarfieldDualSense.dll` and `StarfieldDualSense.toml` are under `Data\SFSE\Plugins`.
-4. Set Starfield's **Accessibility → Adaptive Triggers** option to **OFF**.
-5. Temporarily disable DSX, DualSenseX, reWASD, or other controller virtualization/remapping software.
-6. Check your TOML settings and enable `DebugLogging` only when diagnostic logs are actually needed.
+3. Confirm **Address Library for SFSE Plugins** is installed and compatible with your Starfield runtime.
+4. Confirm `StarfieldDualSense.dll` and `StarfieldDualSense.toml` are under `Data\SFSE\Plugins`.
+5. Set Starfield's **Accessibility → Adaptive Triggers** option to **OFF**.
+6. Temporarily disable DSX, DualSenseX, reWASD, or other controller virtualization/remapping software.
+7. Check your TOML settings and enable `DebugLogging` only when diagnostic logs are actually needed.
 
 ---
 
