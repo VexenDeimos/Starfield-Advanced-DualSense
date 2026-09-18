@@ -125,6 +125,8 @@ Data\SFSE\Plugins\StarfieldDualSense.dll
 Data\SFSE\Plugins\StarfieldDualSense.toml
 ```
 
+You can also install SAD with a mod manager such as **Vortex** or **Mod Organizer 2 (MO2)** instead of copying the files manually.
+
 ### 3. Optional: install in-game menu support
 
 If you want to change SAD settings from inside the game, install the compatible SFSE Menu Framework mod.
