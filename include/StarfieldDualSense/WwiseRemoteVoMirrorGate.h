@@ -6,6 +6,7 @@
 namespace sds
 {
     inline constexpr std::uint32_t kRemoteCommsVoEventId = 0x89E658E8u;
+    inline constexpr std::uint32_t kRemoteCommsDialogueVoEventId = 0x06638D4Eu;
     inline constexpr std::uint32_t kFaceToFaceVoEventId = 0x5E6C95CEu;
 
     struct VoMirrorQualificationProfile
@@ -17,6 +18,16 @@ namespace sds
     inline constexpr VoMirrorQualificationProfile kRemoteCommsVoMirrorProfile{
         .eventId = kRemoteCommsVoEventId,
         .expectedDialogueMenuActive = false,
+    };
+
+    inline constexpr VoMirrorQualificationProfile kRemoteCommsDialogueOpeningVoMirrorProfile{
+        .eventId = kRemoteCommsDialogueVoEventId,
+        .expectedDialogueMenuActive = false,
+    };
+
+    inline constexpr VoMirrorQualificationProfile kRemoteCommsDialogueVoMirrorProfile{
+        .eventId = kRemoteCommsDialogueVoEventId,
+        .expectedDialogueMenuActive = true,
     };
 
     inline constexpr VoMirrorQualificationProfile kFaceToFaceVoMirrorProfile{
@@ -55,6 +66,9 @@ namespace sds
     [[nodiscard]] bool qualifiesRemoteVoCandidate(
         const RemoteVoMirrorCandidate& candidate,
         VoMirrorQualificationProfile profile = kRemoteCommsVoMirrorProfile) noexcept;
+
+    [[nodiscard]] bool qualifiesRemoteCommsVoCandidate(
+        const RemoteVoMirrorCandidate& candidate) noexcept;
 
     class OneShotRemoteVoMirrorGate
     {

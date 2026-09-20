@@ -1,4 +1,4 @@
-# Starfield DualSense v0.3.90
+# Starfield DualSense v0.3.91
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -61,7 +61,16 @@ SpeakerVolume = 0.8
 # "ControllerOnly" = qualifying remote/radio VO is removed from normal output
 #                    only after controller playback is accepted.
 SpeakerOutputMode = "ControllerOnly"
+
+# Remote/radio communications through the controller speaker.
+# Set false to keep radio/comms voice completely off the controller.
 SpeakerComms = true
+
+# Language used for remote/radio controller-speaker voice.
+# Valid values: "English", "Auto", "French", "German", "Spanish", "Japanese"
+# Auto is the default and follows Starfield's supported voice language.
+# Auto follows Starfield's current supported voice language.
+SpeakerVoiceLanguage = "Auto"
 
 # Scanner/interface sounds routed to the controller speaker.
 SpeakerScannerUI = true

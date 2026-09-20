@@ -1,5 +1,7 @@
 #pragma once
 
+#include <StarfieldDualSense/Config.h>
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -27,15 +29,28 @@ namespace sds
         std::wstring capturedPath{};
         std::filesystem::path configPath{};
         std::filesystem::path dataRoot{};
+        SpeakerVoiceLanguage language{ SpeakerVoiceLanguage::English };
+        std::string voiceListKey{ "sResourceEnglishVoiceList" };
         bool configOpened{ false };
         bool voiceListFound{ false };
         std::vector<VoiceArchiveManifestEntry> entries{};
         std::string error{};
     };
 
+    [[nodiscard]] SpeakerVoiceLanguage speakerVoiceLanguageFromGameCode(
+        std::string_view gameLanguageCode) noexcept;
+
+    [[nodiscard]] SpeakerVoiceLanguage resolveAutoSpeakerVoiceLanguage(
+        bool useLocaleVoices,
+        std::string_view gameLanguageCode) noexcept;
+
+    [[nodiscard]] std::string_view speakerVoiceLanguageName(
+        SpeakerVoiceLanguage language) noexcept;
+
     [[nodiscard]] VoiceArchiveManifest probeVoiceArchiveManifest(
         std::wstring_view capturedPath,
-        const std::filesystem::path& executablePath);
+        const std::filesystem::path& executablePath,
+        SpeakerVoiceLanguage language = SpeakerVoiceLanguage::English);
 
     [[nodiscard]] std::string formatVoiceArchiveManifestContext(
         std::wstring_view capturedPath,

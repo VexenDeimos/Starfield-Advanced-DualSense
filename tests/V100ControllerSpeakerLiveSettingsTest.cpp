@@ -119,6 +119,7 @@ int main()
     projectionConfig.controllerSpeaker = false;
     projectionConfig.speakerOutputMode = sds::SpeakerOutputMode::ControllerOnly;
     projectionConfig.speakerComms = false;
+    projectionConfig.speakerVoiceLanguage = sds::SpeakerVoiceLanguage::Spanish;
     projectionConfig.speakerScannerUI = false;
     projectionConfig.speakerWeapons = true;
     projectionConfig.speakerWeaponsVolume = 1.5F;
@@ -130,6 +131,8 @@ int main()
     check(!projected.controllerSpeaker, "projection carries ControllerSpeaker");
     check(projected.outputMode == sds::SpeakerOutputMode::ControllerOnly, "projection carries SpeakerOutputMode");
     check(!projected.speakerComms, "projection carries SpeakerComms");
+    check(projected.speakerVoiceLanguage == sds::SpeakerVoiceLanguage::Spanish,
+        "projection carries SpeakerVoiceLanguage");
     check(!projected.speakerScannerUI, "projection carries SpeakerScannerUI");
     check(projected.speakerWeapons, "projection carries SpeakerWeapons");
     check(near(projected.speakerWeaponsVolume, 1.0F), "projection clamps SpeakerWeaponsVolume high");
@@ -195,6 +198,58 @@ int main()
         "SpeakerOutputMode change hard-clears current speaker playback once");
     check(raw->stops == stopsBeforeCategoryToggle,
         "SpeakerOutputMode change does not stop the speaker backend");
+
+    const int clearsBeforeCommsDisable = raw->clears;
+
+    live.speakerComms = false;
+    manager.applyLiveSettings(live);
+
+    check(
+        !manager.categoryEnabled(sds::SpeakerCategory::Comms),
+        "SpeakerComms OFF closes Comms admission immediately");
+
+    check(
+        raw->clears == clearsBeforeCommsDisable + 1,
+        "SpeakerComms OFF hard-clears current controller playback once");
+
+    check(
+        raw->stops == stopsBeforeCategoryToggle,
+        "SpeakerComms OFF keeps speaker backend running");
+
+    check(
+        !manager.submitCaptured(
+            prepared(1.0F),
+            sds::SpeakerCategory::Comms,
+            identity,
+            true),
+        "SpeakerComms OFF rejects later Comms playback");
+
+    live.speakerComms = true;
+    manager.applyLiveSettings(live);
+
+    check(
+        manager.categoryEnabled(sds::SpeakerCategory::Comms),
+        "SpeakerComms ON reopens Comms admission");
+
+    check(
+        raw->clears == clearsBeforeCommsDisable + 1,
+        "SpeakerComms ON does not clear playback again");
+
+    const int clearsBeforeLanguageChange = raw->clears;
+
+    live.speakerVoiceLanguage =
+        sds::SpeakerVoiceLanguage::Spanish;
+
+    manager.applyLiveSettings(live);
+
+    check(
+        manager.voiceLanguage() ==
+            sds::SpeakerVoiceLanguage::Spanish,
+        "SpeakerVoiceLanguage publishes live Spanish selection");
+
+    check(
+        raw->clears == clearsBeforeLanguageChange + 1,
+        "SpeakerVoiceLanguage change clears stale controller voice once");
 
     const int submissionsBeforeMasterOff = raw->preparedSubmissions;
     live.controllerSpeaker = false;

@@ -143,6 +143,43 @@ namespace sds
                 }
             }
 
+            else if (control.kind == SettingsControlKind::SpeakerVoiceLanguage) {
+                int current = 0;
+                const auto language = g_settings->current().speakerVoiceLanguage;
+
+                if (language == SpeakerVoiceLanguage::Auto) current = 1;
+                else if (language == SpeakerVoiceLanguage::French) current = 2;
+                else if (language == SpeakerVoiceLanguage::German) current = 3;
+                else if (language == SpeakerVoiceLanguage::Spanish) current = 4;
+                else if (language == SpeakerVoiceLanguage::Japanese) current = 5;
+
+                const char* items[] = {
+                    "English",
+                    "Auto (Game Language)",
+                    "French",
+                    "German",
+                    "Spanish",
+                    "Japanese"
+                };
+
+                const char* values[] = {
+                    "English",
+                    "Auto",
+                    "French",
+                    "German",
+                    "Spanish",
+                    "Japanese"
+                };
+
+                if (ImGuiMCP::Combo(label.c_str(), &current, items, 6)) {
+                    if (g_settings->setString(
+                            "SpeakerVoiceLanguage",
+                            values[current])) {
+                        applyCurrentSettings();
+                        saveAfterEdit(control.key);
+                    }
+                }
+            }
             renderDescription(*descriptor);
             ImGuiMCP::Separator();
         }

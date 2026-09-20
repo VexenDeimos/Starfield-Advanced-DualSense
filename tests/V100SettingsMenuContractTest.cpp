@@ -8,7 +8,7 @@
 
 namespace
 {
-    constexpr std::array<std::string_view, 25> kExpectedKeys{
+    constexpr std::array<std::string_view, 26> kExpectedKeys{
         "OperatingMode",
         "DualSenseReconnectFix",
         "AdaptiveTriggers",
@@ -23,6 +23,7 @@ namespace
         "SpeakerVolume",
         "SpeakerOutputMode",
         "SpeakerComms",
+        "SpeakerVoiceLanguage",
         "SpeakerScannerUI",
         "SpeakerWeapons",
         "SpeakerWeaponsVolume",
@@ -76,6 +77,10 @@ int main()
     expect(
         defaults.speakerBoostpack,
         "SpeakerBoostpack defaults on");
+    expect(
+        defaults.speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Auto,
+        "SpeakerVoiceLanguage defaults to Auto");
 
     expect(
         defaults.speakerBoostpackVolume == 1.0F,
@@ -85,7 +90,7 @@ int main()
 
     expect(
         descriptors.size() == kExpectedKeys.size(),
-        "exactly 25 public settings have descriptors");
+        "exactly 26 public settings have descriptors");
 
     for (const auto expectedKey : kExpectedKeys) {
         std::size_t matches = 0;

@@ -12,6 +12,16 @@ namespace sds
         ReconnectFixOnly,
     };
 
+    enum class SpeakerVoiceLanguage
+    {
+        English,
+        Auto,
+        French,
+        German,
+        Spanish,
+        Japanese,
+    };
+
     struct Config
     {
         OperatingMode operatingMode{ OperatingMode::Full };
@@ -30,6 +40,7 @@ namespace sds
         float speakerVolume{ 0.8F };
         SpeakerOutputMode speakerOutputMode{ SpeakerOutputMode::Both };
         bool speakerComms{ true };
+        SpeakerVoiceLanguage speakerVoiceLanguage{ SpeakerVoiceLanguage::Auto };
         bool speakerScannerUI{ true };
         bool speakerWeapons{ true };
         float speakerWeaponsVolume{ 1.0F };

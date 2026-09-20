@@ -129,6 +129,27 @@ namespace sds
         }
 
         [[nodiscard]]
+        std::string_view speakerVoiceLanguageText(
+            SpeakerVoiceLanguage language) noexcept
+        {
+            switch (language) {
+            case SpeakerVoiceLanguage::Auto:
+                return "Auto";
+            case SpeakerVoiceLanguage::French:
+                return "French";
+            case SpeakerVoiceLanguage::German:
+                return "German";
+            case SpeakerVoiceLanguage::Spanish:
+                return "Spanish";
+            case SpeakerVoiceLanguage::Japanese:
+                return "Japanese";
+            case SpeakerVoiceLanguage::English:
+            default:
+                return "English";
+            }
+        }
+
+        [[nodiscard]]
         bool lineHasKey(
             std::string_view line,
             std::string_view key)
@@ -383,6 +404,12 @@ namespace sds
                 {
                     "SpeakerComms",
                     boolText(config.speakerComms)
+                },
+                {
+                    "SpeakerVoiceLanguage",
+                    quote(
+                        speakerVoiceLanguageText(
+                            config.speakerVoiceLanguage))
                 },
                 {
                     "SpeakerScannerUI",
@@ -738,6 +765,41 @@ namespace sds
             if (value == "ControllerOnly") {
                 current_.speakerOutputMode =
                     SpeakerOutputMode::ControllerOnly;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (key == "SpeakerVoiceLanguage") {
+            if (value == "English") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::English;
+                return true;
+            }
+            if (value == "Auto") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::Auto;
+                return true;
+            }
+            if (value == "French") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::French;
+                return true;
+            }
+            if (value == "German") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::German;
+                return true;
+            }
+            if (value == "Spanish") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::Spanish;
+                return true;
+            }
+            if (value == "Japanese") {
+                current_.speakerVoiceLanguage =
+                    SpeakerVoiceLanguage::Japanese;
                 return true;
             }
 

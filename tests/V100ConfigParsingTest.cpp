@@ -52,6 +52,35 @@ int main()
         near(defaults.speakerBoostpackVolume, 1.0F),
         "SpeakerBoostpackVolume defaults 1.0");
 
+    expect(
+        defaults.speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Auto,
+        "SpeakerVoiceLanguage defaults Auto");
+
+    const auto spanishVoice =
+        sds::loadConfig("SpeakerVoiceLanguage = \"Spanish\"");
+
+    expect(
+        spanishVoice.speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Spanish,
+        "SpeakerVoiceLanguage parses Spanish");
+
+    const auto autoVoice =
+        sds::loadConfig("SpeakerVoiceLanguage = \"Auto\"");
+
+    expect(
+        autoVoice.speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Auto,
+        "SpeakerVoiceLanguage parses Auto");
+
+    const auto invalidVoice =
+        sds::loadConfig("SpeakerVoiceLanguage = \"Klingon\"");
+
+    expect(
+        invalidVoice.speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Auto,
+        "invalid SpeakerVoiceLanguage preserves Auto default");
+
     const auto reconnectOnly =
         sds::loadConfig("OperatingMode = \"ReconnectFixOnly\"");
 

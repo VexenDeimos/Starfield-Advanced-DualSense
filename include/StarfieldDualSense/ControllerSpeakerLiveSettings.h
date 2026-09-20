@@ -12,6 +12,7 @@ namespace sds
         bool controllerSpeaker{ true };
         SpeakerOutputMode outputMode{ SpeakerOutputMode::Both };
         bool speakerComms{ true };
+        SpeakerVoiceLanguage speakerVoiceLanguage{ SpeakerVoiceLanguage::Auto };
         bool speakerScannerUI{ true };
         bool speakerWeapons{ true };
         float speakerWeaponsVolume{ 1.0F };
@@ -33,6 +34,7 @@ namespace sds
             .controllerSpeaker = config.controllerSpeaker,
             .outputMode = config.speakerOutputMode,
             .speakerComms = config.speakerComms,
+            .speakerVoiceLanguage = config.speakerVoiceLanguage,
             .speakerScannerUI = config.speakerScannerUI,
             .speakerWeapons = config.speakerWeapons,
             .speakerWeaponsVolume = std::clamp(config.speakerWeaponsVolume, 0.0F, 1.0F),

@@ -72,6 +72,25 @@ int main()
     assert(gate.armed());
 
     candidate = qualifying();
+    assert(qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate.dialogueMenuActive = true;
+    assert(!qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate = qualifying();
+    candidate.eventId = 0x06638D4Eu;
+    candidate.dialogueMenuActive = false;
+    assert(qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate.dialogueMenuActive = true;
+    assert(qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate = qualifying();
+    candidate.eventId = kFaceToFaceVoEventId;
+    candidate.dialogueMenuActive = true;
+    assert(!qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate = qualifying();
     assert(gate.tryClaim(candidate));
     assert(!gate.armed());
     assert(!gate.tryClaim(candidate));

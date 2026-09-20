@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.3.90-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.91-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -197,7 +197,7 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Runtime | `OperatingMode`, `DualSenseReconnectFix` |
 | Adaptive Triggers | `AdaptiveTriggers`, `TriggerStrength` |
 | Haptics | `AdvancedHaptics`, `HapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
-| Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
+| Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
 | Controller Features | `Lightbar`, `Touchpad` |
 | Diagnostics | `DebugLogging` |
 
@@ -240,6 +240,35 @@ SpeakerOutputMode = "ControllerOnly"
 allows qualifying remote/radio audio to move to the controller speaker after controller playback has been accepted.
 
 Weapon, Digipick, crafting, boostpack, and other supported speaker categories have their own settings and remain tied to their intended game behavior.
+
+### Radio / Comms Language
+
+SAD can use Starfield's localized voice archives for supported radio and remote communications routed through the DualSense speaker.
+
+The default is:
+
+```toml
+SpeakerVoiceLanguage = "Auto"
+```
+
+`Auto` follows Starfield's supported voice-language settings. If localized voices are disabled, the language cannot be resolved, or Starfield reports an unsupported voice language, SAD falls back to English.
+
+Supported values are:
+
+```text
+Auto
+English
+French
+German
+Spanish
+Japanese
+```
+
+Choosing a language explicitly overrides `Auto`. The corresponding Starfield localized voice archives must be installed for that language; SAD does not silently substitute English dialogue when an explicitly selected localized archive is unavailable.
+
+Ship radio/intercom static and other non-voice communication effects are language-independent and use Starfield's normal sound-effect archives, so they work with every supported voice language.
+
+`SpeakerComms = false` disables supported radio/comms voice and ship radio/intercom static from the controller speaker.
 
 ---
 

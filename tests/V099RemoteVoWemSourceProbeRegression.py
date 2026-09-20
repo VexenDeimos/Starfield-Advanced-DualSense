@@ -15,8 +15,6 @@ assert wem_source_path.exists(), "v0.2.99 WEM source-probe implementation must e
 wem_header = wem_header_path.read_text(encoding="utf-8")
 wem_source = wem_source_path.read_text(encoding="utf-8")
 
-assert "0.3.01-voice-archive-manifest-probe" in plugin
-assert xmake.count('set_version("0.3.1")') >= 2
 
 # Runtime must return to the proven remote external-source capture path.
 assert "g_audioCapture = std::make_unique<sds::StarfieldAudioCapture>" in plugin
@@ -29,7 +27,7 @@ assert "g_wwiseRemoteVoMirror = std::make_unique" not in plugin
 # Source probing is performed off the PostEvent hook while draining deferred records.
 assert "RemoteVoSourceCallback" in audio_header
 assert "sourceProbe" in audio_capture
-assert "sourceProbeGate" in audio_capture
+assert "qualifiesRemoteCommsVoCandidate(candidate)" in audio_capture
 assert "_impl->sourceProbe(readyRequest)" in audio_capture
 assert "postEventDiagnosticThunk" in audio_capture
 
@@ -49,5 +47,4 @@ assert "open=success" in wem_source
 assert "open=failed" in wem_source
 assert "codecId=4" in wem_source
 
-assert "Current test build: v0.3.01" in readme
 assert "## 0.2.99 - 2026-09-01" in changelog

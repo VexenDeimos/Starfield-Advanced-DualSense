@@ -1,4 +1,13 @@
-﻿## 0.3.90 - 2026-09-17
+## 0.3.91 - 2026-09-20
+
+- Added a live `Radio / Comms Voice` controller-speaker toggle; disabling it immediately clears active controller-speaker communications.
+- Added `Radio / Comms Language` with Auto as the default plus explicit English, French, German, Spanish, and Japanese overrides.
+- Added language-aware radio/comms voice archive selection for localized Starfield installations; Auto follows Starfield's supported voice-language settings.
+- Extended ship communications so dialogue continuation after player responses remains routed through the controller speaker.
+- Added the authored ship radio/intercom static to controller-speaker communications.
+- In `ControllerOnly` mode, ship-comms static is removed from normal game audio only after controller playback is successfully accepted.
+
+## 0.3.90 - 2026-09-17
 
 - Fixed weapon sounds not playing through the DualSense controller speaker when `DebugLogging` was disabled.
 

@@ -28,6 +28,7 @@ namespace sds
         void stop() noexcept;
         void applyLiveSettings(ControllerSpeakerLiveSettings settings) noexcept;
         [[nodiscard]] SpeakerOutputMode outputMode() const noexcept;
+        [[nodiscard]] SpeakerVoiceLanguage voiceLanguage() const noexcept;
         [[nodiscard]] bool categoryEnabled(SpeakerCategory category) const noexcept;
         [[nodiscard]] bool handle(GameEvent event) noexcept;
         [[nodiscard]] bool submitCaptured(

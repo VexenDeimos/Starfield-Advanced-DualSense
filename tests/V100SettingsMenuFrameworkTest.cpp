@@ -28,7 +28,7 @@ namespace
         "About",
     };
 
-    constexpr std::array<ExpectedControl, 25> kExpectedControls{{
+    constexpr std::array<ExpectedControl, 26> kExpectedControls{{
         { "OperatingMode", sds::SettingsMenuTab::General, sds::SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", sds::SettingsMenuTab::General, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -47,6 +47,7 @@ namespace
         { "SpeakerVolume", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::Float, 0.0F, 1.0F },
         { "SpeakerOutputMode", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::SpeakerOutputMode, 0.0F, 0.0F },
         { "SpeakerComms", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "SpeakerVoiceLanguage", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::SpeakerVoiceLanguage, 0.0F, 0.0F },
         { "SpeakerScannerUI", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeapons", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeaponsVolume", sds::SettingsMenuTab::ControllerSpeaker, sds::SettingsControlKind::Float, 0.0F, 1.0F },
@@ -87,7 +88,7 @@ int main()
     }
 
     const auto controls = sds::settingsMenuControls();
-    expect(controls.size() == 25, "exactly 25 public controls are mapped");
+    expect(controls.size() == 26, "exactly 26 public controls are mapped");
 
     for (const auto& expected : kExpectedControls) {
         std::size_t matches = 0;

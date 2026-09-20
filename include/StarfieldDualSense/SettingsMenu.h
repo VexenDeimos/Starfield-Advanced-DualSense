@@ -27,6 +27,7 @@ namespace sds
         Float,
         OperatingMode,
         SpeakerOutputMode,
+        SpeakerVoiceLanguage,
     };
 
     struct SettingsMenuControlDescriptor
@@ -49,7 +50,7 @@ namespace sds
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 25> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 26> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -68,6 +69,7 @@ namespace sds
         { "SpeakerVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },
         { "SpeakerOutputMode", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::SpeakerOutputMode, 0.0F, 0.0F },
         { "SpeakerComms", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "SpeakerVoiceLanguage", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::SpeakerVoiceLanguage, 0.0F, 0.0F },
         { "SpeakerScannerUI", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeapons", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeaponsVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },

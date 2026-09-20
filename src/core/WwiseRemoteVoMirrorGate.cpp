@@ -19,6 +19,27 @@ bool sds::qualifiesRemoteVoCandidate(
         candidate.originalPlayingId != 0;
 }
 
+bool sds::qualifiesRemoteCommsVoCandidate(
+    const RemoteVoMirrorCandidate& candidate) noexcept
+{
+    if (candidate.eventId == kRemoteCommsVoEventId) {
+        return qualifiesRemoteVoCandidate(
+            candidate,
+            kRemoteCommsVoMirrorProfile);
+    }
+
+    if (candidate.eventId == kRemoteCommsDialogueVoEventId) {
+        return qualifiesRemoteVoCandidate(
+                   candidate,
+                   kRemoteCommsDialogueOpeningVoMirrorProfile) ||
+            qualifiesRemoteVoCandidate(
+                candidate,
+                kRemoteCommsDialogueVoMirrorProfile);
+    }
+
+    return false;
+}
+
 bool sds::OneShotRemoteVoMirrorGate::tryClaim(const RemoteVoMirrorCandidate& candidate) noexcept
 {
     if (!armed_ || !qualifiesRemoteVoCandidate(candidate, profile_)) {

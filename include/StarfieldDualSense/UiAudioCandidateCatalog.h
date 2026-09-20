@@ -49,7 +49,7 @@ namespace sds
         SpeakerCategory category{ SpeakerCategory::ScannerUI };
     };
 
-    inline constexpr std::array<UiSpeakerCueDefinition, 40> kUiSpeakerCueDefinitions{{
+    inline constexpr std::array<UiSpeakerCueDefinition, 41> kUiSpeakerCueDefinitions{{
         { 0x05234A32u, "UIMenuGeneralFocus", 0x3u, SpeakerCategory::ScannerUI },
         { 0x5C8034FCu, "UIMenuGeneralOK", 0x3u, SpeakerCategory::ScannerUI },
         { 0x7956E9B0u, "UIMenuGeneralCancel", 0x3u, SpeakerCategory::ScannerUI },
@@ -100,6 +100,10 @@ namespace sds
         { 0x73750170u, "UIMenuCraftingDrugsMenuClose", 0x0u, SpeakerCategory::Crafting },
         { 0x653DEE01u, "UIMenuCraftingFoodMenuOpen", 0x0u, SpeakerCategory::Crafting },
         { 0x5FE879B7u, "UIMenuCraftingFoodMenuClose", 0x0u, SpeakerCategory::Crafting },
+
+        // Exact authored radio/intercom static used by Starfield ship communications.
+        // The Wwise event itself is stable; its runtime game object is not.
+        { 0x27A3CE98u, "VOC_SFX_ShipComms_Static", 0x0u, SpeakerCategory::Comms },
     }};
 
     [[nodiscard]] constexpr std::span<const UiSpeakerCueDefinition> uiSpeakerCueDefinitions() noexcept

@@ -119,6 +119,36 @@ int main()
     require(std::get<3>(submissions.back()) == sds::SpeakerCategory::Crafting,
         "dedicated cooking cue carries Crafting category");
 
+    require(cache->publish({
+        .eventId = 0x27A3CE98u,
+        .eventName = "VOC_SFX_ShipComms_Static",
+        .variants = {
+            { .mediaId = 425592252u, .pcm = tinyPcm(0.5F) },
+            { .mediaId = 448251717u, .pcm = tinyPcm(0.6F) },
+            { .mediaId = 508024415u, .pcm = tinyPcm(0.7F) },
+        },
+    }), "three real ship comms static variants publish");
+
+    require(playback.observeWwise(makeObservation(0x27A3CE98u, 0x25u)),
+        "first ship comms static variant routes from runtime game object");
+    const auto firstStaticMedia = std::get<1>(submissions.back());
+    require(std::get<3>(submissions.back()) == sds::SpeakerCategory::Comms,
+        "ship comms static carries Comms category");
+
+    require(playback.observeWwise(makeObservation(0x27A3CE98u, 0x73u)),
+        "second ship comms static variant routes without fixed game object");
+    const auto secondStaticMedia = std::get<1>(submissions.back());
+
+    require(playback.observeWwise(makeObservation(0x27A3CE98u, 0x25u)),
+        "third ship comms static variant routes");
+    const auto thirdStaticMedia = std::get<1>(submissions.back());
+
+    require(
+        firstStaticMedia != secondStaticMedia &&
+            firstStaticMedia != thirdStaticMedia &&
+            secondStaticMedia != thirdStaticMedia,
+        "ship comms static cycles through all three real authored WEM variants");
+
     // Override Rotate with two real prepared children and prove bounded variant selection.
     require(cache->publish({
         .eventId = 0x0A9F7EB0u,

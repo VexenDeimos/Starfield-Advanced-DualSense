@@ -42,7 +42,7 @@ int main()
     }};
 
     const auto catalog = sds::uiSpeakerCueDefinitions();
-    require(catalog.size() == 36u, "production UI speaker catalog contains 36 proven cues");
+    require(catalog.size() == 41u, "production speaker catalog contains 41 proven cues");
     for (std::size_t i = 0; i < legacyExpected.size(); ++i) {
         require(catalog[i].eventId == legacyExpected[i].first, "legacy UI cue preserves approved event order");
         require(catalog[i].expectedEventName == legacyExpected[i].second, "legacy UI cue preserves exact Wwise event name");
@@ -53,13 +53,15 @@ int main()
     std::size_t scanner = 0u;
     std::size_t digipick = 0u;
     std::size_t crafting = 0u;
+    std::size_t comms = 0u;
     for (const auto& def : catalog) {
-        if (def.category == sds::SpeakerCategory::ScannerUI) {
+        if (def.category == sds::SpeakerCategory::ScannerUI ||
+            def.eventId == 0x16C4E58Fu) {
             require(def.requiredGameObjectId == 0x3u,
-                "legacy ScannerUI cue keeps its proven game object 0x3");
+                "cue with runtime-proven game object keeps required object 0x3");
         } else {
             require(def.requiredGameObjectId == 0u,
-                "new Digipick/Crafting cue does not guess an unproven Wwise game object");
+                "cue without proven fixed game object remains unrestricted");
         }
         switch (def.category) {
         case sds::SpeakerCategory::ScannerUI:
@@ -71,16 +73,29 @@ int main()
         case sds::SpeakerCategory::Crafting:
             ++crafting;
             break;
+        case sds::SpeakerCategory::Comms:
+            ++comms;
+            break;
         default:
-            require(false, "production UI catalog contains only UI/Digipick/Crafting categories");
+            require(false, "production speaker catalog contains only approved controller-speaker categories");
         }
     }
-    require(scanner == 10u && digipick == 7u && crafting == 19u,
+    require(scanner == 10u && digipick == 11u && crafting == 19u && comms == 1u,
         "catalog category counts match runtime-proven scope");
     require(sds::findUiSpeakerCueDefinition(0xFFE19CA3u)->category == sds::SpeakerCategory::Digipick,
         "Digipick Select Shape is promoted as Digipick");
     require(sds::findUiSpeakerCueDefinition(0x653DEE01u)->category == sds::SpeakerCategory::Crafting,
         "Cooking menu open is promoted as Crafting");
+
+    const auto* commsStatic =
+        sds::findUiSpeakerCueDefinition(0x27A3CE98u);
+    require(
+        commsStatic &&
+            commsStatic->expectedEventName == "VOC_SFX_ShipComms_Static" &&
+            commsStatic->requiredGameObjectId == 0u &&
+            commsStatic->category == sds::SpeakerCategory::Comms,
+        "ship comms static is promoted as exact Comms event without fixed runtime game object");
+
     require(!sds::isPromotedUiSpeakerEvent(0x06D80D5Eu), "UIItemFocus remains unpromoted");
 
     sds::UiSpeakerPreparedCache cache;
@@ -105,8 +120,23 @@ int main()
     const auto preparedRotate = cache.find(0x0A9F7EB0u);
     require(preparedRotate && preparedRotate->variants.size() == 2u,
         "multi-WEM Digipick variants are retained atomically");
-    require(cache.stats().readyCues == 2u && cache.stats().catalogCues == 36u,
-        "UI cache readiness counts expanded exact catalog");
+
+    sds::PreparedUiSpeakerCue commsStaticCue{
+        .eventId = 0x27A3CE98u,
+        .eventName = "VOC_SFX_ShipComms_Static",
+        .variants = {
+            { .mediaId = 425592252u, .pcm = tiny(0.5F) },
+            { .mediaId = 448251717u, .pcm = tiny(0.6F) },
+            { .mediaId = 508024415u, .pcm = tiny(0.7F) },
+        },
+    };
+    require(cache.publish(commsStaticCue), "real three-WEM ship comms static cue publishes");
+    const auto preparedCommsStatic = cache.find(0x27A3CE98u);
+    require(preparedCommsStatic && preparedCommsStatic->variants.size() == 3u,
+        "three ship comms static variants are retained atomically");
+
+    require(cache.stats().readyCues == 3u && cache.stats().catalogCues == 41u,
+        "speaker cache readiness counts current 41-cue catalog");
 
     focus.eventName = "WrongName";
     require(!cache.publish(focus), "event-name mismatch is rejected");

@@ -104,9 +104,26 @@ void sds::ControllerSpeakerManager::applyLiveSettings(
         return;
     }
 
-    if (previous.controllerSpeaker &&
+    const bool clearForCommsDisabled =
+        previous.controllerSpeaker &&
         next.controllerSpeaker &&
-        previous.outputMode != next.outputMode) {
+        previous.speakerComms &&
+        !next.speakerComms;
+
+    const bool clearForOutputModeChange =
+        previous.controllerSpeaker &&
+        next.controllerSpeaker &&
+        previous.outputMode != next.outputMode;
+
+    const bool clearForVoiceLanguageChange =
+        previous.controllerSpeaker &&
+        next.controllerSpeaker &&
+        (previous.speakerComms || next.speakerComms) &&
+        previous.speakerVoiceLanguage != next.speakerVoiceLanguage;
+
+    if (clearForCommsDisabled ||
+        clearForOutputModeChange ||
+        clearForVoiceLanguageChange) {
         _backend->clearPlayback();
     }
 
@@ -117,6 +134,12 @@ sds::SpeakerOutputMode sds::ControllerSpeakerManager::outputMode() const noexcep
 {
     std::scoped_lock lock(_stateMutex);
     return _live.outputMode;
+}
+
+sds::SpeakerVoiceLanguage sds::ControllerSpeakerManager::voiceLanguage() const noexcept
+{
+    std::scoped_lock lock(_stateMutex);
+    return _live.speakerVoiceLanguage;
 }
 
 bool sds::ControllerSpeakerManager::categoryEnabled(SpeakerCategory category) const noexcept

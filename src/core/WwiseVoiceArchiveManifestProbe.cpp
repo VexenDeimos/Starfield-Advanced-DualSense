@@ -10,75 +10,185 @@
 namespace
 {
     constexpr std::string_view kArchiveSection = "Archive";
-    constexpr std::string_view kVoiceListKey = "sResourceEnglishVoiceList";
+    constexpr std::string_view kEnglishVoiceListKey = "sResourceEnglishVoiceList";
+    constexpr std::string_view kLocaleVoiceListKey = "sResourceLocaleVoiceList";
+
+    struct VoiceManifestSelection
+    {
+        std::string_view configFile;
+        std::string_view voiceListKey;
+    };
 
     [[nodiscard]] std::string trim(std::string value)
     {
-        const auto isSpace = [](unsigned char ch) { return std::isspace(ch) != 0; };
-        value.erase(value.begin(), std::find_if(value.begin(), value.end(), [&](char ch) {
-            return !isSpace(static_cast<unsigned char>(ch));
-        }));
-        value.erase(std::find_if(value.rbegin(), value.rend(), [&](char ch) {
-            return !isSpace(static_cast<unsigned char>(ch));
-        }).base(), value.end());
+        const auto isSpace = [](unsigned char ch) {
+            return std::isspace(ch) != 0;
+        };
+
+        value.erase(
+            value.begin(),
+            std::find_if(
+                value.begin(),
+                value.end(),
+                [&](char ch) {
+                    return !isSpace(
+                        static_cast<unsigned char>(ch));
+                }));
+
+        value.erase(
+            std::find_if(
+                value.rbegin(),
+                value.rend(),
+                [&](char ch) {
+                    return !isSpace(
+                        static_cast<unsigned char>(ch));
+                }).base(),
+            value.end());
+
         return value;
     }
 
-    [[nodiscard]] bool equalsIgnoreCase(std::string_view lhs, std::string_view rhs)
+    [[nodiscard]] bool equalsIgnoreCase(
+        std::string_view lhs,
+        std::string_view rhs)
     {
         if (lhs.size() != rhs.size()) {
             return false;
         }
+
         for (std::size_t i = 0; i < lhs.size(); ++i) {
-            const auto a = static_cast<unsigned char>(lhs[i]);
-            const auto b = static_cast<unsigned char>(rhs[i]);
+            const auto a =
+                static_cast<unsigned char>(lhs[i]);
+            const auto b =
+                static_cast<unsigned char>(rhs[i]);
+
             if (std::tolower(a) != std::tolower(b)) {
                 return false;
             }
         }
+
         return true;
     }
 
-    [[nodiscard]] std::vector<std::string> parseArchiveList(std::string_view value)
+    [[nodiscard]] std::vector<std::string> parseArchiveList(
+        std::string_view value)
     {
         std::vector<std::string> archives;
         std::size_t start = 0;
+
         while (start <= value.size()) {
-            const auto comma = value.find(',', start);
-            const auto end = comma == std::string_view::npos ? value.size() : comma;
-            auto archive = trim(std::string(value.substr(start, end - start)));
+            const auto comma =
+                value.find(',', start);
+
+            const auto end =
+                comma == std::string_view::npos
+                    ? value.size()
+                    : comma;
+
+            auto archive =
+                trim(std::string(
+                    value.substr(
+                        start,
+                        end - start)));
+
             if (!archive.empty()) {
-                archives.push_back(std::move(archive));
+                archives.push_back(
+                    std::move(archive));
             }
+
             if (comma == std::string_view::npos) {
                 break;
             }
+
             start = comma + 1;
         }
+
         return archives;
     }
 
-    [[nodiscard]] std::string narrow(std::wstring_view value)
+    [[nodiscard]] std::string narrow(
+        std::wstring_view value)
     {
         std::string out;
         out.reserve(value.size());
+
         for (const wchar_t ch : value) {
-            out.push_back(ch >= 0 && ch <= 0x7F ? static_cast<char>(ch) : '?');
+            out.push_back(
+                ch >= 0 && ch <= 0x7F
+                    ? static_cast<char>(ch)
+                    : '?');
         }
+
         return out;
     }
 
-    [[nodiscard]] std::string narrowPath(const std::filesystem::path& path)
+    [[nodiscard]] std::string narrowPath(
+        const std::filesystem::path& path)
     {
         return narrow(path.wstring());
     }
 
-    [[nodiscard]] std::uint32_t readU32Le(const std::array<unsigned char, 12>& bytes, std::size_t offset)
+    [[nodiscard]] std::uint32_t readU32Le(
+        const std::array<unsigned char, 12>& bytes,
+        std::size_t offset)
     {
-        return static_cast<std::uint32_t>(bytes[offset]) |
-            (static_cast<std::uint32_t>(bytes[offset + 1]) << 8U) |
-            (static_cast<std::uint32_t>(bytes[offset + 2]) << 16U) |
-            (static_cast<std::uint32_t>(bytes[offset + 3]) << 24U);
+        return
+            static_cast<std::uint32_t>(
+                bytes[offset]) |
+            (static_cast<std::uint32_t>(
+                bytes[offset + 1]) << 8U) |
+            (static_cast<std::uint32_t>(
+                bytes[offset + 2]) << 16U) |
+            (static_cast<std::uint32_t>(
+                bytes[offset + 3]) << 24U);
+    }
+
+    [[nodiscard]] sds::SpeakerVoiceLanguage normalizedProbeLanguage(
+        sds::SpeakerVoiceLanguage language) noexcept
+    {
+        if (language == sds::SpeakerVoiceLanguage::Auto) {
+            return sds::SpeakerVoiceLanguage::English;
+        }
+
+        return language;
+    }
+
+    [[nodiscard]] VoiceManifestSelection voiceManifestSelection(
+        sds::SpeakerVoiceLanguage language) noexcept
+    {
+        switch (language) {
+        case sds::SpeakerVoiceLanguage::French:
+            return {
+                "Starfield_fr.ini",
+                kLocaleVoiceListKey
+            };
+
+        case sds::SpeakerVoiceLanguage::German:
+            return {
+                "Starfield_de.ini",
+                kLocaleVoiceListKey
+            };
+
+        case sds::SpeakerVoiceLanguage::Spanish:
+            return {
+                "Starfield_es.ini",
+                kLocaleVoiceListKey
+            };
+
+        case sds::SpeakerVoiceLanguage::Japanese:
+            return {
+                "Starfield_ja.ini",
+                kLocaleVoiceListKey
+            };
+
+        case sds::SpeakerVoiceLanguage::Auto:
+        case sds::SpeakerVoiceLanguage::English:
+        default:
+            return {
+                "Starfield.ini",
+                kEnglishVoiceListKey
+            };
+        }
     }
 
     [[nodiscard]] sds::VoiceArchiveManifestEntry probeArchive(
@@ -90,114 +200,298 @@ namespace
         entry.path = dataRoot / entry.archiveName;
 
         std::error_code fsError{};
-        entry.exists = std::filesystem::exists(entry.path, fsError);
+
+        entry.exists =
+            std::filesystem::exists(
+                entry.path,
+                fsError);
+
         if (fsError) {
-            entry.error = "existence check failed";
+            entry.error =
+                "existence check failed";
             return entry;
         }
+
         if (!entry.exists) {
-            entry.error = "archive not found";
+            entry.error =
+                "archive not found";
             return entry;
         }
 
-        entry.fileSize = std::filesystem::file_size(entry.path, fsError);
+        entry.fileSize =
+            std::filesystem::file_size(
+                entry.path,
+                fsError);
+
         if (fsError) {
-            entry.error = "file size unavailable";
+            entry.error =
+                "file size unavailable";
             return entry;
         }
 
-        std::ifstream stream(entry.path, std::ios::binary);
+        std::ifstream stream(
+            entry.path,
+            std::ios::binary);
+
         if (!stream) {
-            entry.error = "open failed";
+            entry.error =
+                "open failed";
             return entry;
         }
+
         entry.openSucceeded = true;
 
         std::array<unsigned char, 12> header{};
-        stream.read(reinterpret_cast<char*>(header.data()), static_cast<std::streamsize>(header.size()));
-        if (stream.gcount() != static_cast<std::streamsize>(header.size())) {
-            entry.error = "header truncated";
+
+        stream.read(
+            reinterpret_cast<char*>(
+                header.data()),
+            static_cast<std::streamsize>(
+                header.size()));
+
+        if (stream.gcount() !=
+            static_cast<std::streamsize>(
+                header.size())) {
+            entry.error =
+                "header truncated";
             return entry;
         }
 
-        entry.magic.assign(reinterpret_cast<const char*>(header.data()), 4);
-        entry.version = readU32Le(header, 4);
-        entry.type.assign(reinterpret_cast<const char*>(header.data() + 8), 4);
-        entry.validBtdxHeader = entry.magic == "BTDX" && entry.type == "GNRL";
+        entry.magic.assign(
+            reinterpret_cast<const char*>(
+                header.data()),
+            4);
+
+        entry.version =
+            readU32Le(header, 4);
+
+        entry.type.assign(
+            reinterpret_cast<const char*>(
+                header.data() + 8),
+            4);
+
+        entry.validBtdxHeader =
+            entry.magic == "BTDX" &&
+            entry.type == "GNRL";
+
         if (!entry.validBtdxHeader) {
-            entry.error = "unexpected BA2 header";
+            entry.error =
+                "unexpected BA2 header";
         }
+
         return entry;
     }
 }
 
+std::string_view sds::speakerVoiceLanguageName(
+    SpeakerVoiceLanguage language) noexcept
+{
+    switch (language) {
+    case SpeakerVoiceLanguage::Auto:
+        return "Auto";
+    case SpeakerVoiceLanguage::French:
+        return "French";
+    case SpeakerVoiceLanguage::German:
+        return "German";
+    case SpeakerVoiceLanguage::Spanish:
+        return "Spanish";
+    case SpeakerVoiceLanguage::Japanese:
+        return "Japanese";
+    case SpeakerVoiceLanguage::English:
+    default:
+        return "English";
+    }
+}
+
+sds::SpeakerVoiceLanguage sds::speakerVoiceLanguageFromGameCode(
+    std::string_view gameLanguageCode) noexcept
+{
+    auto code =
+        trim(std::string(gameLanguageCode));
+
+    if (code.size() >= 2 &&
+        code.front() == '"' &&
+        code.back() == '"') {
+        code =
+            code.substr(
+                1,
+                code.size() - 2);
+    }
+
+    std::transform(
+        code.begin(),
+        code.end(),
+        code.begin(),
+        [](unsigned char ch) {
+            return static_cast<char>(
+                std::tolower(ch));
+        });
+
+    if (code == "fr") {
+        return SpeakerVoiceLanguage::French;
+    }
+
+    if (code == "de") {
+        return SpeakerVoiceLanguage::German;
+    }
+
+    if (code == "es") {
+        return SpeakerVoiceLanguage::Spanish;
+    }
+
+    if (code == "ja" ||
+        code == "jp") {
+        return SpeakerVoiceLanguage::Japanese;
+    }
+
+    return SpeakerVoiceLanguage::English;
+}
+
+sds::SpeakerVoiceLanguage sds::resolveAutoSpeakerVoiceLanguage(
+    bool useLocaleVoices,
+    std::string_view gameLanguageCode) noexcept
+{
+    if (!useLocaleVoices) {
+        return SpeakerVoiceLanguage::English;
+    }
+
+    return speakerVoiceLanguageFromGameCode(
+        gameLanguageCode);
+}
+
 sds::VoiceArchiveManifest sds::probeVoiceArchiveManifest(
     std::wstring_view capturedPath,
-    const std::filesystem::path& executablePath)
+    const std::filesystem::path& executablePath,
+    SpeakerVoiceLanguage language)
 {
     VoiceArchiveManifest manifest{};
-    manifest.capturedPath = std::wstring(capturedPath);
+    manifest.capturedPath =
+        std::wstring(capturedPath);
+
+    manifest.language =
+        normalizedProbeLanguage(language);
+
+    const auto selection =
+        voiceManifestSelection(
+            manifest.language);
+
+    manifest.voiceListKey =
+        std::string(
+            selection.voiceListKey);
 
     if (executablePath.empty()) {
-        manifest.error = "executable path unavailable";
+        manifest.error =
+            "executable path unavailable";
         return manifest;
     }
 
-    const auto installRoot = executablePath.parent_path();
-    manifest.configPath = installRoot / "Starfield.ini";
-    manifest.dataRoot = installRoot / "Data";
+    const auto installRoot =
+        executablePath.parent_path();
 
-    std::ifstream ini(manifest.configPath, std::ios::binary);
+    manifest.configPath =
+        installRoot /
+        selection.configFile;
+
+    manifest.dataRoot =
+        installRoot /
+        "Data";
+
+    std::ifstream ini(
+        manifest.configPath,
+        std::ios::binary);
+
     if (!ini) {
-        manifest.error = "Starfield.ini open failed";
+        manifest.error =
+            narrowPath(manifest.configPath) +
+            " open failed";
         return manifest;
     }
+
     manifest.configOpened = true;
 
     bool inArchiveSection = false;
     std::string line;
     std::vector<std::string> archives;
+
     while (std::getline(ini, line)) {
         auto text = trim(line);
-        if (text.empty() || text.front() == ';' || text.front() == '#') {
+
+        if (text.empty() ||
+            text.front() == ';' ||
+            text.front() == '#') {
             continue;
         }
 
-        if (text.front() == '[' && text.back() == ']') {
-            inArchiveSection = equalsIgnoreCase(trim(text.substr(1, text.size() - 2)), kArchiveSection);
+        if (text.front() == '[' &&
+            text.back() == ']') {
+            inArchiveSection =
+                equalsIgnoreCase(
+                    trim(
+                        text.substr(
+                            1,
+                            text.size() - 2)),
+                    kArchiveSection);
+
             continue;
         }
+
         if (!inArchiveSection) {
             continue;
         }
 
-        const auto equals = text.find('=');
+        const auto equals =
+            text.find('=');
+
         if (equals == std::string::npos) {
             continue;
         }
-        const auto key = trim(text.substr(0, equals));
-        if (!equalsIgnoreCase(key, kVoiceListKey)) {
+
+        const auto key =
+            trim(
+                text.substr(
+                    0,
+                    equals));
+
+        if (!equalsIgnoreCase(
+                key,
+                manifest.voiceListKey)) {
             continue;
         }
 
         manifest.voiceListFound = true;
-        archives = parseArchiveList(text.substr(equals + 1));
+
+        archives =
+            parseArchiveList(
+                text.substr(
+                    equals + 1));
+
         break;
     }
 
     if (!manifest.voiceListFound) {
-        manifest.error = "sResourceEnglishVoiceList not found";
-        return manifest;
-    }
-    if (archives.empty()) {
-        manifest.error = "sResourceEnglishVoiceList is empty";
+        manifest.error =
+            manifest.voiceListKey +
+            " not found";
         return manifest;
     }
 
-    manifest.entries.reserve(archives.size());
-    for (auto& archive : archives) {
-        manifest.entries.push_back(probeArchive(std::move(archive), manifest.dataRoot));
+    if (archives.empty()) {
+        manifest.error =
+            manifest.voiceListKey +
+            " is empty";
+        return manifest;
     }
+
+    manifest.entries.reserve(
+        archives.size());
+
+    for (auto& archive : archives) {
+        manifest.entries.push_back(
+            probeArchive(
+                std::move(archive),
+                manifest.dataRoot));
+    }
+
     return manifest;
 }
 
@@ -206,35 +500,85 @@ std::string sds::formatVoiceArchiveManifestContext(
     const VoiceArchiveManifest& manifest)
 {
     std::ostringstream out;
-    out << "Voice archive manifest probe: captured=\"" << narrow(capturedPath) << "\""
-        << " config=\"" << narrowPath(manifest.configPath) << "\""
-        << " key=" << kVoiceListKey
-        << " configOpened=" << (manifest.configOpened ? "yes" : "no")
-        << " keyFound=" << (manifest.voiceListFound ? "yes" : "no")
-        << " archives=" << manifest.entries.size();
+
+    out
+        << "Voice archive manifest probe: captured=\""
+        << narrow(capturedPath)
+        << "\""
+        << " language="
+        << speakerVoiceLanguageName(
+            manifest.language)
+        << " config=\""
+        << narrowPath(
+            manifest.configPath)
+        << "\""
+        << " key="
+        << manifest.voiceListKey
+        << " configOpened="
+        << (manifest.configOpened
+                ? "yes"
+                : "no")
+        << " keyFound="
+        << (manifest.voiceListFound
+                ? "yes"
+                : "no")
+        << " archives="
+        << manifest.entries.size();
+
     if (!manifest.error.empty()) {
-        out << " error=\"" << manifest.error << "\"";
+        out
+            << " error=\""
+            << manifest.error
+            << "\"";
     }
+
     return out.str();
 }
 
-std::string sds::formatVoiceArchiveManifestEntry(const VoiceArchiveManifestEntry& entry)
+std::string sds::formatVoiceArchiveManifestEntry(
+    const VoiceArchiveManifestEntry& entry)
 {
     std::ostringstream out;
-    out << "Voice archive manifest probe: archive=\"" << entry.archiveName << "\""
-        << " path=\"" << narrowPath(entry.path) << "\""
-        << " exists=" << (entry.exists ? "yes" : "no")
-        << " size=" << entry.fileSize
-        << " open=" << (entry.openSucceeded ? "success" : "failed");
 
-    if (entry.openSucceeded && !entry.magic.empty()) {
-        out << " magic=" << entry.magic
-            << " version=" << entry.version
-            << " type=" << entry.type
-            << " validHeader=" << (entry.validBtdxHeader ? "yes" : "no");
+    out
+        << "Voice archive manifest probe: archive=\""
+        << entry.archiveName
+        << "\""
+        << " path=\""
+        << narrowPath(entry.path)
+        << "\""
+        << " exists="
+        << (entry.exists
+                ? "yes"
+                : "no")
+        << " size="
+        << entry.fileSize
+        << " open="
+        << (entry.openSucceeded
+                ? "success"
+                : "failed");
+
+    if (entry.openSucceeded &&
+        !entry.magic.empty()) {
+        out
+            << " magic="
+            << entry.magic
+            << " version="
+            << entry.version
+            << " type="
+            << entry.type
+            << " validHeader="
+            << (entry.validBtdxHeader
+                    ? "yes"
+                    : "no");
     }
+
     if (!entry.error.empty()) {
-        out << " error=\"" << entry.error << "\"";
+        out
+            << " error=\""
+            << entry.error
+            << "\"";
     }
+
     return out.str();
 }

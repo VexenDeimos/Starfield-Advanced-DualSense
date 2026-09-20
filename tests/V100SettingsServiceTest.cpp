@@ -172,6 +172,21 @@ int main()
 
     expect(
         settings.setString(
+            "SpeakerVoiceLanguage",
+            "Spanish"),
+        "setString accepts Spanish SpeakerVoiceLanguage");
+
+    expect(
+        settings.current().speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Spanish,
+        "SpeakerVoiceLanguage changes to Spanish");
+
+    expect(
+        !settings.restartRequired(),
+        "speaker voice language remains live");
+
+    expect(
+        settings.setString(
             "OperatingMode",
             "ReconnectFixOnly"),
         "setString accepts ReconnectFixOnly");
@@ -225,6 +240,12 @@ int main()
             "SpeakerWeapons = false") !=
             std::string::npos,
         "existing bool updated in place");
+
+    expect(
+        saved.find(
+            "SpeakerVoiceLanguage = \"Spanish\"") !=
+            std::string::npos,
+        "missing SpeakerVoiceLanguage appended as Spanish");
 
     expect(
         countText(
@@ -317,6 +338,11 @@ int main()
         "saved SpeakerOutputMode reloads correctly");
 
     expect(
+        reloaded.current().speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Spanish,
+        "saved SpeakerVoiceLanguage reloads Spanish");
+
+    expect(
         !reloaded.setBool(
             "DefinitelyNotASetting",
             true),
@@ -355,6 +381,11 @@ int main()
         reloaded.current().speakerOutputMode ==
             sds::SpeakerOutputMode::Both,
         "reset restores speaker output Both");
+
+    expect(
+        reloaded.current().speakerVoiceLanguage ==
+            sds::SpeakerVoiceLanguage::Auto,
+        "reset restores speaker voice language Auto");
 
     std::filesystem::remove(path, ignored);
 

@@ -951,7 +951,7 @@ void sds::StarfieldAudioCapture::drainDiagnostics()
             .originalPlayingId = record.returnedPlayingId,
         };
 
-        if (_impl->sourceProbe && qualifiesRemoteVoCandidate(candidate, _impl->qualification)) {
+        if (_impl->sourceProbe && qualifiesRemoteCommsVoCandidate(candidate)) {
             const RemoteVoMirrorRequest readyRequest{
                 .eventId = record.eventId,
                 .externalCookie = record.externalCookie,

@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 25>
+    inline constexpr std::array<SettingDescriptor, 26>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -44,7 +44,8 @@ namespace sds
             { "SpeakerVolume", "Speaker Volume", "Controls the master DualSense controller-speaker volume.", SettingApplyMode::Live },
             { "SpeakerOutputMode", "Speaker Output Mode", "Choose how supported remote or radio voice is routed between normal audio and the controller speaker.", SettingApplyMode::Live },
 
-            { "SpeakerComms", "Comms Speaker Audio", "Play supported remote and radio communications through the controller speaker.", SettingApplyMode::Live },
+            { "SpeakerComms", "Radio / Comms Voice", "Play supported remote and radio communications through the controller speaker.", SettingApplyMode::Live },
+            { "SpeakerVoiceLanguage", "Radio / Comms Language", "Choose the language used for controller-speaker radio and communications. Auto is the default and follows Starfield's current supported voice language; explicit language choices override it.", SettingApplyMode::Live },
             { "SpeakerScannerUI", "Scanner / UI Speaker Audio", "Play supported scanner and interface sounds through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerWeapons", "Weapon Speaker Audio", "Play supported weapon sounds through the controller speaker in addition to normal game audio.", SettingApplyMode::Live },
             { "SpeakerWeaponsVolume", "Weapon Speaker Volume", "Controls controller-speaker volume for weapon sounds only.", SettingApplyMode::Live },

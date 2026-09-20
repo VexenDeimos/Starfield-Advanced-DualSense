@@ -78,7 +78,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.3.90";
+    constexpr std::string_view kVersion = "0.3.91";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -153,6 +153,53 @@ namespace
     std::atomic<float> g_musicHapticsStrength{ 1.0F };
     std::atomic<float> g_musicHapticsUserScale{ 1.0F };
     void musicHapticsClearAuthority() noexcept;
+
+    sds::SpeakerVoiceLanguage resolvedSpeakerVoiceLanguage() noexcept
+    {
+        const auto configured =
+            g_speakerManager ?
+                g_speakerManager->voiceLanguage() :
+                sds::SpeakerVoiceLanguage::English;
+
+        if (configured !=
+            sds::SpeakerVoiceLanguage::Auto) {
+            return configured;
+        }
+
+        try {
+            bool useLocaleVoices = false;
+
+            const auto* localeVoiceSetting =
+                RE::GetINISetting(
+                    "bUseLocaleVoices:Controls");
+
+            if (localeVoiceSetting &&
+                localeVoiceSetting->Is<bool>()) {
+                useLocaleVoices =
+                    localeVoiceSetting->GetBool();
+            }
+
+            if (!useLocaleVoices) {
+                return
+                    sds::SpeakerVoiceLanguage::English;
+            }
+
+            const auto* languageSetting =
+                RE::GetINISetting(
+                    "sLanguage:General");
+
+            if (languageSetting &&
+                languageSetting->Is<std::string_view>()) {
+                return
+                    sds::resolveAutoSpeakerVoiceLanguage(
+                        true,
+                        languageSetting->GetString());
+            }
+        } catch (...) {
+        }
+
+        return sds::SpeakerVoiceLanguage::English;
+    }
 
     void applyImmediateLiveSettings(const sds::Config& config) noexcept
     {
@@ -2686,8 +2733,8 @@ namespace
                 nativeLog);
             {
                 std::ostringstream line;
-                line << "UI/digipick/crafting speaker: ACTIVE cues=" << sds::uiSpeakerCueDefinitions().size()
-                     << " categories=ScannerUI+Digipick+Crafting gameObject=0x3"
+                line << "UI/digipick/crafting/comms speaker: ACTIVE cues=" << sds::uiSpeakerCueDefinitions().size()
+                     << " categories=ScannerUI+Digipick+Crafting+Comms gameObject=per-cue"
                      << " cadence=native-event variantPlayback=real-WEM-bounded-sequence preparation=background"
                      << " playback=additive normalGameAudio=untouched extraction=disabled";
                 pluginLog(line.str());
@@ -3270,8 +3317,19 @@ namespace
                 const bool rawOpened = probeCandidate(candidates.raw);
                 const bool dataRootOpened = probeCandidate(candidates.dataRoot);
                 if (!rawOpened && !dataRootOpened) {
-                    const auto manifest = sds::probeVoiceArchiveManifest(request.filePath, executablePath);
-                    nativeLog(sds::formatVoiceArchiveManifestContext(request.filePath, manifest));
+                    const auto voiceLanguage =
+                        resolvedSpeakerVoiceLanguage();
+
+                    const auto manifest =
+                        sds::probeVoiceArchiveManifest(
+                            request.filePath,
+                            executablePath,
+                            voiceLanguage);
+
+                    nativeLog(
+                        sds::formatVoiceArchiveManifestContext(
+                            request.filePath,
+                            manifest));
                     for (const auto& entry : manifest.entries) {
                         nativeLog(sds::formatVoiceArchiveManifestEntry(entry));
                         const auto indexProbe = sds::probeVoiceBa2Index(request.filePath, entry);
@@ -3452,7 +3510,18 @@ namespace
                             observation.when);
                     }
                     if (g_uiSpeakerPlayback) {
-                        (void)g_uiSpeakerPlayback->observeWwise(observation);
+                        const bool submitted =
+                            g_uiSpeakerPlayback->observeWwise(observation);
+
+                        if (submitted &&
+                            observation.eventId == 0x27A3CE98u &&
+                            g_speakerManager &&
+                            g_speakerManager->outputMode() ==
+                                sds::SpeakerOutputMode::ControllerOnly &&
+                            observation.returnedPlayingId != 0u) {
+                            (void)sds::stopWwisePlayingId(
+                                observation.returnedPlayingId);
+                        }
                     }
                     if (g_uiAudioDiscovery) {
                         (void)g_uiAudioDiscovery->observeWwise(observation);
@@ -3579,11 +3648,32 @@ namespace
                     const char* outputModeName = startupSpeakerOutputMode == sds::SpeakerOutputMode::ControllerOnly
                         ? "ControllerOnly"
                         : "Both";
+
+                    const auto configuredVoiceLanguage =
+                        g_speakerManager ?
+                            g_speakerManager->voiceLanguage() :
+                            sds::SpeakerVoiceLanguage::English;
+
+                    const auto resolvedVoiceLanguage =
+                        resolvedSpeakerVoiceLanguage();
+
+                    std::ostringstream voiceLanguageLine;
+                    voiceLanguageLine
+                        << "Voice archive language: configured="
+                        << sds::speakerVoiceLanguageName(
+                            configuredVoiceLanguage)
+                        << " resolved="
+                        << sds::speakerVoiceLanguageName(
+                            resolvedVoiceLanguage);
+
+                    pluginLog(
+                        voiceLanguageLine.str());
+
                     char activationLog[768]{};
                     std::snprintf(
                         activationLog,
                         sizeof(activationLog),
-                        "Voice Wwise Vorbis decode: v0.3.11 ACTIVE event=0x89E658E8 looseCandidates=raw,data-root archiveConfig=sResourceEnglishVoiceList ba2HeaderBytes=32 gnrlRecordBytes=36 nameTableLookup=enabled payloadRead=matched-uncompressed riffChunkScan=enabled fmtExtendedParse=enabled vorbisNewFmt30=enabled packetHeaderBytes=2 packetRebuild=enabled codebooks=aoTuV-6.03 decoder=stb_vorbis pcm=16bit continuous=yes decompression=disabled resample=44100-to-48000 playback=continuous-controller-speaker replaceActive=yes speakerOutputMode=%s controllerOnlyStop=post-submit-failsafe commsMakeup=+6dB commsLimiter=soft hardwareSpeakerVolume=0x64 hardwarePreamp=0x05 speakerVolumeScale=0.8-v0310max-1.0-plus25pct replay=disabled extraction=disabled loopback=disabled; trigger=remote/radio-voice-only",
+                        "Voice Wwise Vorbis decode: v0.3.11 ACTIVE event=0x89E658E8 looseCandidates=raw,data-root archiveConfig=language-aware ba2HeaderBytes=32 gnrlRecordBytes=36 nameTableLookup=enabled payloadRead=matched-uncompressed riffChunkScan=enabled fmtExtendedParse=enabled vorbisNewFmt30=enabled packetHeaderBytes=2 packetRebuild=enabled codebooks=aoTuV-6.03 decoder=stb_vorbis pcm=16bit continuous=yes decompression=disabled resample=44100-to-48000 playback=continuous-controller-speaker replaceActive=yes speakerOutputMode=%s controllerOnlyStop=post-submit-failsafe commsMakeup=+6dB commsLimiter=soft hardwareSpeakerVolume=0x64 hardwarePreamp=0x05 speakerVolumeScale=0.8-v0310max-1.0-plus25pct replay=disabled extraction=disabled loopback=disabled; trigger=remote/radio-voice-only",
                         outputModeName);
                     pluginLog(activationLog);
                 }

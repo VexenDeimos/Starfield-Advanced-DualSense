@@ -10,8 +10,6 @@ stop_cpp = (root / 'src/starfield/WwisePlayingIdStop.cpp').read_text()
 xmake = (root / 'xmake.lua').read_text()
 config_toml = (root / 'config/StarfieldDualSense.toml').read_text()
 
-assert '0.3.09-controller-only-remote-vo' in plugin
-assert 'set_version("0.3.9")' in xmake
 assert 'originalPlayingId' in capture_h
 assert '.originalPlayingId = record.returnedPlayingId' in capture_cpp
 assert 'RemoteVoOriginalOutputAction' in policy_h
@@ -20,13 +18,13 @@ assert 'stopWwisePlayingId' in stop_h and 'stopWwisePlayingId' in stop_cpp
 assert 'REL::ID{ 150360 }' in stop_cpp or 'REL::ID kAkStopVoiceID{ 150360 }' in stop_cpp
 assert '0x85, 0xD2, 0x74, 0x6C' in stop_cpp
 assert 'decideRemoteVoOriginalOutput' in plugin
-assert 'config.speakerOutputMode' in plugin
+assert 'g_speakerManager->outputMode()' in plugin
 assert 'originalPlayingId' in plugin
 assert 'originalOutput=' in plugin
 assert 'SpeakerOutputMode=Both' in plugin or 'outputMode=Both' in plugin or 'speakerOutputMode' in plugin
 assert 'SpeakerOutputMode=ControllerOnly' in plugin or 'outputMode=ControllerOnly' in plugin or 'speakerOutputMode' in plugin
 assert 'sds-remote-vo-output-policy-tests' in xmake
-assert 'SpeakerOutputMode = "Both"' in config_toml
+assert 'SpeakerOutputMode = "ControllerOnly"' in config_toml
 assert 'ControllerOnly' in config_toml and 'controller playback is accepted' in config_toml
 
-print('PASS v0.3.09 controller-only remote VO regression')
+print('PASS controller-only remote VO regression')

@@ -66,6 +66,44 @@ namespace
         return false;
     }
 
+    bool parseSpeakerVoiceLanguage(
+        std::string_view value,
+        sds::SpeakerVoiceLanguage& out)
+    {
+        value = trim(value);
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+            value.remove_prefix(1);
+            value.remove_suffix(1);
+        }
+
+        if (value == "English") {
+            out = sds::SpeakerVoiceLanguage::English;
+            return true;
+        }
+        if (value == "Auto") {
+            out = sds::SpeakerVoiceLanguage::Auto;
+            return true;
+        }
+        if (value == "French") {
+            out = sds::SpeakerVoiceLanguage::French;
+            return true;
+        }
+        if (value == "German") {
+            out = sds::SpeakerVoiceLanguage::German;
+            return true;
+        }
+        if (value == "Spanish") {
+            out = sds::SpeakerVoiceLanguage::Spanish;
+            return true;
+        }
+        if (value == "Japanese") {
+            out = sds::SpeakerVoiceLanguage::Japanese;
+            return true;
+        }
+
+        return false;
+    }
+
 
 }
 
@@ -130,6 +168,8 @@ sds::Config sds::loadConfig(std::string_view text)
             parseSpeakerOutputMode(value, config.speakerOutputMode);
         } else if (key == "SpeakerComms") {
             parseBool(value, config.speakerComms);
+        } else if (key == "SpeakerVoiceLanguage") {
+            parseSpeakerVoiceLanguage(value, config.speakerVoiceLanguage);
         } else if (key == "SpeakerScannerUI") {
             parseBool(value, config.speakerScannerUI);
         } else if (key == "SpeakerWeapons") {
