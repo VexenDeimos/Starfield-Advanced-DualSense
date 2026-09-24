@@ -1811,10 +1811,8 @@ if (connected && g_controller->bluetoothTransport()) {
                 std::shared_ptr<sds::WeaponSpeakerPreparedCache>{},
                 sds::makeRealWeaponAudioPipelineBackend(g_weaponAudioPipelineDataPath, startupOptions),
                 g_uiSpeakerPreparedCache);
-            // TEMP DIAGNOSTIC: isolate severe Bluetooth main-menu latency.
-            // Do not launch the early UI/audio preparation worker.
-            g_mainMenuUiAudioPipeline.reset();
-            pluginLog("Main-menu UI speaker prewarm: SKIPPED diagnostic=bluetooth-main-menu-lag");
+            g_mainMenuUiAudioPipeline->start();
+            pluginLog("Main-menu UI speaker prewarm: worker started cues=3 events=GeneralFocus,GeneralOK,GeneralCancel preparation=pre-PostDataLoad");
         } catch (const std::exception& exception) {
             pluginLog(std::string("Main-menu UI speaker prewarm: failed error=\"") + exception.what() + "\"");
         } catch (...) {
