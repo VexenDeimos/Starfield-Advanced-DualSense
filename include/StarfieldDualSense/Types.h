@@ -79,13 +79,42 @@ namespace sds
     {
         TouchPoint first{};
         TouchPoint second{};
+
+        std::uint8_t leftX{ 128 };
+        std::uint8_t leftY{ 128 };
+        std::uint8_t rightX{ 128 };
+        std::uint8_t rightY{ 128 };
+
         std::uint8_t l2{ 0 };
         std::uint8_t r2{ 0 };
+        std::uint8_t dpad{ 8 };
+
+        bool square{ false };
+        bool cross{ false };
+        bool circle{ false };
+        bool triangle{ false };
+
+        bool l1{ false };
+        bool r1{ false };
+        bool l2Button{ false };
         bool r2Button{ false };
-        bool click{ false };
+
         bool create{ false };
+        bool options{ false };
+        bool l3{ false };
+        bool r3{ false };
+
+        bool ps{ false };
+        bool click{ false };
+        bool mute{ false };
 
         friend constexpr bool operator==(const TouchState&, const TouchState&) = default;
+    };
+
+    struct ControllerInputSnapshot
+    {
+        TouchState state{};
+        std::uint64_t generation{ 0 };
     };
 
     enum class TouchGesture : std::uint8_t
@@ -97,6 +126,7 @@ namespace sds
         SwipeRight,
         SwipeUp,
         SwipeDown,
+        LeftClick,
         RightClick,
         RightHold,
         CreatePressed
@@ -110,7 +140,8 @@ namespace sds
         OpenSkills,
         OpenMap,
         OpenPowers,
-        OpenPhotoMode
+        OpenPhotoMode,
+        TogglePOV
     };
 
     enum class GameEventType : std::uint8_t

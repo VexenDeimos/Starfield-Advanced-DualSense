@@ -93,6 +93,10 @@ namespace sds
         [[nodiscard]] bool landVehicleReconCorrelationArmed() const noexcept { return _landVehicleCorrelationArmed.load(std::memory_order_acquire); }
         [[nodiscard]] bool queueNativeInputAction(InputAction action) noexcept;
         void pollNativeInputInjection() noexcept;
+        void dispatchBluetoothPhysicalInput(
+            const TouchState& state,
+            float deltaSeconds) noexcept;
+        void resetBluetoothPhysicalInput() noexcept;
 
         RE::BSEventNotifyControl ProcessEvent(
             const RE::ActorItemEquipped::Event& event,

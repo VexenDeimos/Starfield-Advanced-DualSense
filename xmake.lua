@@ -56,6 +56,7 @@ local core_sources = {
     "src/core/SemanticInputInjection.cpp",
     "src/core/Touchpad.cpp",
     "src/core/DualSenseReports.cpp",
+    "src/core/BluetoothDualSenseReports.cpp",
     "src/core/HapticsEngine.cpp",
     "src/core/HapticWaveforms.cpp",
     "src/core/HapticMixer.cpp",
@@ -1768,6 +1769,8 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             "src/windows/DualSenseAudioHapticsClient.cpp",
             "src/windows/DualSenseAudioSpeakerClient.cpp",
             "src/windows/NativeUsbBackend.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/windows/NativeDualSenseBackend.cpp",
             "src/windows/HidWriteTrace.cpp",
             "src/starfield/GameStateAdapter.cpp",
             "src/starfield/StarfieldAudioCapture.cpp",
@@ -2219,3 +2222,123 @@ target("sds-v100-digipick-undo-speaker-tests", function()
         "src/core/UiSpeakerPreparedCache.cpp",
         "src/core/UiSpeakerPlayback.cpp")
 end)
+
+target("sds-bluetooth-report-tests", function()
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_includedirs("include")
+    add_files(
+        "tests/BluetoothDualSenseReportsTest.cpp",
+        "src/core/BluetoothDualSenseReports.cpp",
+        "src/core/DualSenseReports.cpp")
+end)
+
+
+target("sds-bluetooth-input-tests", function()
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_includedirs("include")
+    add_files(
+        "tests/BluetoothTouchpadTest.cpp",
+        "src/core/Touchpad.cpp")
+end)
+
+
+if is_plat("windows") then
+    target("sds-bluetooth-backend-compile-tests", function()
+        set_kind("binary")
+        set_default(false)
+        set_languages("c++23")
+        add_includedirs("include")
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("hid", "setupapi")
+        add_files(
+            "tests/NativeBluetoothBackendCompileTest.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/core/BluetoothDualSenseReports.cpp",
+            "src/core/DualSenseReports.cpp",
+            "src/core/DeviceClassifier.cpp",
+            "src/core/Touchpad.cpp")
+    end)
+end
+
+
+if is_plat("windows") then
+    target("sds-native-dualsense-backend-compile-tests", function()
+        set_kind("binary")
+        set_default(false)
+        set_languages("c++23")
+        add_includedirs("include")
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("hid", "setupapi")
+        add_files(
+            "tests/NativeDualSenseBackendCompileTest.cpp",
+            "src/windows/NativeDualSenseBackend.cpp",
+            "src/windows/NativeUsbBackend.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/windows/HidWriteTrace.cpp",
+            "src/core/BluetoothDualSenseReports.cpp",
+            "src/core/DualSenseReports.cpp",
+            "src/core/DeviceClassifier.cpp",
+            "src/core/Touchpad.cpp")
+    end)
+end
+
+
+if is_plat("windows") then
+    target("sds-bluetooth-backend-hardware-test", function()
+        set_kind("binary")
+        set_default(false)
+        set_languages("c++23")
+        add_includedirs("include")
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("hid", "setupapi")
+        add_files(
+            "tests/BluetoothBackendHardwareTest.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/core/BluetoothDualSenseReports.cpp",
+            "src/core/DualSenseReports.cpp",
+            "src/core/DeviceClassifier.cpp",
+            "src/core/Touchpad.cpp")
+    end)
+end
+
+
+if is_plat("windows") then
+    target("sds-bluetooth-backend-input-hardware-test", function()
+        set_kind("binary")
+        set_default(false)
+        set_languages("c++23")
+        add_includedirs("include")
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("hid", "setupapi")
+        add_files(
+            "tests/BluetoothBackendInputHardwareTest.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/core/BluetoothDualSenseReports.cpp",
+            "src/core/DualSenseReports.cpp",
+            "src/core/DeviceClassifier.cpp",
+            "src/core/Touchpad.cpp")
+    end)
+end
+
+
+if is_plat("windows") then
+    target("sds-bluetooth-backend-reconnect-hardware-test", function()
+        set_kind("binary")
+        set_default(false)
+        set_languages("c++23")
+        add_includedirs("include")
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("hid", "setupapi")
+        add_files(
+            "tests/BluetoothBackendReconnectHardwareTest.cpp",
+            "src/windows/NativeBluetoothBackend.cpp",
+            "src/core/BluetoothDualSenseReports.cpp",
+            "src/core/DualSenseReports.cpp",
+            "src/core/DeviceClassifier.cpp",
+            "src/core/Touchpad.cpp")
+    end)
+end

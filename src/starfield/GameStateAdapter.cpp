@@ -1999,6 +1999,13 @@ __declspec(noinline) void sds::GameStateAdapter::semanticBroadcasterDiagnosticTh
     }
 }
 
+namespace
+{
+    // Bluetooth physical-event bridge state must be visible to the
+    // semantic observer, which appears earlier in this translation unit
+    // than the rest of the Bluetooth bridge implementation.
+    std::atomic_bool g_bluetoothPhysicalBridgeActive{ false };
+}
 void sds::GameStateAdapter::observeSemanticButton(
     void* source,
     void* event,
@@ -2009,6 +2016,286 @@ void sds::GameStateAdapter::observeSemanticButton(
     }
 
     try {
+        // Bluetooth bridge correction:
+        //
+        // Without a native Starfield gamepad delegate, Starfield currently
+        // resolves physical stick id 12 as "Cursor". The actual native
+        // Native DualSense mapping for id 12 is "Look".
+        //
+        // Restrict this correction to SAD's Bluetooth physical bridge so
+        // normal USB/native controller processing is never modified.
+        if (g_bluetoothPhysicalBridgeActive.load(
+                std::memory_order_acquire)) {
+
+            const auto btCorrectionAddress =
+                reinterpret_cast<std::uintptr_t>(event);
+
+            std::uint32_t btCorrectionDevice =
+                static_cast<std::uint32_t>(-1);
+
+            std::uint32_t btCorrectionType =
+                static_cast<std::uint32_t>(-1);
+
+            if (safeReadValue(
+                    btCorrectionAddress + 0x08,
+                    btCorrectionDevice) &&
+                safeReadValue(
+                    btCorrectionAddress + 0x10,
+                    btCorrectionType) &&
+                btCorrectionDevice ==
+                    static_cast<std::uint32_t>(
+                        RE::InputEvent::DeviceType::kGamepad) &&
+                btCorrectionType ==
+                    static_cast<std::uint32_t>(
+                        RE::InputEvent::EventType::kThumbstick)) {
+
+                std::int32_t btCorrectionId = -1;
+
+                std::memcpy(
+                    &btCorrectionId,
+                    reinterpret_cast<const std::uint8_t*>(event) + 0x30,
+                    sizeof(btCorrectionId));
+
+                if (btCorrectionId == 12) {
+                    auto* btCorrectionUserEvent =
+                        reinterpret_cast<RE::BSFixedString*>(
+                            reinterpret_cast<std::uint8_t*>(event) +
+                            0x28);
+
+                    const char* currentUserEvent =
+                        btCorrectionUserEvent->c_str();
+
+                    if (currentUserEvent &&
+                        std::string_view(currentUserEvent) == "Cursor") {
+
+                        *btCorrectionUserEvent =
+                            RE::BSFixedString("Look");
+
+                        auto* btCorrectionInputEvent =
+                            reinterpret_cast<RE::InputEvent*>(event);
+
+                        btCorrectionInputEvent->status =
+                            RE::InputEvent::Status::kContinue;
+
+                        static std::atomic_bool correctionLogged{
+                            false
+                        };
+
+                        if (!correctionLogged.exchange(
+                                true,
+                                std::memory_order_acq_rel)) {
+                            log(
+                                "Bluetooth right-stick correction: "
+                                "Cursor -> Look idCode=12 status=Continue");
+                        }
+                    }
+                }
+            }
+        }
+        // TEMP DIAGNOSTIC: verify Bluetooth physical right-stick events
+        // survive Starfield's physical -> semantic mapping boundary.
+        {
+            const auto btEventAddress =
+                reinterpret_cast<std::uintptr_t>(event);
+
+            std::uint32_t btDeviceType =
+                static_cast<std::uint32_t>(-1);
+
+            std::uint32_t btEventType =
+                static_cast<std::uint32_t>(-1);
+
+            if (safeReadValue(
+                    btEventAddress + 0x08,
+                    btDeviceType) &&
+                safeReadValue(
+                    btEventAddress + 0x10,
+                    btEventType) &&
+                btDeviceType ==
+                    static_cast<std::uint32_t>(
+                        RE::InputEvent::DeviceType::kGamepad) &&
+                btEventType ==
+                    static_cast<std::uint32_t>(
+                        RE::InputEvent::EventType::kThumbstick)) {
+
+                std::int32_t btStickId = -1;
+                float btStickX = 0.0F;
+                float btStickY = 0.0F;
+
+                std::memcpy(
+                    &btStickId,
+                    reinterpret_cast<const std::uint8_t*>(event) + 0x30,
+                    sizeof(btStickId));
+
+                if (btStickId == 12) {
+                    std::memcpy(
+                        &btStickX,
+                        reinterpret_cast<const std::uint8_t*>(event) + 0x38,
+                        sizeof(btStickX));
+
+                    std::memcpy(
+                        &btStickY,
+                        reinterpret_cast<const std::uint8_t*>(event) + 0x3C,
+                        sizeof(btStickY));
+
+                    static std::atomic<std::uint32_t>
+                        btRightStickSemanticCount{ 0 };
+
+                    const auto btCaptureIndex =
+                        btRightStickSemanticCount.fetch_add(
+                            1,
+                            std::memory_order_relaxed);
+
+                    if (btCaptureIndex < 32) {
+                        const auto* btUserEventField =
+                            reinterpret_cast<const RE::BSFixedString*>(
+                                reinterpret_cast<const std::uint8_t*>(event) +
+                                0x28);
+
+                        const char* btUserEvent =
+                            btUserEventField->c_str();
+
+                        std::ostringstream btLine;
+                        btLine
+                            << "Bluetooth right-stick semantic:"
+                            << " index=" << btCaptureIndex
+                            << " idCode=" << btStickId
+                            << " userEvent='"
+                            << (btUserEvent ? btUserEvent : "")
+                            << "' x="
+                            << std::fixed << std::setprecision(4)
+                            << btStickX
+                            << " y=" << btStickY;
+
+                        log(btLine.str());
+                    }
+                }
+            }
+        }
+        // TEMP DIAGNOSTIC: full native ThumbstickEvent ABI capture.
+        // Reads the complete observed 0x48-byte native pool slot and logs
+        // only materially deflected, direction-distinct gamepad stick events.
+        {
+            static std::atomic<std::uint32_t> thumbstickCaptureCount{ 0 };
+            static std::array<std::atomic<int>, 64> lastThumbSignatures{};
+
+            const auto thumbEventAddress = reinterpret_cast<std::uintptr_t>(event);
+            std::uint32_t thumbDeviceType = static_cast<std::uint32_t>(-1);
+            std::uint32_t thumbEventType = static_cast<std::uint32_t>(-1);
+
+            if (safeReadValue(thumbEventAddress + 0x08, thumbDeviceType) &&
+                safeReadValue(thumbEventAddress + 0x10, thumbEventType) &&
+                thumbDeviceType ==
+                    static_cast<std::uint32_t>(RE::InputEvent::DeviceType::kGamepad) &&
+                thumbEventType ==
+                    static_cast<std::uint32_t>(RE::InputEvent::EventType::kThumbstick)) {
+
+                std::array<std::uint8_t, 0x48> raw{};
+                SIZE_T bytesRead = 0;
+                const bool readable = ::ReadProcessMemory(
+                    ::GetCurrentProcess(),
+                    reinterpret_cast<const void*>(thumbEventAddress),
+                    raw.data(),
+                    raw.size(),
+                    &bytesRead) != FALSE &&
+                    bytesRead == raw.size();
+
+                if (readable) {
+                    std::int32_t idCode = -1;
+                    float f38 = 0.0F;
+                    float f3C = 0.0F;
+                    float f40 = 0.0F;
+                    float f44 = 0.0F;
+
+                    std::memcpy(&idCode, raw.data() + 0x30, sizeof(idCode));
+                    std::memcpy(&f38, raw.data() + 0x38, sizeof(f38));
+                    std::memcpy(&f3C, raw.data() + 0x3C, sizeof(f3C));
+                    std::memcpy(&f40, raw.data() + 0x40, sizeof(f40));
+                    std::memcpy(&f44, raw.data() + 0x44, sizeof(f44));
+
+                    const auto bucket = [](float value) noexcept -> int {
+                        if (!std::isfinite(value)) {
+                            return 0;
+                        }
+                        if (value >= 0.70F) {
+                            return 1;
+                        }
+                        if (value <= -0.70F) {
+                            return -1;
+                        }
+                        return 0;
+                    };
+
+                    const int b38 = bucket(f38);
+                    const int b3C = bucket(f3C);
+                    const int b40 = bucket(f40);
+                    const int b44 = bucket(f44);
+
+                    const bool materiallyDeflected =
+                        b38 != 0 || b3C != 0 || b40 != 0 || b44 != 0;
+
+                    if (materiallyDeflected) {
+                        const int signature =
+                            (b38 + 1) |
+                            ((b3C + 1) << 2) |
+                            ((b40 + 1) << 4) |
+                            ((b44 + 1) << 6);
+
+                        const std::size_t signatureSlot =
+                            idCode >= 0 && idCode <
+                                    static_cast<std::int32_t>(lastThumbSignatures.size())
+                                ? static_cast<std::size_t>(idCode)
+                                : lastThumbSignatures.size() - 1;
+
+                        const int previousSignature =
+                            lastThumbSignatures[signatureSlot].exchange(
+                                signature, std::memory_order_relaxed);
+
+                        if (signature != previousSignature) {
+                            const auto captureIndex =
+                                thumbstickCaptureCount.fetch_add(
+                                    1, std::memory_order_relaxed);
+
+                            if (captureIndex < 64) {
+                                std::ostringstream out;
+                                out << "Thumbstick ABI recon v2: index="
+                                    << captureIndex
+                                    << " event=0x"
+                                    << std::hex << std::uppercase
+                                    << thumbEventAddress
+                                    << std::dec
+                                    << " device=" << thumbDeviceType
+                                    << " eventType=" << thumbEventType
+                                    << " idCode=" << idCode
+                                    << std::fixed << std::setprecision(6)
+                                    << " f38=" << f38
+                                    << " f3C=" << f3C
+                                    << " f40=" << f40
+                                    << " f44=" << f44
+                                    << " buckets="
+                                    << b38 << ','
+                                    << b3C << ','
+                                    << b40 << ','
+                                    << b44
+                                    << " raw=";
+
+                                out << std::hex << std::uppercase
+                                    << std::setfill('0');
+                                for (std::size_t i = 0; i < raw.size(); ++i) {
+                                    if (i != 0) {
+                                        out << ' ';
+                                    }
+                                    out << std::setw(2)
+                                        << static_cast<unsigned int>(raw[i]);
+                                }
+
+                                log(out.str());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         const auto moduleBase = g_starfieldModuleBase.load(std::memory_order_acquire);
         if (!moduleBase) {
             return;
@@ -2190,6 +2477,426 @@ bool sds::GameStateAdapter::queueNativeInputAction(InputAction action) noexcept
     return true;
 }
 
+namespace
+{
+    struct BluetoothPhysicalButtonRuntime
+    {
+        bool down{ false };
+        float heldSeconds{ 0.0F };
+    };
+
+    struct BluetoothPhysicalBridgeRuntime
+    {
+        std::array<BluetoothPhysicalButtonRuntime, 16> buttons{};
+
+        float leftX{ 0.0F };
+        float leftY{ 0.0F };
+        float rightX{ 0.0F };
+        float rightY{ 0.0F };
+
+        std::uint8_t leftDirection{ 0 };
+        std::uint8_t rightDirection{ 0 };
+    };
+
+    BluetoothPhysicalBridgeRuntime g_bluetoothPhysicalBridgeRuntime{};
+
+    struct BluetoothStickValue
+    {
+        float x{ 0.0F };
+        float y{ 0.0F };
+    };
+
+    [[nodiscard]] float bluetoothRawAxis(
+        std::uint8_t raw,
+        bool invert) noexcept
+    {
+        float value =
+            (static_cast<float>(raw) / 255.0F) * 2.0F - 1.0F;
+
+        if (invert) {
+            value = -value;
+        }
+
+        if (value > 1.0F) {
+            value = 1.0F;
+        } else if (value < -1.0F) {
+            value = -1.0F;
+        }
+
+        return value;
+    }
+
+    [[nodiscard]] BluetoothStickValue bluetoothStickValue(
+        std::uint8_t rawX,
+        std::uint8_t rawY) noexcept
+    {
+        float x = bluetoothRawAxis(rawX, false);
+        float y = bluetoothRawAxis(rawY, true);
+
+        const float magnitude = std::sqrt(x * x + y * y);
+
+        // Conservative radial deadzone. The native DualSense path performs its
+        // own radial shaping before constructing ThumbstickEvent; this keeps
+        // Bluetooth centered while retaining the same -1..+1 convention.
+        constexpr float kDeadzone = 0.10F;
+
+        if (magnitude <= kDeadzone) {
+            return {};
+        }
+
+        const float clampedMagnitude =
+            magnitude > 1.0F ? 1.0F : magnitude;
+
+        const float scaledMagnitude =
+            (clampedMagnitude - kDeadzone) /
+            (1.0F - kDeadzone);
+
+        const float scale =
+            magnitude > 0.0F ?
+                scaledMagnitude / magnitude :
+                0.0F;
+
+        return {
+            .x = x * scale,
+            .y = y * scale,
+        };
+    }
+
+    [[nodiscard]] std::uint8_t bluetoothStickDirection(
+        float x,
+        float y) noexcept
+    {
+        constexpr float kDirectionEpsilon = 0.0001F;
+
+        if (std::fabs(x) <= kDirectionEpsilon &&
+            std::fabs(y) <= kDirectionEpsilon) {
+            return 0;
+        }
+
+        if (std::fabs(x) >= std::fabs(y)) {
+            return x >= 0.0F ? 2 : 4;  // right / left
+        }
+
+        return y >= 0.0F ? 1 : 3;      // up / down
+    }
+
+    [[nodiscard]] bool bluetoothDpadUp(std::uint8_t hat) noexcept
+    {
+        return hat == 0 || hat == 1 || hat == 7;
+    }
+
+    [[nodiscard]] bool bluetoothDpadRight(std::uint8_t hat) noexcept
+    {
+        return hat == 1 || hat == 2 || hat == 3;
+    }
+
+    [[nodiscard]] bool bluetoothDpadDown(std::uint8_t hat) noexcept
+    {
+        return hat == 3 || hat == 4 || hat == 5;
+    }
+
+    [[nodiscard]] bool bluetoothDpadLeft(std::uint8_t hat) noexcept
+    {
+        return hat == 5 || hat == 6 || hat == 7;
+    }
+}
+
+void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
+    const TouchState& state,
+    float deltaSeconds) noexcept
+{
+    try {
+        g_bluetoothPhysicalBridgeActive.store(
+            true,
+            std::memory_order_release);
+        if (deltaSeconds < 0.0F) {
+            deltaSeconds = 0.0F;
+        } else if (deltaSeconds > 0.100F) {
+            deltaSeconds = 0.100F;
+        }
+
+        const auto moduleBase =
+            g_starfieldModuleBase.load(std::memory_order_acquire);
+
+        if (!moduleBase) {
+            return;
+        }
+
+        std::uintptr_t manager = 0;
+        if (!safeReadValue(
+                moduleBase + kInputQueueSingletonRva,
+                manager) ||
+            manager < 0x10000u) {
+            return;
+        }
+
+        auto emitButton =
+            [this, deltaSeconds](
+                std::size_t stateIndex,
+                std::int32_t idCode,
+                float currentValue) noexcept -> bool
+        {
+            auto& runtime =
+                g_bluetoothPhysicalBridgeRuntime.buttons[stateIndex];
+
+            if (currentValue < 0.0F) {
+                currentValue = 0.0F;
+            } else if (currentValue > 1.0F) {
+                currentValue = 1.0F;
+            }
+
+            constexpr float kActiveThreshold = 0.0001F;
+
+            const bool currentDown =
+                currentValue > kActiveThreshold;
+            const bool previousDown =
+                runtime.down;
+
+            if (!currentDown && !previousDown) {
+                runtime.heldSeconds = 0.0F;
+                return true;
+            }
+
+            const float previousHeld =
+                runtime.heldSeconds;
+
+            float currentHeld = previousHeld;
+
+            if (currentDown) {
+                if (previousDown) {
+                    currentHeld += deltaSeconds;
+                } else {
+                    currentHeld = 0.0F;
+                }
+            }
+
+            NativeInputEmission emission{};
+            emission.edge =
+                currentDown ?
+                    NativeInputEdge::Press :
+                    NativeInputEdge::Release;
+            emission.deviceType = 2;
+            emission.deviceId = 0;
+            emission.eventType = 0;
+            emission.status = 0;
+            emission.idCode = idCode;
+
+            // Empty semantic name is intentional: this is a physical gamepad
+            // event. Starfield performs the mapping/context resolution after
+            // native enqueue, exactly as it does for its own gamepad producer.
+            emission.userEvent = "";
+            emission.disabled = false;
+            emission.value = currentValue;
+            emission.heldDownSecs =
+                currentDown ? currentHeld : previousHeld;
+            emission.previousHeldDownSecs = previousHeld;
+            emission.stepIndex = 0;
+
+            if (!dispatchNativeInputFrame(emission)) {
+                return false;
+            }
+
+            runtime.down = currentDown;
+            runtime.heldSeconds =
+                currentDown ? currentHeld : 0.0F;
+
+            return true;
+        };
+
+        // Starfield native DualSense/ScePad digital ButtonEvent ids.
+        //
+        // Reconstructed directly from BSPCDualSenseGamepadDevice::slot2:
+        // its 13-entry table is tested against current/previous ScePad
+        // state and the same value is passed through Starfield+0x22FC220
+        // / +0x22FC2A0 into Starfield+0x22DA4A0, which stores R9D
+        // directly at ButtonEvent+0x30 (idCode).
+        //
+        // Create is intentionally absent: Starfield's native DualSense
+        // digital loop has 13 entries and SAD already handles Create
+        // independently through CreatePressed -> Photo Mode.
+        (void)emitButton(
+            0,
+            0x0010,
+            bluetoothDpadUp(state.dpad) ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            1,
+            0x0040,
+            bluetoothDpadDown(state.dpad) ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            2,
+            0x0080,
+            bluetoothDpadLeft(state.dpad) ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            3,
+            0x0020,
+            bluetoothDpadRight(state.dpad) ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            4,
+            0x0008,
+            state.options ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            5,
+            0x0002,
+            state.l3 ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            6,
+            0x0004,
+            state.r3 ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            7,
+            0x0400,
+            state.l1 ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            8,
+            0x0800,
+            state.r1 ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            9,
+            0x4000,
+            state.cross ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            10,
+            0x2000,
+            state.circle ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            11,
+            0x8000,
+            state.square ? 1.0F : 0.0F);
+
+        (void)emitButton(
+            12,
+            0x1000,
+            state.triangle ? 1.0F : 0.0F);
+
+        const float leftTrigger =
+            state.l2 <= 2 ?
+                0.0F :
+                static_cast<float>(state.l2) / 255.0F;
+
+        const float rightTrigger =
+            state.r2 <= 2 ?
+                0.0F :
+                static_cast<float>(state.r2) / 255.0F;
+
+        // Native physical trigger ids proven by the Starfield gamepad path.
+        (void)emitButton(14, 9, leftTrigger);
+        (void)emitButton(15, 10, rightTrigger);
+
+        using NativeThumbstickProducer = void (*)(
+            void* manager,
+            std::uint32_t deviceId,
+            std::uint8_t idCode,
+            float x,
+            float y,
+            std::uint8_t previousDirection,
+            std::uint8_t currentDirection);
+
+        constexpr std::uintptr_t kNativeThumbstickProducerRva =
+            0x22DA530u;
+
+        const auto produceThumbstick =
+            reinterpret_cast<NativeThumbstickProducer>(
+                moduleBase + kNativeThumbstickProducerRva);
+
+        const auto left =
+            bluetoothStickValue(
+                state.leftX,
+                state.leftY);
+
+        const auto right =
+            bluetoothStickValue(
+                state.rightX,
+                state.rightY);
+
+        auto emitStick =
+            [&](std::uint8_t idCode,
+                float x,
+                float y,
+                float& previousX,
+                float& previousY,
+                std::uint8_t& previousDirection) noexcept
+        {
+            constexpr float kActiveThreshold = 0.0001F;
+
+            const bool currentActive =
+                std::fabs(x) > kActiveThreshold ||
+                std::fabs(y) > kActiveThreshold;
+
+            const bool previousActive =
+                std::fabs(previousX) > kActiveThreshold ||
+                std::fabs(previousY) > kActiveThreshold;
+
+            if (!currentActive && !previousActive) {
+                previousDirection = 0;
+                previousX = 0.0F;
+                previousY = 0.0F;
+                return;
+            }
+
+            const auto currentDirection =
+                bluetoothStickDirection(x, y);
+
+            produceThumbstick(
+                reinterpret_cast<void*>(manager),
+                0,
+                idCode,
+                x,
+                y,
+                previousDirection,
+                currentDirection);
+
+            previousX = x;
+            previousY = y;
+            previousDirection = currentDirection;
+        };
+
+        emitStick(
+            11,
+            left.x,
+            left.y,
+            g_bluetoothPhysicalBridgeRuntime.leftX,
+            g_bluetoothPhysicalBridgeRuntime.leftY,
+            g_bluetoothPhysicalBridgeRuntime.leftDirection);
+
+        emitStick(
+            12,
+            right.x,
+            right.y,
+            g_bluetoothPhysicalBridgeRuntime.rightX,
+            g_bluetoothPhysicalBridgeRuntime.rightY,
+            g_bluetoothPhysicalBridgeRuntime.rightDirection);
+    } catch (...) {
+        log(
+            "Bluetooth gameplay input bridge: exception while dispatching physical state");
+    }
+}
+
+void sds::GameStateAdapter::resetBluetoothPhysicalInput() noexcept
+{
+    TouchState neutral{};
+
+    // One neutral frame releases any physical buttons/triggers and recenters
+    // both native ThumbstickEvent streams before local state is forgotten.
+    dispatchBluetoothPhysicalInput(neutral, 0.0F);
+
+    g_bluetoothPhysicalBridgeRuntime =
+        BluetoothPhysicalBridgeRuntime{};
+
+    g_bluetoothPhysicalBridgeActive.store(
+        false,
+        std::memory_order_release);
+}
 void sds::GameStateAdapter::pollNativeInputInjection() noexcept
 {
     const auto now = std::chrono::steady_clock::now();
@@ -2425,6 +3132,13 @@ bool sds::GameStateAdapter::dispatchNativeInputFrame(
             (reservedEventAddress - poolBase) / kNativeButtonSlotSize);
         const auto eventAddress = reservedEventAddress;
         reservedEventAddress = 0;
+
+        // Physical Bluetooth bridge events intentionally enter Starfield with
+        // an empty semantic string. Starfield resolves the physical idCode
+        // downstream. Do not flood the log for held physical controls.
+        if (emission.userEvent.empty()) {
+            return true;
+        }
 
         char buffer[448]{};
         std::snprintf(

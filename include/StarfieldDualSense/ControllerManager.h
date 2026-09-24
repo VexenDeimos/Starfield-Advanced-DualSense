@@ -51,7 +51,9 @@ namespace sds
         void setControllerSpeakerRoutingEnabled(bool enabled) noexcept;
         [[nodiscard]] bool enqueue(GameEvent event);
         [[nodiscard]] std::optional<InputAction> tryPopInputAction();
+        [[nodiscard]] std::optional<ControllerInputSnapshot> latestInputSnapshot() const noexcept;
         [[nodiscard]] bool connected() const noexcept { return _connected.load(); }
+        [[nodiscard]] bool bluetoothTransport() const noexcept { return _bluetoothTransport.load(); }
 
     private:
         void run() noexcept;
@@ -71,10 +73,15 @@ namespace sds
         EventQueue<256> _events{};
         std::mutex _inputActionsMutex{};
         std::deque<InputAction> _inputActions{};
+
+        mutable std::mutex _latestInputMutex{};
+        std::optional<TouchState> _latestInputState{};
+        std::uint64_t _latestInputGeneration{ 0 };
         std::thread _worker{};
         std::atomic<bool> _running{ false };
         std::atomic<bool> _stopRequested{ false };
         std::atomic<bool> _connected{ false };
+        std::atomic<bool> _bluetoothTransport{ false };
         std::atomic<bool> _desiredSpeakerRouting{ true };
         std::atomic<std::uint64_t> _speakerRoutingGeneration{ 0 };
     };

@@ -110,6 +110,16 @@ namespace
         .pulse = kQuickInventoryPulse,
     };
 
+    constexpr sds::NativeInputActionDefinition kTogglePOVDefinition{
+        .action = sds::InputAction::TogglePOV,
+        .userEvent = "TogglePOV",
+        .deviceType = 2,
+        .deviceId = 0,
+        .eventType = 0,
+        .idCode = 0x00200000,
+        .disabled = false,
+        .pulse = kQuickInventoryPulse,
+    };
     constexpr sds::NativeInputActionDefinition kOpenPhotoModeDefinition{
         .action = sds::InputAction::OpenPhotoMode,
         .userEvent = "Monocle",
@@ -141,6 +151,7 @@ namespace
             &kOpenSkillsDefinition,
             &kOpenMapDefinition,
             &kOpenPowersDefinition,
+            &kTogglePOVDefinition,
             &kOpenPhotoModeDefinition,
             &kEnterPhotoModeDefinition,
         };
@@ -169,6 +180,8 @@ const sds::NativeInputActionDefinition* sds::nativeInputDefinitionForAction(
         return &kOpenPowersDefinition;
     case InputAction::OpenPhotoMode:
         return &kOpenPhotoModeDefinition;
+    case InputAction::TogglePOV:
+        return &kTogglePOVDefinition;
     default:
         return nullptr;
     }

@@ -20,6 +20,7 @@ namespace
         case sds::TouchGesture::SwipeRight: return "swipe right";
         case sds::TouchGesture::SwipeUp: return "swipe up";
         case sds::TouchGesture::SwipeDown: return "swipe down";
+        case sds::TouchGesture::LeftClick: return "left click";
         case sds::TouchGesture::RightClick: return "right click";
         case sds::TouchGesture::RightHold: return "right hold";
         case sds::TouchGesture::CreatePressed: return "Create pressed";
@@ -156,6 +157,7 @@ void sds::ControllerManager::stop() noexcept
         _worker.join();
     }
     _connected = false;
+    _bluetoothTransport.store(false, std::memory_order_release);
     _running = false;
 }
 
@@ -175,6 +177,20 @@ std::optional<sds::InputAction> sds::ControllerManager::tryPopInputAction()
     return action;
 }
 
+std::optional<sds::ControllerInputSnapshot>
+sds::ControllerManager::latestInputSnapshot() const noexcept
+{
+    std::scoped_lock lock(_latestInputMutex);
+
+    if (!_latestInputState) {
+        return std::nullopt;
+    }
+
+    return ControllerInputSnapshot{
+        .state = *_latestInputState,
+        .generation = _latestInputGeneration,
+    };
+}
 bool sds::ControllerManager::queueInputAction(InputAction action)
 {
     constexpr std::size_t kInputActionCapacity = 64;
@@ -216,8 +232,12 @@ void sds::ControllerManager::run() noexcept
 
                 if (!backend->connected()) {
                     _connected = false;
+                    _bluetoothTransport.store(false, std::memory_order_release);
                     if (now >= nextConnectAttempt) {
                         if (backend->connect()) {
+                            _bluetoothTransport.store(
+                                backend->capabilities().bluetoothTransport,
+                                std::memory_order_release);
                             _connected = true;
                             log("Controller presence monitor: connected mode=presence-only output=none input=none");
                         } else {
@@ -225,9 +245,13 @@ void sds::ControllerManager::run() noexcept
                         }
                     }
                 } else if (backend->refreshPresence()) {
+                    _bluetoothTransport.store(
+                        backend->capabilities().bluetoothTransport,
+                        std::memory_order_release);
                     _connected = true;
                 } else {
                     _connected = false;
+                    _bluetoothTransport.store(false, std::memory_order_release);
                     nextConnectAttempt = now + _reconnectInterval;
                     log("Controller presence monitor: disconnected; passive rediscovery armed");
                 }
@@ -237,6 +261,7 @@ void sds::ControllerManager::run() noexcept
 
             backend->disconnect();
             _connected = false;
+            _bluetoothTransport.store(false, std::memory_order_release);
             return;
         }
 
@@ -305,10 +330,14 @@ void sds::ControllerManager::run() noexcept
             if (!backend->connected()) {
                 clearObservedR2();
                 _connected = false;
+                _bluetoothTransport.store(false, std::memory_order_release);
                 haveAppliedOutput = false;
                 speakerRoutingApplied = false;
                 if (now >= nextConnectAttempt) {
                     if (backend->connect()) {
+                        _bluetoothTransport.store(
+                            backend->capabilities().bluetoothTransport,
+                            std::memory_order_release);
                         _connected = true;
                         applySpeakerRouting();
                         log(connectionDiagnostic(*backend));
@@ -320,6 +349,9 @@ void sds::ControllerManager::run() noexcept
             }
 
             if (backend->connected()) {
+                _bluetoothTransport.store(
+                    backend->capabilities().bluetoothTransport,
+                    std::memory_order_release);
                 _connected = true;
                 applySpeakerRouting();
                 const auto caps = backend->capabilities();
@@ -372,15 +404,22 @@ void sds::ControllerManager::run() noexcept
                     }
                 }
 
-                // The same 64-byte DualSense USB report carries both touch data
-                // and analog trigger axes, so one asynchronous read feeds all
-                // consumers. The observer is read-only and cannot affect the
-                // adaptive-trigger engine or synthesize game events.
+                // One native input stream feeds touch data and analog trigger
+                // axes. Bluetooth also uses input polling to observe the
+                // controller startup timestamp before taking lightbar ownership.
+                // The observer is read-only and cannot affect the adaptive-trigger
+                // engine or synthesize game events.
                 const bool needsInput =
                     live.touchpad || live.adaptiveTriggers ||
-                    static_cast<bool>(_rightTriggerObserver);
+                    static_cast<bool>(_rightTriggerObserver) ||
+                    (caps.bluetoothTransport && caps.lightbar && live.lightbar);
                 if (needsInput && caps.touchpadInput && backend->connected()) {
                     if (const auto input = backend->pollTouch()) {
+                        if (caps.bluetoothTransport) {
+                            std::scoped_lock inputLock(_latestInputMutex);
+                            _latestInputState = *input;
+                            ++_latestInputGeneration;
+                        }
                         if (_rightTriggerObserver) {
                             const auto observerBucket = static_cast<std::uint8_t>(input->r2 >> 4);
                             const bool chargeActive = input->r2 >= 24;
@@ -434,8 +473,23 @@ void sds::ControllerManager::run() noexcept
                                     log(std::string("Touchpad: ") + gestureName(gesture));
                                 }
                                 if (const auto action = mapTouchGestureToInputAction(gesture)) {
-                                    if (!queueInputAction(*action)) {
-                                        log("Touchpad: shortcut action queue full; action dropped");
+                                    const bool bluetoothOnlyPOV =
+                                        *action == InputAction::TogglePOV;
+
+                                    if (bluetoothOnlyPOV &&
+                                        !caps.bluetoothTransport) {
+
+                                        // USB Starfield already owns the physical
+                                        // DualSense touchpad click. Never duplicate it.
+
+                                    } else {
+                                        if (!queueInputAction(*action)) {
+                                            log("Touchpad: shortcut action queue full; action dropped");
+                                        } else if (bluetoothOnlyPOV) {
+                                            log(
+                                                "Bluetooth POV bridge: queued native "
+                                                "TogglePOV idCode=0x00200000");
+                                        }
                                     }
                                 }
                             }
@@ -446,6 +500,7 @@ void sds::ControllerManager::run() noexcept
                 if (!backend->connected()) {
                     clearObservedR2();
                     _connected = false;
+                    _bluetoothTransport.store(false, std::memory_order_release);
                     nextConnectAttempt = now + _reconnectInterval;
                 }
             }
@@ -462,8 +517,10 @@ void sds::ControllerManager::run() noexcept
             backend->disconnect();
         }
         _connected = false;
+        _bluetoothTransport.store(false, std::memory_order_release);
     } catch (...) {
         log("Controller manager: worker stopped after unexpected exception");
         _connected = false;
+        _bluetoothTransport.store(false, std::memory_order_release);
     }
 }

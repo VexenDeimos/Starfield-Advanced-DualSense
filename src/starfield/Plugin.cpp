@@ -1,6 +1,7 @@
 #include <StarfieldDualSense/BoostpackFeedbackAuthority.h>
 
 #include <REL/Relocation.h>
+#include <cstring>
 #include <StarfieldDualSense/BoostpackSpeakerPreparedCache.h>
 #include <StarfieldDualSense/BoostpackSpeakerPlayback.h>
 #include <StarfieldDualSense/Config.h>
@@ -30,6 +31,7 @@
 #include <StarfieldDualSense/HapticsManager.h>
 #include <StarfieldDualSense/MusicReconProbe.h>
 #include <StarfieldDualSense/RuntimeEventRouter.h>
+#include <StarfieldDualSense/NativeDualSenseBackend.h>
 #include <StarfieldDualSense/NativeUsbBackend.h>
 #include <StarfieldDualSense/StarfieldAudioCapture.h>
 #include <StarfieldDualSense/ShipBallisticFireGate.h>
@@ -276,6 +278,15 @@ namespace
     std::atomic_bool g_shipTakeoffBoundaryObserved{ false };
     std::atomic<std::int64_t> g_shipLaunchLandingStartedAtUs{ 0 };
     bool g_runtimeShutdown = false;
+
+    // TEMP DIAGNOSTIC:
+    // Valid Starfield gamepad object used only to provide Bluetooth
+    // controller presence/identity. Its normal controller polling
+    // vfunc is replaced with a no-op so SAD remains sole HID owner.
+    std::uintptr_t g_bluetoothPresentationHandlerAddress = 0;
+    void* g_bluetoothShadowDelegate = nullptr;
+    std::array<std::uintptr_t, 19> g_bluetoothShadowVtable{};
+    bool g_bluetoothShadowDelegateLogged = false;
     bool g_startupWeaponBootstrapComplete = false;
     bool g_weaponAudioPipelineEnabled = false;
     std::filesystem::path g_weaponAudioPipelineDataPath{};
@@ -559,6 +570,35 @@ namespace
 
         const bool connected =
             g_controller->connected();
+
+
+// Starfield has no native Bluetooth DualSense path to reselect.
+
+// SAD owns Bluetooth independently, so skip native Starfield
+
+// handler discovery while the active SAD transport is Bluetooth.
+
+if (connected && g_controller->bluetoothTransport()) {
+
+    g_nativeDualSenseReselectionPending = false;
+
+
+    static bool bluetoothReselectionBypassLogged = false;
+
+    if (!bluetoothReselectionBypassLogged) {
+
+        pluginLog(
+
+            "Native DualSense reconnect: bypassed transport=Bluetooth reason=no-Starfield-native-Bluetooth-DualSense");
+
+        bluetoothReselectionBypassLogged = true;
+
+    }
+
+    return;
+
+}
+
 
         if (!g_nativeDualSenseReselectionStartedFromDualSense) {
             if (!connected ||
@@ -1771,8 +1811,10 @@ namespace
                 std::shared_ptr<sds::WeaponSpeakerPreparedCache>{},
                 sds::makeRealWeaponAudioPipelineBackend(g_weaponAudioPipelineDataPath, startupOptions),
                 g_uiSpeakerPreparedCache);
-            g_mainMenuUiAudioPipeline->start();
-            pluginLog("Main-menu UI speaker prewarm: worker started cues=3 events=GeneralFocus,GeneralOK,GeneralCancel preparation=pre-PostDataLoad");
+            // TEMP DIAGNOSTIC: isolate severe Bluetooth main-menu latency.
+            // Do not launch the early UI/audio preparation worker.
+            g_mainMenuUiAudioPipeline.reset();
+            pluginLog("Main-menu UI speaker prewarm: SKIPPED diagnostic=bluetooth-main-menu-lag");
         } catch (const std::exception& exception) {
             pluginLog(std::string("Main-menu UI speaker prewarm: failed error=\"") + exception.what() + "\"");
         } catch (...) {
@@ -2049,12 +2091,15 @@ namespace
 
         applyBoostpackProductionTransition(update, now);
     }
+    void removeBluetoothShadowDelegateDiagnostic() noexcept;
     void shutdownRuntime() noexcept
     {
         if (g_runtimeShutdown) {
             return;
         }
         g_runtimeShutdown = true;
+
+        removeBluetoothShadowDelegateDiagnostic();
 
         if (g_boostpackSpeakerPlayback) {
             g_boostpackSpeakerPlayback->beginShutdown();
@@ -2206,6 +2251,692 @@ namespace
         updateNativeDualSenseReselection(std::chrono::steady_clock::now());
     }
 
+    void bluetoothShadowGamepadPollNoop(
+        void*,
+        float) noexcept
+    {
+        // Intentional.
+        //
+        // Starfield calls delegate slot 2 every frame to poll its own
+        // controller backend. SAD already owns the Bluetooth HID stream,
+        // so this shadow object must never poll another backend.
+    }
+
+    void removeBluetoothShadowDelegateDiagnostic() noexcept
+    {
+        if (!g_bluetoothShadowDelegate) {
+            return;
+        }
+
+        const auto shadow =
+            g_bluetoothShadowDelegate;
+
+        const auto handler =
+            g_bluetoothPresentationHandlerAddress;
+
+        if (handler >= 0x10000u) {
+
+            std::uintptr_t currentDelegate = 0;
+
+            if (readGamepadProbePointer(
+                    handler + 0xC0u,
+                    currentDelegate) &&
+                currentDelegate ==
+                    reinterpret_cast<std::uintptr_t>(shadow)) {
+
+                // Detach before destruction so Starfield can never
+                // call back through an object being torn down.
+                *reinterpret_cast<std::uintptr_t*>(
+                    handler + 0xC0u) = 0;
+
+                *reinterpret_cast<std::uint8_t*>(
+                    handler + 0xB8u) = 0;
+
+                *reinterpret_cast<std::int32_t*>(
+                    handler + 0x0Cu) = -1;
+
+                const auto vtable =
+                    *reinterpret_cast<std::uintptr_t**>(
+                        shadow);
+
+                if (vtable && vtable[0]) {
+                    using NativeDeletingDestructor =
+                        void (*)(void*, std::uint32_t);
+
+                    const auto destroy =
+                        reinterpret_cast<
+                            NativeDeletingDestructor>(
+                                vtable[0]);
+
+                    destroy(shadow, 1u);
+                }
+
+                pluginLog(
+                    "Bluetooth shadow delegate: REMOVED");
+            }
+            else {
+                // If Starfield replaced it itself, its native replacement
+                // path owns destruction. Never double-free it here.
+                pluginLog(
+                    "Bluetooth shadow delegate: detached externally; "
+                    "local ownership released without destructor");
+            }
+        }
+
+        g_bluetoothShadowDelegate = nullptr;
+        g_bluetoothShadowDelegateLogged = false;
+    }
+
+    bool installBluetoothShadowDelegateDiagnostic() noexcept
+    {
+        if (!g_controller ||
+            !g_controller->connected() ||
+            !g_controller->bluetoothTransport()) {
+
+            removeBluetoothShadowDelegateDiagnostic();
+            return false;
+        }
+
+        if (g_bluetoothShadowDelegate) {
+            return true;
+        }
+
+        const auto handler =
+            g_bluetoothPresentationHandlerAddress;
+
+        if (handler < 0x10000u) {
+            return false;
+        }
+
+        const auto known =
+            gamepadProbeVtables();
+
+        if (known.genericGamepad == 0 ||
+            known.dualSense == 0 ||
+            known.gamepadHandler == 0) {
+            return false;
+        }
+
+        std::uintptr_t handlerVtable = 0;
+
+        if (!readGamepadProbePointer(
+                handler,
+                handlerVtable) ||
+            handlerVtable != known.gamepadHandler) {
+
+            pluginLog(
+                "Bluetooth shadow delegate: SKIPPED "
+                "reason=invalid-handler");
+            return false;
+        }
+
+        std::uintptr_t existingDelegate = 0;
+
+        if (!readGamepadProbePointer(
+                handler + 0xC0u,
+                existingDelegate)) {
+            return false;
+        }
+
+        if (existingDelegate != 0) {
+            // Never replace a real Starfield delegate.
+            return false;
+        }
+
+        const auto module =
+            reinterpret_cast<std::uintptr_t>(
+                GetModuleHandleW(nullptr));
+
+        if (module == 0) {
+            return false;
+        }
+
+        constexpr std::uintptr_t
+            kStarfieldAllocatorRva = 0x22C7320u;
+
+        constexpr std::uintptr_t
+            kGamepadBaseConstructorRva = 0x22FA620u;
+
+        constexpr std::size_t
+            kGenericGamepadBytes = 0xD8u;
+
+        using NativeAllocate =
+            void* (*)(std::size_t);
+
+        using NativeGamepadCtor =
+            void* (*)(void*);
+
+        const auto allocate =
+            reinterpret_cast<NativeAllocate>(
+                module +
+                kStarfieldAllocatorRva);
+
+        const auto construct =
+            reinterpret_cast<NativeGamepadCtor>(
+                module +
+                kGamepadBaseConstructorRva);
+
+        auto* shadow =
+            allocate(kGenericGamepadBytes);
+
+        if (!shadow) {
+            pluginLog(
+                "Bluetooth shadow delegate: SKIPPED "
+                "reason=allocation-failed");
+            return false;
+        }
+
+        std::memset(
+            shadow,
+            0,
+            kGenericGamepadBytes);
+
+        if (!construct(shadow)) {
+            pluginLog(
+                "Bluetooth shadow delegate: SKIPPED "
+                "reason=constructor-failed");
+            return false;
+        }
+
+        const auto* genericVtable =
+            reinterpret_cast<
+                const std::uintptr_t*>(
+                    known.genericGamepad);
+
+        const auto* dualVtable =
+            reinterpret_cast<
+                const std::uintptr_t*>(
+                    known.dualSense);
+
+        for (std::size_t i = 0;
+             i < g_bluetoothShadowVtable.size();
+             ++i) {
+
+            g_bluetoothShadowVtable[i] =
+                genericVtable[i];
+        }
+
+        // slot 2:
+        // Starfield's normal controller backend polling.
+        // Replace only this entry with a no-op.
+        g_bluetoothShadowVtable[2] =
+            reinterpret_cast<std::uintptr_t>(
+                &bluetoothShadowGamepadPollNoop);
+
+        // slot 11:
+        // Proven controller-type discriminator.
+        //
+        // Real DualSense => true
+        // Generic gamepad => false
+        //
+        // Reuse Starfield's own DualSense implementation.
+        g_bluetoothShadowVtable[11] =
+            dualVtable[11];
+
+        *reinterpret_cast<std::uintptr_t*>(
+            shadow) =
+            reinterpret_cast<std::uintptr_t>(
+                g_bluetoothShadowVtable.data());
+
+        // Match the native selector's installation contract.
+        *reinterpret_cast<std::uintptr_t*>(
+            reinterpret_cast<std::uintptr_t>(shadow) +
+            0xC0u) =
+            handler;
+
+        *reinterpret_cast<std::int32_t*>(
+            reinterpret_cast<std::uintptr_t>(shadow) +
+            0x0Cu) =
+            0;
+
+        // Handler presence first.
+        *reinterpret_cast<std::int32_t*>(
+            handler + 0x0Cu) =
+            0;
+
+        *reinterpret_cast<std::uint8_t*>(
+            handler + 0xB8u) =
+            1;
+
+        // Then publish the delegate pointer.
+        *reinterpret_cast<std::uintptr_t*>(
+            handler + 0xC0u) =
+            reinterpret_cast<std::uintptr_t>(
+                shadow);
+
+        // Native generic slot 1 allocates/initializes its two
+        // controller-state buffers at +0xC8/+0xD0.
+        using NativeInit =
+            void (*)(void*);
+
+        const auto initialize =
+            reinterpret_cast<NativeInit>(
+                g_bluetoothShadowVtable[1]);
+
+        initialize(shadow);
+
+        // Install Starfield's native DualSense/PSN physical-button
+        // mapping table into the common BSPCGamepadDevice base.
+        //
+        // Starfield+0x22FB890 is the same common mapping parser used
+        // by the 0xD8 base gamepad constructor, so it is safe for the
+        // generic-layout shadow. Native DualSense slot 1 calls this
+        // helper with Starfield+0x4A56AF0 before performing its
+        // ScePad-specific work. We intentionally reproduce ONLY this
+        // common mapping step.
+        constexpr std::uintptr_t
+            kGamepadMappingParserRva =
+                0x22FB890u;
+
+        constexpr std::uintptr_t
+            kDualSenseMappingDescriptorRva =
+                0x4A56AF0u;
+
+        using NativeGamepadMappingParser =
+            bool (*)(
+                void*,
+                const wchar_t*);
+
+        const auto starfieldBase =
+            reinterpret_cast<std::uintptr_t>(
+                GetModuleHandleW(nullptr));
+
+        bool dualSenseMappingInstalled = false;
+
+        if (starfieldBase != 0) {
+            const auto installMapping =
+                reinterpret_cast<
+                    NativeGamepadMappingParser>(
+                        starfieldBase +
+                        kGamepadMappingParserRva);
+
+            const auto dualSenseMapping =
+                reinterpret_cast<
+                    const wchar_t*>(
+                        starfieldBase +
+                        kDualSenseMappingDescriptorRva);
+
+            dualSenseMappingInstalled =
+                installMapping(
+                    shadow,
+                    dualSenseMapping);
+        }
+
+        if (dualSenseMappingInstalled) {
+            pluginLog(
+                "Bluetooth shadow mapping: DualSense PSN descriptor installed "
+                "parser=Starfield+0x22FB890 descriptor=Starfield+0x4A56AF0");
+        } else {
+            pluginLog(
+                "Bluetooth shadow mapping: DualSense PSN descriptor returned false "
+                "parser=Starfield+0x22FB890");
+        }
+
+        g_bluetoothShadowDelegate =
+            shadow;
+
+        pluginLog(
+            "Bluetooth shadow delegate: INSTALLED "
+            "object=native-generic-layout "
+            "slot2=no-op "
+            "slot11=DualSense-true "
+            "hidPolling=SAD-only");
+
+        return true;
+    }
+
+    void updateBluetoothShadowDelegateDiagnostic() noexcept
+    {
+        try {
+            if (!g_controller ||
+                !g_controller->connected() ||
+                !g_controller->bluetoothTransport()) {
+
+                removeBluetoothShadowDelegateDiagnostic();
+                return;
+            }
+
+            if (!installBluetoothShadowDelegateDiagnostic()) {
+                return;
+            }
+
+            const auto handler =
+                g_bluetoothPresentationHandlerAddress;
+
+            const auto shadow =
+                reinterpret_cast<std::uintptr_t>(
+                    g_bluetoothShadowDelegate);
+
+            if (handler < 0x10000u ||
+                shadow < 0x10000u) {
+                return;
+            }
+
+            std::uintptr_t currentDelegate = 0;
+
+            if (!readGamepadProbePointer(
+                    handler + 0xC0u,
+                    currentDelegate) ||
+                currentDelegate != shadow) {
+
+                pluginLog(
+                    "Bluetooth shadow delegate: LOST "
+                    "reason=handler-delegate-changed");
+
+                g_bluetoothShadowDelegate = nullptr;
+                return;
+            }
+
+            // Maintain the same presence contract proven by the
+            // previous live-memory test.
+            *reinterpret_cast<std::int32_t*>(
+                handler + 0x0Cu) =
+                0;
+
+            *reinterpret_cast<std::uint8_t*>(
+                handler + 0xB8u) =
+                1;
+
+            // Native gamepad processing marks +0x08 when this controller
+            // is the active input source. SAD's shadow slot2 is intentionally
+            // a no-op so Starfield never polls another Bluetooth backend;
+            // reproduce only this proven native side effect.
+            //
+            // Live verification:
+            //   delegate+0x08 = 1
+            //   handler +0x08 = 1
+            //
+            // This enables normal right-stick camera consumption and keeps
+            // menus in controller mode instead of mouse-cursor mode.
+            *reinterpret_cast<std::uint8_t*>(
+                shadow + 0x08u) =
+                1;
+
+            *reinterpret_cast<std::uint8_t*>(
+                handler + 0x08u) =
+                1;
+
+            if (!g_bluetoothShadowDelegateLogged) {
+                const auto vtable =
+                    *reinterpret_cast<
+                        std::uintptr_t*>(
+                            shadow);
+
+                std::ostringstream line;
+
+                line
+                    << "Bluetooth shadow delegate: ACTIVE"
+                    << " handler=0x"
+                    << std::hex << std::uppercase
+                    << handler
+                    << " delegate=0x"
+                    << shadow
+                    << " vtable=0x"
+                    << vtable
+                    << std::dec
+                    << " slot2=no-op"
+                    << " slot11=DualSense-true"
+                    << " StarfieldPolling=no"
+                    << " SADHidOwner=yes"
+                    << " activeInput=1";
+
+                pluginLog(line.str());
+
+                g_bluetoothShadowDelegateLogged = true;
+            }
+        }
+        catch (...) {
+            pluginLog(
+                "Bluetooth shadow delegate: exception; "
+                "diagnostic disabled");
+        }
+    }
+    void logBluetoothPresentationStateOnce() noexcept
+    {
+        static bool logged = false;
+
+        if (logged) {
+            return;
+        }
+
+        logged = true;
+
+        try {
+            const auto known = gamepadProbeVtables();
+
+            if (known.gamepadHandler == 0) {
+                pluginLog(
+                    "Bluetooth presentation state: result=unavailable "
+                    "reason=gamepad-handler-vtable-unresolved");
+                return;
+            }
+
+            const auto module =
+                reinterpret_cast<std::uintptr_t>(
+                    GetModuleHandleW(nullptr));
+
+            if (module == 0) {
+                pluginLog(
+                    "Bluetooth presentation state: result=unavailable "
+                    "reason=module-base-unavailable");
+                return;
+            }
+
+            const auto* dos =
+                reinterpret_cast<const IMAGE_DOS_HEADER*>(module);
+
+            if (!dos ||
+                dos->e_magic != IMAGE_DOS_SIGNATURE) {
+                pluginLog(
+                    "Bluetooth presentation state: result=unavailable "
+                    "reason=invalid-dos-header");
+                return;
+            }
+
+            const auto* nt =
+                reinterpret_cast<const IMAGE_NT_HEADERS64*>(
+                    module +
+                    static_cast<std::uintptr_t>(
+                        dos->e_lfanew));
+
+            if (!nt ||
+                nt->Signature != IMAGE_NT_SIGNATURE) {
+                pluginLog(
+                    "Bluetooth presentation state: result=unavailable "
+                    "reason=invalid-nt-header");
+                return;
+            }
+
+            const auto* section =
+                IMAGE_FIRST_SECTION(nt);
+
+            for (unsigned i = 0;
+                 i < nt->FileHeader.NumberOfSections;
+                 ++i) {
+
+                const auto characteristics =
+                    section[i].Characteristics;
+
+                if ((characteristics &
+                        IMAGE_SCN_MEM_WRITE) == 0 ||
+                    (characteristics &
+                        IMAGE_SCN_MEM_DISCARDABLE) != 0) {
+                    continue;
+                }
+
+                const auto start =
+                    module + section[i].VirtualAddress;
+
+                const auto size =
+                    static_cast<std::size_t>(
+                        section[i].Misc.VirtualSize != 0
+                            ? section[i].Misc.VirtualSize
+                            : section[i].SizeOfRawData);
+
+                const auto end =
+                    start + size;
+
+                auto managerAddress =
+                    (start + 7u) &
+                    ~static_cast<std::uintptr_t>(7u);
+
+                for (;
+                     managerAddress +
+                             sizeof(std::uintptr_t) <= end;
+                     managerAddress +=
+                         sizeof(std::uintptr_t)) {
+
+                    std::uintptr_t managerVtable = 0;
+
+                    if (!readGamepadProbePointer(
+                            managerAddress,
+                            managerVtable) ||
+                        !isInputManagerVtable(
+                            managerVtable,
+                            known)) {
+                        continue;
+                    }
+
+                    std::uintptr_t handlerAddress = 0;
+
+                    if (!readGamepadProbePointer(
+                            managerAddress + 0x78u,
+                            handlerAddress) ||
+                        handlerAddress < 0x10000u) {
+                        continue;
+                    }
+
+                    std::uintptr_t handlerVtable = 0;
+
+                    if (!readGamepadProbePointer(
+                            handlerAddress,
+                            handlerVtable) ||
+                        handlerVtable !=
+                            known.gamepadHandler) {
+                        continue;
+                    }
+
+                    std::uintptr_t delegateAddress = 0;
+
+                    if (!readGamepadProbePointer(
+                            handlerAddress + 0xC0u,
+                            delegateAddress)) {
+                        continue;
+                    }
+
+                    std::uintptr_t delegateVtable = 0;
+
+                    if (delegateAddress >= 0x10000u) {
+                        (void)readGamepadProbePointer(
+                            delegateAddress,
+                            delegateVtable);
+                    }
+
+                    const auto kind =
+                        classifyGamepadProbeVtable(
+                            delegateVtable,
+                            known);
+
+                    g_bluetoothPresentationHandlerAddress =
+                        handlerAddress;
+
+                    std::ostringstream line;
+
+                    line
+                        << "Bluetooth presentation state:"
+                        << " manager=0x"
+                        << std::hex << std::uppercase
+                        << managerAddress
+                        << " handler=0x"
+                        << handlerAddress
+                        << " delegate=0x"
+                        << delegateAddress
+                        << " delegateVtable=0x"
+                        << delegateVtable
+                        << std::dec
+                        << " kind="
+                        << gamepadProbeKindName(kind)
+                        << " behavior=read-only";
+
+                    pluginLog(line.str());
+                    return;
+                }
+            }
+
+            pluginLog(
+                "Bluetooth presentation state: "
+                "result=no-live-gamepad-handler-found "
+                "behavior=read-only");
+        } catch (...) {
+            pluginLog(
+                "Bluetooth presentation state: "
+                "result=exception "
+                "behavior=read-only");
+        }
+    }
+    void updateBluetoothGameplayInputBridge(
+        std::chrono::steady_clock::time_point now) noexcept
+    {
+        static bool active = false;
+        static bool activationLogged = false;
+        static std::uint64_t lastGeneration = 0;
+        static auto lastDispatch =
+            std::chrono::steady_clock::time_point{};
+
+        const bool bluetoothReady =
+            g_controller &&
+            g_gameState &&
+            g_controller->connected() &&
+            g_controller->bluetoothTransport();
+
+        if (!bluetoothReady) {
+            if (active && g_gameState) {
+                g_gameState->resetBluetoothPhysicalInput();
+                pluginLog(
+                    "Bluetooth gameplay input bridge: RESET reason=transport-inactive");
+            }
+
+            active = false;
+            lastGeneration = 0;
+            lastDispatch = {};
+            return;
+        }
+
+        logBluetoothPresentationStateOnce();
+        const auto snapshot =
+            g_controller->latestInputSnapshot();
+
+        if (!snapshot ||
+            snapshot->generation == lastGeneration) {
+            return;
+        }
+
+        float deltaSeconds = 0.0F;
+
+        if (lastDispatch !=
+            std::chrono::steady_clock::time_point{}) {
+            deltaSeconds =
+                std::chrono::duration<float>(
+                    now - lastDispatch).count();
+        }
+
+        g_gameState->dispatchBluetoothPhysicalInput(
+            snapshot->state,
+            deltaSeconds);
+
+        lastGeneration = snapshot->generation;
+        lastDispatch = now;
+        active = true;
+
+        if (!activationLogged) {
+            pluginLog(
+                "Bluetooth gameplay input bridge: ACTIVE source=SAD-HID "
+                "destination=Starfield-native-physical-events "
+                "buttons=generic-gamepad triggers=analog-9/10 "
+                "sticks=native-11/12 nativeBluetoothReselection=bypassed");
+            activationLogged = true;
+        }
+    }
     void runtimeTick()
     {
         if (g_runtimeShutdown) {
@@ -2218,6 +2949,8 @@ namespace
         }
 
         updateNativeDualSenseReselection(std::chrono::steady_clock::now());
+        updateBluetoothShadowDelegateDiagnostic();
+        updateBluetoothGameplayInputBridge(std::chrono::steady_clock::now());
 
         if (g_controller) {
             const bool connected = g_controller->connected();
@@ -2238,6 +2971,8 @@ namespace
         }
 
         bootstrapStartupEquippedWeaponIfReady();
+
+
 
         if (!g_shipPilotActive.load(std::memory_order_acquire) &&
             g_onFootRefreshPending.load(std::memory_order_acquire)) {
@@ -2348,6 +3083,8 @@ namespace
             }
             (void)g_gameState->pollLandVehicleReconState();
             g_gameState->pollHealth();
+
+
         }
 
         if (g_audioCapture) {
@@ -2402,6 +3139,8 @@ namespace
                 g_haptics != nullptr);
         }
 
+
+
         if (g_weaponAudioPipeline && g_musicHapticsEnabled.load(std::memory_order_acquire)) {
             try {
                 for (auto& result : g_weaponAudioPipeline->tryTakeMusicHapticsResults(32u)) {
@@ -2455,11 +3194,14 @@ namespace
             }
         }
 
+
+
         if (g_shipLaunchLandingReconEnabled.load(std::memory_order_acquire)) {
             while (const auto report = g_shipLaunchLandingReconProbe.takeReadyReport(std::chrono::steady_clock::now())) {
                 logShipLaunchLandingReconReport(*report);
             }
         }
+
 
         if (g_mainMenuUiAudioPipeline) {
             for (auto& line : g_mainMenuUiAudioPipeline->tryTakeDiagnostics(16u)) {
@@ -2473,6 +3215,14 @@ namespace
             }
         }
 
+
+        // TEMP DIAGNOSTIC:
+        // Complete runtimeTick is executing with no early-return fence.
+        static bool runtimeTickBisectFLogged = false;
+        if (!runtimeTickBisectFLogged) {
+            pluginLog("runtimeTick BISECT-F ACTIVE boundary=end-of-function");
+            runtimeTickBisectFLogged = true;
+        }
     }
 
     void initializeRuntime()
@@ -2924,7 +3674,7 @@ namespace
 
         g_controller = std::make_unique<sds::ControllerManager>(
             config,
-            [nativeLog] { return std::make_unique<sds::NativeUsbBackend>(nativeLog, false); },
+            [nativeLog] { return std::make_unique<sds::NativeDualSenseBackend>(nativeLog, false); },
             nativeLog,
             std::chrono::milliseconds(2000),
             std::chrono::milliseconds(8),
@@ -3718,8 +4468,11 @@ namespace
         }
 
         if (const auto* tasks = SFSE::GetTaskInterface()) {
+            // TEMP DIAGNOSTIC:
+            // Full-mode runtimeTick SKIPPED diagnostic=main-menu-lag.
+            // This isolates recurring Full-mode work from startup-installed hooks/workers.
             tasks->AddPermanentTask(runtimeTick);
-            pluginLog("Game state: health polling, reusable native semantic input, verification, and quit-safe shutdown scheduled on SFSE permanent task");
+            pluginLog("Game state: health polling ACTIVE; native input injection ACTIVE; quit-safe shutdown scheduled on SFSE permanent task");
 
             if (sharedAudioPreparationEnabled && !g_weaponAudioPipelineDataPath.empty() &&
                 (!g_weaponAudioPipelineEnabled || g_weaponSpeakerPreparedCache)) {
@@ -3738,7 +4491,9 @@ namespace
                     g_uiSpeakerPreparedCache,
                     g_shipWeaponSemanticCache,
                     g_boostpackSpeakerPreparedCache);
-                g_weaponAudioPipeline->start();
+                // TEMP DIAGNOSTIC: isolate severe Bluetooth main-menu latency.
+                // Do not launch weapon/UI/music cache preparation.
+                g_weaponAudioPipeline.reset();
                 if (g_musicRecon && g_audioCapture && g_audioCapture->active()) {
                     pluginLog("Music recon: ACTIVE diagnostic-only source=existing-PostEvent-hook externalSources=zero resolver=shared-background-worker decode=music-name-candidates output=none wholeGameMix=no");
                     pluginLog("Music selection recon: ACTIVE diagnostic-only targetSource=SoundBanksInfo-Starfield_MUS-multi-media callback=AK_Duration existingCallbackMode=chain-preserve-cookie retirement=AK_EndOfEvent pool=128 output=none");
@@ -3747,7 +4502,7 @@ namespace
                 }
 
                 std::ostringstream pipelineLine;
-                pipelineLine << "Weapon audio pipeline: worker started families="
+                pipelineLine << "Weapon audio pipeline: START SKIPPED diagnostic=bluetooth-main-menu-lag families="
                              << sds::weaponSpeakerAudioFamilyCount()
                              << " profiles=" << sds::weaponSpeakerProfiles().size()
                              << " uiPreparation=" << (uiSpeakerPlaybackEnabled ? "yes" : "no")
