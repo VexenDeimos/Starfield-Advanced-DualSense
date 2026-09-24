@@ -3216,13 +3216,6 @@ if (connected && g_controller->bluetoothTransport()) {
         }
 
 
-        // TEMP DIAGNOSTIC:
-        // Complete runtimeTick is executing with no early-return fence.
-        static bool runtimeTickBisectFLogged = false;
-        if (!runtimeTickBisectFLogged) {
-            pluginLog("runtimeTick BISECT-F ACTIVE boundary=end-of-function");
-            runtimeTickBisectFLogged = true;
-        }
     }
 
     void initializeRuntime()

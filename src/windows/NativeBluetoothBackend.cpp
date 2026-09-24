@@ -167,13 +167,6 @@ struct sds::NativeBluetoothBackend::Impl
         const DWORD lastError = ok ? ERROR_SUCCESS : GetLastError();
         CloseHandle(event);
 
-        writeLog(
-            std::string("Native Bluetooth TX kind=") +
-            std::string(kind) +
-            " requested=" + std::to_string(report.size()) +
-            " capsOut=" + std::to_string(outputReportLength) +
-            " bytesWritten=" + std::to_string(bytesWritten) +
-            " result=" + (ok ? "OK" : "FAIL"));
 
         // Some Windows Bluetooth HID stacks report the descriptor-wide
         // output length here even when the accepted 0x31 packet itself
@@ -233,58 +226,6 @@ struct sds::NativeBluetoothBackend::Impl
             writeLog(
                 "Bluetooth LED takeover: "
                 "first colored packet carries RELEASE_LEDS");
-        }
-        // TEMP DIAGNOSTIC: prove the desired RGB state and exact
-        // Bluetooth lightbar control bytes that reach WriteFile.
-        if (includeLightbar) {
-            static std::uint32_t lastLightbarSignature =
-                0xFFFFFFFFu;
-
-            const std::uint32_t lightbarSignature =
-                static_cast<std::uint32_t>(report[47]) |
-                (static_cast<std::uint32_t>(report[48]) << 8U) |
-                (static_cast<std::uint32_t>(report[49]) << 16U) |
-                (static_cast<std::uint32_t>(report[4]) << 24U);
-
-            if (lightbarSignature != lastLightbarSignature) {
-                lastLightbarSignature = lightbarSignature;
-
-                writeLog(
-                    std::string("Native Bluetooth output diagnostic:") +
-                    " desiredRgb=" +
-                    std::to_string(
-                        static_cast<unsigned>(output.lightbar.r)) +
-                    "," +
-                    std::to_string(
-                        static_cast<unsigned>(output.lightbar.g)) +
-                    "," +
-                    std::to_string(
-                        static_cast<unsigned>(output.lightbar.b)) +
-                    " packetRgb=" +
-                    std::to_string(
-                        static_cast<unsigned>(report[47])) +
-                    "," +
-                    std::to_string(
-                        static_cast<unsigned>(report[48])) +
-                    "," +
-                    std::to_string(
-                        static_cast<unsigned>(report[49])) +
-                    " valid0=" +
-                    std::to_string(
-                        static_cast<unsigned>(report[3])) +
-                    " valid1=" +
-                    std::to_string(
-                        static_cast<unsigned>(report[4])) +
-                    " valid2=" +
-                    std::to_string(
-                        static_cast<unsigned>(report[41])) +
-                    " setup=" +
-                    std::to_string(
-                        static_cast<unsigned>(report[44])) +
-                    " release=" +
-                    (((report[4] & 0x08U) != 0U) ?
-                        "yes" : "no"));
-            }
         }
         const bool wrote =
             writeReport(
