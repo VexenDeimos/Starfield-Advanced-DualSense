@@ -2091,7 +2091,7 @@ if (connected && g_controller->bluetoothTransport()) {
 
         applyBoostpackProductionTransition(update, now);
     }
-    void removeBluetoothShadowDelegateDiagnostic() noexcept;
+    void removeBluetoothShadowDelegate() noexcept;
     void shutdownRuntime() noexcept
     {
         if (g_runtimeShutdown) {
@@ -2099,7 +2099,7 @@ if (connected && g_controller->bluetoothTransport()) {
         }
         g_runtimeShutdown = true;
 
-        removeBluetoothShadowDelegateDiagnostic();
+        removeBluetoothShadowDelegate();
 
         if (g_boostpackSpeakerPlayback) {
             g_boostpackSpeakerPlayback->beginShutdown();
@@ -2262,7 +2262,7 @@ if (connected && g_controller->bluetoothTransport()) {
         // so this shadow object must never poll another backend.
     }
 
-    void removeBluetoothShadowDelegateDiagnostic() noexcept
+    void removeBluetoothShadowDelegate() noexcept
     {
         if (!g_bluetoothShadowDelegate) {
             return;
@@ -2327,13 +2327,13 @@ if (connected && g_controller->bluetoothTransport()) {
         g_bluetoothShadowDelegateLogged = false;
     }
 
-    bool installBluetoothShadowDelegateDiagnostic() noexcept
+    bool installBluetoothShadowDelegate() noexcept
     {
         if (!g_controller ||
             !g_controller->connected() ||
             !g_controller->bluetoothTransport()) {
 
-            removeBluetoothShadowDelegateDiagnostic();
+            removeBluetoothShadowDelegate();
             return false;
         }
 
@@ -2585,18 +2585,18 @@ if (connected && g_controller->bluetoothTransport()) {
         return true;
     }
 
-    void updateBluetoothShadowDelegateDiagnostic() noexcept
+    void updateBluetoothShadowDelegate() noexcept
     {
         try {
             if (!g_controller ||
                 !g_controller->connected() ||
                 !g_controller->bluetoothTransport()) {
 
-                removeBluetoothShadowDelegateDiagnostic();
+                removeBluetoothShadowDelegate();
                 return;
             }
 
-            if (!installBluetoothShadowDelegateDiagnostic()) {
+            if (!installBluetoothShadowDelegate()) {
                 return;
             }
 
@@ -2949,7 +2949,7 @@ if (connected && g_controller->bluetoothTransport()) {
         }
 
         updateNativeDualSenseReselection(std::chrono::steady_clock::now());
-        updateBluetoothShadowDelegateDiagnostic();
+        updateBluetoothShadowDelegate();
         updateBluetoothGameplayInputBridge(std::chrono::steady_clock::now());
 
         if (g_controller) {
