@@ -19,6 +19,52 @@ namespace
         point.y = static_cast<std::uint16_t>((b2 >> 4) | (b3 << 4));
         return point;
     }
+
+    std::optional<sds::TouchState> decodeInputPayload(
+        std::span<const std::uint8_t> payload) noexcept
+    {
+        if (payload.size() < 0x28) {
+            return std::nullopt;
+        }
+
+        sds::TouchState state{};
+
+        state.leftX = payload[0x00];
+        state.leftY = payload[0x01];
+        state.rightX = payload[0x02];
+        state.rightY = payload[0x03];
+
+        state.l2 = payload[0x04];
+        state.r2 = payload[0x05];
+
+        const auto buttons0 = payload[0x07];
+        const auto buttons1 = payload[0x08];
+        const auto buttons2 = payload[0x09];
+
+        state.dpad = static_cast<std::uint8_t>(buttons0 & 0x0F);
+
+        state.square = (buttons0 & 0x10) != 0;
+        state.cross = (buttons0 & 0x20) != 0;
+        state.circle = (buttons0 & 0x40) != 0;
+        state.triangle = (buttons0 & 0x80) != 0;
+
+        state.l1 = (buttons1 & 0x01) != 0;
+        state.r1 = (buttons1 & 0x02) != 0;
+        state.l2Button = (buttons1 & 0x04) != 0;
+        state.r2Button = (buttons1 & 0x08) != 0;
+        state.create = (buttons1 & 0x10) != 0;
+        state.options = (buttons1 & 0x20) != 0;
+        state.l3 = (buttons1 & 0x40) != 0;
+        state.r3 = (buttons1 & 0x80) != 0;
+
+        state.ps = (buttons2 & 0x01) != 0;
+        state.click = (buttons2 & 0x02) != 0;
+        state.mute = (buttons2 & 0x04) != 0;
+
+        state.first = decodeTouch(payload, 0x20);
+        state.second = decodeTouch(payload, 0x24);
+        return state;
+    }
 }
 
 std::optional<sds::InputAction> sds::mapTouchGestureToInputAction(TouchGesture gesture) noexcept
@@ -28,6 +74,7 @@ std::optional<sds::InputAction> sds::mapTouchGestureToInputAction(TouchGesture g
     case TouchGesture::SwipeDown: return InputAction::OpenMissions;
     case TouchGesture::SwipeLeft: return InputAction::OpenPowers;
     case TouchGesture::SwipeRight: return InputAction::OpenSkills;
+    case TouchGesture::LeftClick: return InputAction::TogglePOV;
     case TouchGesture::RightClick: return InputAction::OpenMap;
         case TouchGesture::CreatePressed: return InputAction::OpenPhotoMode;
     default: return std::nullopt;
@@ -44,6 +91,7 @@ std::string_view sds::nativeUserEventForInputAction(InputAction action) noexcept
     case InputAction::OpenMap: return "QuickMap";
     case InputAction::OpenPowers: return "QuickPowers";
     case InputAction::OpenPhotoMode: return "Monocle";
+    case InputAction::TogglePOV: return "TogglePOV";
     default: return {};
     }
 }
@@ -54,18 +102,19 @@ std::optional<sds::TouchState> sds::parseUsbInputReport(std::span<const std::uin
         return std::nullopt;
     }
 
-    const auto payload = report.subspan(1);
-    TouchState state{};
-    // USB report 0x01: report byte 5=L2 axis, byte 6=R2 axis.
-    // payload begins at report byte 1, hence offsets 0x04/0x05 here.
-    state.l2 = payload[0x04];
-    state.r2 = payload[0x05];
-    state.r2Button = (payload[0x08] & 0x08) != 0;
-    state.create = (payload[0x08] & 0x10) != 0;
-    state.click = (payload[0x09] & 0x02) != 0;
-    state.first = decodeTouch(payload, 0x20);
-    state.second = decodeTouch(payload, 0x24);
-    return state;
+    return decodeInputPayload(report.subspan(1));
+}
+
+std::optional<sds::TouchState> sds::parseBluetoothInputReport(
+    std::span<const std::uint8_t> report) noexcept
+{
+    if (report.size() < 78 || report[0] != 0x31) {
+        return std::nullopt;
+    }
+
+    // Enhanced Bluetooth report 0x31 has one additional byte between
+    // the report ID and the common DualSense input payload.
+    return decodeInputPayload(report.subspan(2));
 }
 
 sds::TouchGesture sds::TouchGestureTracker::update(
@@ -98,8 +147,8 @@ sds::TouchGesture sds::TouchGestureTracker::update(
 
         // Right-side click is a single immediate action. There is deliberately no
         // hold gesture/timer, so Map never waits to see whether the press becomes
-        // some second shortcut. Left-side click remains untouched for native POV.
-        return rightClick ? TouchGesture::RightClick : TouchGesture::None;
+        // some second shortcut. Left-side click is exposed as LeftClick; USB stays native and Bluetooth bridges TogglePOV.
+        return rightClick ? TouchGesture::RightClick : TouchGesture::LeftClick;
     }
 
     if (state.click && _lastClick) {

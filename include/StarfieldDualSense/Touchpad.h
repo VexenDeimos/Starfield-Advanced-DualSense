@@ -11,6 +11,7 @@
 namespace sds
 {
     [[nodiscard]] std::optional<TouchState> parseUsbInputReport(std::span<const std::uint8_t> report) noexcept;
+    [[nodiscard]] std::optional<TouchState> parseBluetoothInputReport(std::span<const std::uint8_t> report) noexcept;
     [[nodiscard]] std::optional<InputAction> mapTouchGestureToInputAction(TouchGesture gesture) noexcept;
     [[nodiscard]] std::string_view nativeUserEventForInputAction(InputAction action) noexcept;
 
