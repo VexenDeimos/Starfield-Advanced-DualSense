@@ -61,6 +61,7 @@
 #include <SFSE/SFSE.h>
 
 #include <chrono>
+#include <cmath>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -2249,17 +2250,520 @@ if (connected && g_controller->bluetoothTransport()) {
         updateNativeDualSenseReselection(std::chrono::steady_clock::now());
     }
 
-    void bluetoothShadowGamepadPollNoop(
-        void*,
-        float) noexcept
+    // Starfield's generic BSPCGamepadDevice slot 1 allocates two 0x58-byte
+    // state buffers at +0xC8 and +0xD0. Native generic slot 2 copies the
+    // current state to the previous state each frame, then fills a fresh
+    // gamepad reading and derived trigger/stick values.
+    //
+    // SAD owns the physical Bluetooth HID handle, so Starfield's native
+    // Bluetooth polling must remain disabled. This mirror reproduces only
+    // the safe state-buffer update using SAD's already-cached HID snapshot.
+    struct BluetoothShadowGenericGamepadState
     {
-        // Intentional.
-        //
-        // Starfield calls delegate slot 2 every frame to poll its own
-        // controller backend. SAD already owns the Bluetooth HID stream,
-        // so this shadow object must never poll another backend.
+        std::uint64_t timestamp{ 0 };
+        std::uint32_t buttons{ 0 };
+        std::uint32_t reserved0C{ 0 };
+
+        double leftTrigger{ 0.0 };
+        double rightTrigger{ 0.0 };
+
+        double leftX{ 0.0 };
+        double leftY{ 0.0 };
+        double rightX{ 0.0 };
+        double rightY{ 0.0 };
+
+        float leftTriggerProcessed{ 0.0F };
+        float rightTriggerProcessed{ 0.0F };
+
+        float leftXProcessed{ 0.0F };
+        float leftYProcessed{ 0.0F };
+        float rightXProcessed{ 0.0F };
+        float rightYProcessed{ 0.0F };
+    };
+
+    static_assert(
+        sizeof(BluetoothShadowGenericGamepadState) ==
+        0x58u);
+
+    [[nodiscard]] float bluetoothShadowRawAxis(
+        std::uint8_t raw,
+        bool invert) noexcept
+    {
+        float value =
+            (static_cast<float>(raw) / 255.0F) *
+                2.0F -
+            1.0F;
+
+        if (invert) {
+            value = -value;
+        }
+
+        if (value > 1.0F) {
+            value = 1.0F;
+        }
+        else if (value < -1.0F) {
+            value = -1.0F;
+        }
+
+        return value;
     }
 
+    void bluetoothShadowShapeStick(
+        std::uint8_t rawX,
+        std::uint8_t rawY,
+        float& x,
+        float& y) noexcept
+    {
+        x =
+            bluetoothShadowRawAxis(
+                rawX,
+                false);
+
+        y =
+            bluetoothShadowRawAxis(
+                rawY,
+                true);
+
+        const float magnitude =
+            std::sqrt(
+                x * x +
+                y * y);
+
+        constexpr float kDeadzone =
+            0.10F;
+
+        if (magnitude <= kDeadzone) {
+            x = 0.0F;
+            y = 0.0F;
+            return;
+        }
+
+        const float clampedMagnitude =
+            magnitude > 1.0F ?
+                1.0F :
+                magnitude;
+
+        const float scaledMagnitude =
+            (clampedMagnitude - kDeadzone) /
+            (1.0F - kDeadzone);
+
+        const float scale =
+            magnitude > 0.0F ?
+                scaledMagnitude / magnitude :
+                0.0F;
+
+        x *= scale;
+        y *= scale;
+    }
+
+    [[nodiscard]] std::uint32_t
+    bluetoothShadowGamepadButtons(
+        const sds::TouchState& state) noexcept
+    {
+        // Raw generic state uses the Windows Gaming Input button bits that
+        // Starfield's native GenericGamepad slot 2 consumes at state +0x08.
+        constexpr std::uint32_t kMenu =
+            0x0001u;
+
+        constexpr std::uint32_t kA =
+            0x0004u;
+
+        constexpr std::uint32_t kB =
+            0x0008u;
+
+        constexpr std::uint32_t kX =
+            0x0010u;
+
+        constexpr std::uint32_t kY =
+            0x0020u;
+
+        constexpr std::uint32_t kDpadUp =
+            0x0040u;
+
+        constexpr std::uint32_t kDpadDown =
+            0x0080u;
+
+        constexpr std::uint32_t kDpadLeft =
+            0x0100u;
+
+        constexpr std::uint32_t kDpadRight =
+            0x0200u;
+
+        constexpr std::uint32_t kLeftShoulder =
+            0x0400u;
+
+        constexpr std::uint32_t kRightShoulder =
+            0x0800u;
+
+        constexpr std::uint32_t kLeftThumb =
+            0x1000u;
+
+        constexpr std::uint32_t kRightThumb =
+            0x2000u;
+
+        std::uint32_t buttons = 0;
+
+        if (state.options) {
+            buttons |= kMenu;
+        }
+
+        if (state.cross) {
+            buttons |= kA;
+        }
+
+        if (state.circle) {
+            buttons |= kB;
+        }
+
+        if (state.square) {
+            buttons |= kX;
+        }
+
+        if (state.triangle) {
+            buttons |= kY;
+        }
+
+        const auto hat =
+            static_cast<std::uint8_t>(
+                state.dpad);
+
+        if (
+            hat == 0 ||
+            hat == 1 ||
+            hat == 7) {
+
+            buttons |= kDpadUp;
+        }
+
+        if (
+            hat == 3 ||
+            hat == 4 ||
+            hat == 5) {
+
+            buttons |= kDpadDown;
+        }
+
+        if (
+            hat == 5 ||
+            hat == 6 ||
+            hat == 7) {
+
+            buttons |= kDpadLeft;
+        }
+
+        if (
+            hat == 1 ||
+            hat == 2 ||
+            hat == 3) {
+
+            buttons |= kDpadRight;
+        }
+
+        if (state.l1) {
+            buttons |= kLeftShoulder;
+        }
+
+        if (state.r1) {
+            buttons |= kRightShoulder;
+        }
+
+        if (state.l3) {
+            buttons |= kLeftThumb;
+        }
+
+        if (state.r3) {
+            buttons |= kRightThumb;
+        }
+
+        // Create/View intentionally remains outside this physical state mirror.
+        // SAD already owns Create/touchpad behavior separately.
+
+        return buttons;
+    }
+
+    void bluetoothShadowGamepadPollMirror(
+        void* gamepad,
+        float deltaSeconds) noexcept
+    {
+        try {
+            if (!gamepad ||
+                !g_controller ||
+                !g_controller->connected() ||
+                !g_controller->bluetoothTransport()) {
+
+                return;
+            }
+
+            const auto snapshot =
+                g_controller->latestInputSnapshot();
+
+            if (!snapshot) {
+                return;
+            }
+
+            static std::atomic_bool invocationLogged{ false };
+
+            if (!invocationLogged.exchange(
+                    true,
+                    std::memory_order_acq_rel)) {
+                pluginLog(
+                    "Bluetooth shadow state mirror: INVOKED source=Starfield-slot2");
+            }
+
+            const auto gamepadAddress =
+                reinterpret_cast<std::uintptr_t>(
+                    gamepad);
+
+            if (gamepadAddress < 0x10000u) {
+                return;
+            }
+
+            auto* previous =
+                *reinterpret_cast<
+                    BluetoothShadowGenericGamepadState**>(
+                        gamepadAddress +
+                        0xC8u);
+
+            auto* current =
+                *reinterpret_cast<
+                    BluetoothShadowGenericGamepadState**>(
+                        gamepadAddress +
+                        0xD0u);
+
+            if (
+                reinterpret_cast<std::uintptr_t>(
+                    previous) <
+                    0x10000u ||
+                reinterpret_cast<std::uintptr_t>(
+                    current) <
+                    0x10000u) {
+
+                return;
+            }
+
+            // Match native GenericGamepad slot 2:
+            // old current -> previous, fresh reading -> current.
+            std::memcpy(
+                previous,
+                current,
+                sizeof(
+                    BluetoothShadowGenericGamepadState));
+
+            BluetoothShadowGenericGamepadState next{};
+
+            next.timestamp =
+                snapshot->generation;
+
+            const auto& state =
+                snapshot->state;
+            // Bluetooth native digital timing:
+            //
+            // USB creates its L3/Circle native button transitions during
+            // Starfield's native gamepad polling stage. Reproduce only that
+            // timing here on the safe SAD shadow.
+            //
+            // Analog and every other digital input remain on the proven
+            // runtime-tick bridge. No hardware polling occurs here.
+            using NativeGamepadButtonTransition =
+                void (*)(
+                    void*,
+                    std::int32_t,
+                    float,
+                    float,
+                    float);
+
+            constexpr std::uintptr_t
+                kNativeGamepadButtonTransitionRva =
+                    0x22FC2A0u;
+
+            constexpr std::int32_t
+                kNativeL3ButtonId =
+                    0x0002;
+
+            constexpr std::int32_t
+                kNativeCircleButtonId =
+                    0x2000;
+
+            static void* transitionGamepad = nullptr;
+            static bool previousL3 = false;
+            static bool previousCircle = false;
+            static bool timingLogged = false;
+
+            if (transitionGamepad != gamepad) {
+                transitionGamepad = gamepad;
+                previousL3 = false;
+                previousCircle = false;
+            }
+
+            float nativeDeltaSeconds =
+                deltaSeconds;
+
+            if (nativeDeltaSeconds < 0.0F) {
+                nativeDeltaSeconds = 0.0F;
+            }
+            else if (nativeDeltaSeconds > 0.100F) {
+                nativeDeltaSeconds = 0.100F;
+            }
+
+            const auto starfieldBase =
+                reinterpret_cast<std::uintptr_t>(
+                    GetModuleHandleW(nullptr));
+
+            if (starfieldBase != 0) {
+                const auto transition =
+                    reinterpret_cast<
+                        NativeGamepadButtonTransition>(
+                            starfieldBase +
+                            kNativeGamepadButtonTransitionRva);
+
+                const bool currentL3 =
+                    state.l3;
+
+                const bool currentCircle =
+                    state.circle;
+
+                if (currentL3 || previousL3) {
+                    transition(
+                        gamepad,
+                        kNativeL3ButtonId,
+                        nativeDeltaSeconds,
+                        previousL3 ? 1.0F : 0.0F,
+                        currentL3 ? 1.0F : 0.0F);
+                }
+
+                if (currentCircle || previousCircle) {
+                    transition(
+                        gamepad,
+                        kNativeCircleButtonId,
+                        nativeDeltaSeconds,
+                        previousCircle ? 1.0F : 0.0F,
+                        currentCircle ? 1.0F : 0.0F);
+                }
+
+                if (!timingLogged &&
+                    (currentL3 ||
+                     previousL3 ||
+                     currentCircle ||
+                     previousCircle)) {
+
+                    pluginLog(
+                        "Bluetooth native digital timing: ACTIVE "
+                        "rva=Starfield+0x22FC2A0 "
+                        "buttons=L3,Circle "
+                        "source=Starfield-slot2 "
+                        "hardwarePolling=no "
+                        "runtimeTickButtons=masked");
+
+                    timingLogged = true;
+                }
+
+                previousL3 =
+                    currentL3;
+
+                previousCircle =
+                    currentCircle;
+            }
+
+            static std::atomic_bool activeSampleLogged{ false };
+
+            const bool diagnosticActiveSample =
+                state.l3 ||
+                state.circle ||
+                state.leftY <= 24u ||
+                state.leftY >= 231u;
+
+            if (diagnosticActiveSample &&
+                !activeSampleLogged.exchange(
+                    true,
+                    std::memory_order_acq_rel)) {
+                pluginLog(
+                    "Bluetooth shadow state mirror: ACTIVE-SAMPLE "
+                    "left-stick-or-L3-or-Circle observed");
+            }
+
+            next.buttons =
+                bluetoothShadowGamepadButtons(
+                    state);
+
+            next.leftTrigger =
+                static_cast<double>(
+                    state.l2) /
+                255.0;
+
+            next.rightTrigger =
+                static_cast<double>(
+                    state.r2) /
+                255.0;
+
+            const float rawLeftX =
+                bluetoothShadowRawAxis(
+                    state.leftX,
+                    false);
+
+            const float rawLeftY =
+                bluetoothShadowRawAxis(
+                    state.leftY,
+                    true);
+
+            const float rawRightX =
+                bluetoothShadowRawAxis(
+                    state.rightX,
+                    false);
+
+            const float rawRightY =
+                bluetoothShadowRawAxis(
+                    state.rightY,
+                    true);
+
+            next.leftX =
+                static_cast<double>(
+                    rawLeftX);
+
+            next.leftY =
+                static_cast<double>(
+                    rawLeftY);
+
+            next.rightX =
+                static_cast<double>(
+                    rawRightX);
+
+            next.rightY =
+                static_cast<double>(
+                    rawRightY);
+
+            next.leftTriggerProcessed =
+                static_cast<float>(
+                    next.leftTrigger);
+
+            next.rightTriggerProcessed =
+                static_cast<float>(
+                    next.rightTrigger);
+
+            bluetoothShadowShapeStick(
+                state.leftX,
+                state.leftY,
+                next.leftXProcessed,
+                next.leftYProcessed);
+
+            bluetoothShadowShapeStick(
+                state.rightX,
+                state.rightY,
+                next.rightXProcessed,
+                next.rightYProcessed);
+
+            std::memcpy(
+                current,
+                &next,
+                sizeof(next));
+
+            // Do NOT touch gamepad +0x08 here.
+            // Dynamic last-device presentation owns that field.
+        }
+        catch (...) {
+            // Slot 2 must remain fail-safe. Input events continue through
+            // SAD's proven native event bridge even if state mirroring fails.
+        }
+    }
     void removeBluetoothShadowDelegate() noexcept
     {
         if (!g_bluetoothShadowDelegate) {
@@ -2323,6 +2827,53 @@ if (connected && g_controller->bluetoothTransport()) {
 
         g_bluetoothShadowDelegate = nullptr;
         g_bluetoothShadowDelegateLogged = false;
+    }
+
+    void applyBluetoothInputPresentationDevice(
+        sds::InputPresentationDevice device) noexcept
+    {
+        try {
+            if (!g_controller ||
+                !g_controller->connected() ||
+                !g_controller->bluetoothTransport() ||
+                !g_bluetoothShadowDelegate) {
+
+                return;
+            }
+
+            const auto shadow =
+                reinterpret_cast<std::uintptr_t>(
+                    g_bluetoothShadowDelegate);
+
+            if (shadow < 0x10000u) {
+                return;
+            }
+
+            const std::uint8_t desired =
+                device ==
+                    sds::InputPresentationDevice::Gamepad ?
+                    1u :
+                    0u;
+
+            auto* activeFlag =
+                reinterpret_cast<std::uint8_t*>(
+                    shadow + 0x08u);
+
+            if (*activeFlag == desired) {
+                return;
+            }
+
+            *activeFlag = desired;
+
+            pluginLog(
+                desired != 0 ?
+                    "Bluetooth input presentation: device=gamepad shadowActive=1" :
+                    "Bluetooth input presentation: device=keyboard-mouse shadowActive=0");
+        }
+        catch (...) {
+            pluginLog(
+                "Bluetooth input presentation: transition failed");
+        }
     }
 
     bool installBluetoothShadowDelegate() noexcept
@@ -2459,7 +3010,7 @@ if (connected && g_controller->bluetoothTransport()) {
         // Replace only this entry with a no-op.
         g_bluetoothShadowVtable[2] =
             reinterpret_cast<std::uintptr_t>(
-                &bluetoothShadowGamepadPollNoop);
+                &bluetoothShadowGamepadPollMirror);
 
         // slot 11:
         // Proven controller-type discriminator.
@@ -2573,10 +3124,13 @@ if (connected && g_controller->bluetoothTransport()) {
         g_bluetoothShadowDelegate =
             shadow;
 
+        sds::setInputPresentationObserver(
+            &applyBluetoothInputPresentationDevice);
+
         pluginLog(
             "Bluetooth shadow delegate: INSTALLED "
             "object=native-generic-layout "
-            "slot2=no-op "
+            "slot2=SAD-state-mirror "
             "slot11=DualSense-true "
             "hidPolling=SAD-only");
 
@@ -2635,24 +3189,12 @@ if (connected && g_controller->bluetoothTransport()) {
                 handler + 0xB8u) =
                 1;
 
-            // Native gamepad processing marks +0x08 when this controller
-            // is the active input source. SAD's shadow slot2 is intentionally
-            // a no-op so Starfield never polls another Bluetooth backend;
-            // reproduce only this proven native side effect.
-            //
-            // Live verification:
-            //   delegate+0x08 = 1
-            //   handler +0x08 = 1
-            //
-            // This enables normal right-stick camera consumption and keeps
-            // menus in controller mode instead of mouse-cursor mode.
-            *reinterpret_cast<std::uint8_t*>(
-                shadow + 0x08u) =
-                1;
+            // The shadow +0x08 active-input field is intentionally NOT
+            // forced here. Actual Bluetooth controller activity sets it
+            // to 1; native keyboard/mouse activity clears it to 0.
 
-            *reinterpret_cast<std::uint8_t*>(
-                handler + 0x08u) =
-                1;
+
+
 
             if (!g_bluetoothShadowDelegateLogged) {
                 const auto vtable =
@@ -2672,11 +3214,11 @@ if (connected && g_controller->bluetoothTransport()) {
                     << " vtable=0x"
                     << vtable
                     << std::dec
-                    << " slot2=no-op"
+                    << " slot2=SAD-state-mirror"
                     << " slot11=DualSense-true"
                     << " StarfieldPolling=no"
                     << " SADHidOwner=yes"
-                    << " activeInput=1";
+                    << " activeInput=dynamic-last-device";
 
                 pluginLog(line.str());
 
@@ -2904,8 +3446,7 @@ if (connected && g_controller->bluetoothTransport()) {
         const auto snapshot =
             g_controller->latestInputSnapshot();
 
-        if (!snapshot ||
-            snapshot->generation == lastGeneration) {
+        if (!snapshot) {
             return;
         }
 
@@ -2918,9 +3459,25 @@ if (connected && g_controller->bluetoothTransport()) {
                     now - lastDispatch).count();
         }
 
+        // L3 and Circle are intentionally excluded from runtime-tick
+        // publication in this experiment. Their native transition helper
+        // now runs from Starfield's slot2 gamepad-poll timing instead.
+        //
+        // All analog input and every other button remain on the proven
+        // runtime-tick replay cadence.
+        auto replayState =
+            snapshot->state;
+
+        replayState.l3 =
+            false;
+
+        replayState.circle =
+            false;
+
         g_gameState->dispatchBluetoothPhysicalInput(
-            snapshot->state,
-            deltaSeconds);
+            replayState,
+            deltaSeconds,
+            g_bluetoothShadowDelegate);
 
         lastGeneration = snapshot->generation;
         lastDispatch = now;
@@ -2931,7 +3488,7 @@ if (connected && g_controller->bluetoothTransport()) {
                 "Bluetooth gameplay input bridge: ACTIVE source=SAD-HID "
                 "destination=Starfield-native-physical-events "
                 "buttons=generic-gamepad triggers=analog-9/10 "
-                "sticks=native-11/12 nativeBluetoothReselection=bypassed");
+                "sticks=native-11/12 nativeBluetoothReselection=bypassed cadence=runtime-tick-replay");
             activationLogged = true;
         }
     }
@@ -2964,6 +3521,9 @@ if (connected && g_controller->bluetoothTransport()) {
 
         if (g_controller && g_gameState) {
             while (const auto action = g_controller->tryPopInputAction()) {
+                applyBluetoothInputPresentationDevice(
+                    sds::InputPresentationDevice::Gamepad);
+
                 (void)g_gameState->queueNativeInputAction(*action);
             }
         }

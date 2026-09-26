@@ -49,6 +49,18 @@ namespace sds
     void setBoostpackSemanticObservationArmed(bool armed) noexcept;
     [[nodiscard]] bool boostpackSemanticObservationArmed() noexcept;
 
+    enum class InputPresentationDevice : std::uint8_t
+    {
+        KeyboardMouse = 0,
+        Gamepad = 1
+    };
+
+    using InputPresentationObserver =
+        void (*)(InputPresentationDevice) noexcept;
+
+    void setInputPresentationObserver(
+        InputPresentationObserver observer) noexcept;
+
     class GameStateAdapter final :
         public RE::BSTEventSink<RE::ActorItemEquipped::Event>,
         public RE::BSTEventSink<RE::BSAnimationGraphEvent>,
@@ -95,7 +107,8 @@ namespace sds
         void pollNativeInputInjection() noexcept;
         void dispatchBluetoothPhysicalInput(
             const TouchState& state,
-            float deltaSeconds) noexcept;
+            float deltaSeconds,
+            void* gamepadDevice = nullptr) noexcept;
         void resetBluetoothPhysicalInput() noexcept;
 
         RE::BSEventNotifyControl ProcessEvent(

@@ -342,7 +342,7 @@ namespace
         }
 
         auto& state = traceState();
-        void* caller = returnAddress();
+        void* caller = _ReturnAddress();
         if (state.active.load(std::memory_order_acquire) && buffer && bytesToWrite == 48) {
             auto* mutableBuffer = const_cast<std::uint8_t*>(
                 static_cast<const std::uint8_t*>(buffer));
