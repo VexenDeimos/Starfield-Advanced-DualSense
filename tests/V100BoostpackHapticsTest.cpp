@@ -115,8 +115,8 @@ int main()
 
     config.boostpackHapticsStrength = 99.0F;
     check(
-        near(sds::gameplayHapticsLiveSettings(config).boostpackHapticsStrength, 2.0F, 0.001F),
-        "live projection clamps BoostpackHapticsStrength high to 2.0");
+        near(sds::gameplayHapticsLiveSettings(config).boostpackHapticsStrength, 3.0F, 0.001F),
+        "live projection clamps BoostpackHapticsStrength high to 3.0");
     config.boostpackHapticsStrength = -3.0F;
     check(
         near(sds::gameplayHapticsLiveSettings(config).boostpackHapticsStrength, 0.0F, 0.001F),

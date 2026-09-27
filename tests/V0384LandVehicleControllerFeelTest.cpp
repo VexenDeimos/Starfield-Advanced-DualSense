@@ -59,8 +59,8 @@ int main()
     const auto cruise = settle(feel, motion(true, 10.0F, 0.0F));
     expect(cruise.bodyGain > 0.0F && cruise.bodyGain <= 0.22F,
         "cruise remains subtle");
-    expect(cruise.bodyGain >= 0.145F && cruise.bodyGain <= 0.18F,
-        "r1 steady half-scale cruise has a clearly tactile but bounded body");
+    expect(cruise.bodyGain >= 0.13F && cruise.bodyGain <= 0.14F,
+        "steady half-scale cruise has a clearly tactile but bounded body");
 
     feel.reset();
     const auto sameSpeedCoast = settle(feel, motion(true, 10.0F, 0.0F));

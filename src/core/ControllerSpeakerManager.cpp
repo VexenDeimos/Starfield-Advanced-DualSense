@@ -130,6 +130,20 @@ void sds::ControllerSpeakerManager::applyLiveSettings(
     _live = next;
 }
 
+void sds::ControllerSpeakerManager::setSpeakerVolume(float volume) noexcept
+{
+    std::scoped_lock lock(_stateMutex);
+
+    if (!_backend) {
+        return;
+    }
+
+    _backend->setSpeakerVolume(
+        std::clamp(
+            volume,
+            0.0F,
+            1.0F));
+}
 sds::SpeakerOutputMode sds::ControllerSpeakerManager::outputMode() const noexcept
 {
     std::scoped_lock lock(_stateMutex);

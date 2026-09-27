@@ -160,8 +160,8 @@ int main()
         sds::loadConfig("BoostpackHapticsStrength = 99.0");
 
     expect(
-        near(boostHigh.boostpackHapticsStrength, 2.0F),
-        "BoostpackHapticsStrength clamps high to 2.0");
+        near(boostHigh.boostpackHapticsStrength, 3.0F),
+        "BoostpackHapticsStrength clamps high to 3.0");
 
     const auto boostLow =
         sds::loadConfig("BoostpackHapticsStrength = -4.0");

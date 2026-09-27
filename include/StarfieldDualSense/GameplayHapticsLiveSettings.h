@@ -26,7 +26,7 @@ namespace sds
             .advancedHaptics = config.advancedHaptics,
             .hapticStrength = std::clamp(config.hapticStrength, 0.0F, 1.0F),
             .boostpackHaptics = config.boostpackHaptics,
-            .boostpackHapticsStrength = std::clamp(config.boostpackHapticsStrength, 0.0F, 2.0F),
+            .boostpackHapticsStrength = std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F),
         };
     }
 }

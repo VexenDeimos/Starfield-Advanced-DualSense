@@ -1,12 +1,13 @@
 set_xmakever("3.0.0")
 set_project("StarfieldDualSense")
-set_version("0.3.91")
+set_version("0.5.0")
 set_arch("x64")
 set_languages("c++23")
 set_encodings("utf-8")
 add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 add_requires("zlib")
+add_requires("libopus")
 
 local kStbVorbisSource = "external/stb/stb_vorbis.c"
 local kWw2OggCodebookInclude = "external/ww2ogg/include/StarfieldDualSense/packed_codebooks_aoTuV_603.inc"
@@ -1574,6 +1575,7 @@ target("sds-weapon-audio-pipeline-tests", function()
         "src/core/WeaponSpeakerProfile.cpp",
         "src/core/WeaponSpeakerPreparedCache.cpp",
         "src/core/UiSpeakerPreparedCache.cpp",
+        "src/core/BoostpackSpeakerPreparedCache.cpp",
         "src/core/WeaponAudioPipeline.cpp",
         "src/core/ShipWeaponSemanticCatalog.cpp",
         "src/core/WwiseSoundBanksInfo.cpp")
@@ -1753,13 +1755,14 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             author = "AD Mixon",
             description = "Native DualSense support for Starfield on PC"
         })
-        set_version("0.3.91")
+        set_version("0.5.0")
         set_license("GPL-3.0-or-later")
         add_includedirs("include")
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
         add_syslinks("hid", "setupapi", "ole32", "uuid")
         add_vorbis_decoder_dependencies()
         add_packages("zlib")
+        add_packages("libopus")
         for _, source in ipairs(core_sources) do
             add_files(source)
         end
@@ -1769,6 +1772,8 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             "src/windows/DualSenseAudioHapticsClient.cpp",
             "src/windows/DualModeHapticsBackend.cpp",
             "src/windows/DualSenseAudioSpeakerClient.cpp",
+            "src/windows/BluetoothSpeakerBackend.cpp",
+            "src/windows/DualModeSpeakerBackend.cpp",
             "src/windows/NativeUsbBackend.cpp",
             "src/windows/NativeBluetoothBackend.cpp",
             "src/windows/NativeDualSenseBackend.cpp",

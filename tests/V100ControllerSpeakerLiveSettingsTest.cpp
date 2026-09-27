@@ -42,6 +42,7 @@ namespace
         bool failStart{ false };
         std::vector<float> preparedGains{};
         std::vector<float> persistentGains{};
+        std::vector<float> masterVolumes{};
 
         void start() override
         {
@@ -61,6 +62,11 @@ namespace
         void clearPlayback() noexcept override
         {
             ++clears;
+        }
+
+        void setSpeakerVolume(float volume) noexcept override
+        {
+            masterVolumes.push_back(volume);
         }
 
         bool enqueue(const sds::SpeakerCommand&) noexcept override
@@ -154,6 +160,17 @@ int main()
     manager.start();
     check(raw->starts == 0, "startup disabled keeps stable backend idle");
     check(!manager.active(), "startup disabled manager reports inactive");
+    manager.setSpeakerVolume(0.35F);
+    check(
+        raw->masterVolumes.size() == 1 &&
+        near(raw->masterVolumes.back(), 0.35F),
+        "master volume forwards while backend is idle");
+
+    manager.setSpeakerVolume(2.0F);
+    check(
+        raw->masterVolumes.size() == 2 &&
+        near(raw->masterVolumes.back(), 1.0F),
+        "master volume clamps high before backend forwarding");
 
     auto live = sds::controllerSpeakerLiveSettings(startup);
     live.controllerSpeaker = true;

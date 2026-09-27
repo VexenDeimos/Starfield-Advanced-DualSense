@@ -125,10 +125,10 @@ for forbidden in (
 
 full = plugin[branch_end:] if branch_end >= 0 else ""
 add("Full mode retains existing full SAD subsystem construction",
-    "g_haptics = std::make_unique<sds::HapticsManager>" in full and
-    "g_speakerManager = std::make_unique<sds::ControllerSpeakerManager>" in full and
-    "g_eventRouter = std::make_unique<sds::RuntimeEventRouter>" in full and
-    "g_gameState = std::make_unique<sds::GameStateAdapter>" in full)
+    re.search(r"g_haptics\s*=\s*std::make_unique<sds::HapticsManager>", full) is not None and
+    re.search(r"g_speakerManager\s*=\s*std::make_unique<sds::ControllerSpeakerManager>", full) is not None and
+    re.search(r"g_eventRouter\s*=\s*std::make_unique<sds::RuntimeEventRouter>", full) is not None and
+    re.search(r"g_gameState\s*=\s*std::make_unique<sds::GameStateAdapter>", full) is not None)
 add("validated native selector contract retained",
     "kNativeGamepadSelectorRva = 0x22FE670u" in plugin and
     "kNativeDualSenseReselectionSettleMs = 250" in plugin and

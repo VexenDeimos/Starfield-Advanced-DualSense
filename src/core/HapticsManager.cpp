@@ -58,7 +58,7 @@ sds::HapticsManager::HapticsManager(Config config, BackendFactory backendFactory
     _advancedHapticsEnabled(config.advancedHaptics),
     _hapticStrength(std::clamp(config.hapticStrength, 0.0F, 1.0F)),
     _boostpackHapticsEnabled(config.boostpackHaptics),
-    _boostpackHapticsStrength(std::clamp(config.boostpackHapticsStrength, 0.0F, 2.0F)),
+    _boostpackHapticsStrength(std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F)),
     _backendFactory(std::move(backendFactory)),
     _log(std::move(log)),
     _engine(config.hapticStrength)

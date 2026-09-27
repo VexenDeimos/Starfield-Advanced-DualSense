@@ -708,7 +708,7 @@ namespace sds
 
         if (key == "BoostpackHapticsStrength") {
             current_.boostpackHapticsStrength =
-                std::clamp(value, 0.0F, 2.0F);
+                std::clamp(value, 0.0F, 3.0F);
             return true;
         }
 

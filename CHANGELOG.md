@@ -1,3 +1,13 @@
+## 0.5.0 - 2026-09-27
+
+- Added native Bluetooth support for DualSense gameplay features without requiring DSX, DualSenseX, reWASD, or another controller wrapper.
+- Added Bluetooth gameplay haptics using the native DualSense Bluetooth output path, with a dedicated `BluetoothHapticStrength` setting.
+- Added DualSense controller-speaker audio over Bluetooth using real-time Opus audio carried through the controller HID transport.
+- Controller-speaker playback now automatically selects USB WASAPI or Bluetooth Opus/HID based on the active DualSense connection.
+- Controller-speaker settings, category controls, and master `SpeakerVolume` now work live over both USB and Bluetooth.
+- Restored full background preparation for real Starfield weapon, boostpack, UI/scanner, crafting, Digipick, and other supported controller-speaker audio.
+- Raised the maximum `BoostpackHapticsStrength` from `2.0` to `3.0` for players who want substantially stronger boostpack feedback. The default remains `1.0`.
+- Preserved native USB behavior while adding the Bluetooth transport.
 ## 0.3.91 - 2026-09-20
 
 - Added a live `Radio / Comms Voice` controller-speaker toggle; disabling it immediately clears active controller-speaker communications.
@@ -1506,3 +1516,5 @@ Initial bring-up build.
 - Added build/bootstrap/package scripts and default configuration.
 
 Not yet included: DSX Bluetooth fallback, advanced haptics, controller speaker, ship effects, detailed weapon profiles, or PS5 parity tuning.
+
+- Added a Bluetooth lightbar reconnect settle gate that waits for both controller LED readiness and at least two seconds of host-side Bluetooth connection time before taking LED ownership, fixing intermittent missing lightbar output after reconnects.

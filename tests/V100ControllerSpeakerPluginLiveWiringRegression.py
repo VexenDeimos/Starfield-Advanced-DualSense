@@ -64,15 +64,18 @@ check(
 check(
     "stable speaker manager exists regardless of startup master",
     "if (config.controllerSpeaker)" not in plugin
-    and "auto speakerBackend = std::make_unique<sds::DualSenseAudioSpeakerClient>(g_audioTransport);" in plugin
-    and "g_speakerManager = std::make_unique<sds::ControllerSpeakerManager>(" in plugin
+    and "std::make_unique<sds::DualSenseAudioSpeakerClient>" in plugin
+    and "std::make_unique<sds::BluetoothSpeakerBackend>" in plugin
+    and "std::make_unique<sds::DualModeSpeakerBackend>" in plugin
+    and "g_speakerManager =" in plugin
+    and "std::make_unique<sds::ControllerSpeakerManager>" in plugin
     and "g_speakerManager->start();" in plugin,
 )
 
 check(
     "native backend factory no longer captures startup ControllerSpeaker",
     "speaker = config.controllerSpeaker" not in plugin
-    and "std::make_unique<sds::NativeUsbBackend>(nativeLog, false)" in plugin,
+    and "std::make_unique<sds::NativeDualSenseBackend>(nativeLog, false)" in plugin,
 )
 
 check(
@@ -86,8 +89,14 @@ check(
 
 check(
     "weapon speaker producer lifetime no longer depends on SpeakerWeapons",
-    re.search(r"g_weaponAudioPipelineEnabled\s*=\s*config\.debugLogging\s*;", plugin) is not None
-    and "speakerCategoryEnabled(config, sds::SpeakerCategory::Weapons)" not in plugin,
+    re.search(
+        r"g_weaponAudioPipelineEnabled\s*=\s*"
+        r"config\.operatingMode\s*==\s*"
+        r"sds::OperatingMode::Full\s*;",
+        plugin,
+    ) is not None
+    and "speakerCategoryEnabled(config, sds::SpeakerCategory::Weapons)" not in plugin
+    and "g_weaponAudioPipelineEnabled = config.debugLogging;" not in plugin,
 )
 
 check(

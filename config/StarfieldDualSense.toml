@@ -1,4 +1,4 @@
-# Starfield DualSense v0.3.91
+# Starfield DualSense v0.5.0
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -45,7 +45,7 @@ HapticStrength = 1.0
 BluetoothHapticStrength = 1.0
 
 # Boostpack-only haptics. The boostpack strength is multiplied by the global
-# HapticStrength setting above. Valid boostpack range: 0.0-2.0
+# HapticStrength setting above. Valid boostpack range: 0.0-3.0
 BoostpackHaptics = true
 BoostpackHapticsStrength = 1.0
 
@@ -55,8 +55,8 @@ MusicHapticsEnabled = false
 MusicHapticsStrength = 0.1
 
 # =============================================================================
-# CONTROLLER SPEAKER - USB ONLY
-# Bluetooth controller-speaker output is not supported yet.
+# CONTROLLER SPEAKER
+# Supported over both USB and Bluetooth.
 # =============================================================================
 ControllerSpeaker = true
 # Master controller-speaker volume. Valid range: 0.0-1.0

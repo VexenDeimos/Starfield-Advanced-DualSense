@@ -16,6 +16,8 @@
 #include <StarfieldDualSense/DualSenseAudioHapticsClient.h>
 #include <StarfieldDualSense/DualModeHapticsBackend.h>
 #include <StarfieldDualSense/DualSenseAudioSpeakerClient.h>
+#include <StarfieldDualSense/BluetoothSpeakerBackend.h>
+#include <StarfieldDualSense/DualModeSpeakerBackend.h>
 #include <StarfieldDualSense/ControllerSpeakerManager.h>
 #include <StarfieldDualSense/WeaponSpeakerPlayback.h>
 #include <StarfieldDualSense/WeaponSpeakerPreparedCache.h>
@@ -82,7 +84,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.3.91";
+    constexpr std::string_view kVersion = "0.5.0";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -223,8 +225,13 @@ namespace
             musicHapticsClearAuthority();
         }
 
-        if (g_audioTransport) {
-            g_audioTransport->setSpeakerVolume(live.speakerVolume);
+        if (g_speakerManager) {
+            g_speakerManager->setSpeakerVolume(
+                live.speakerVolume);
+        } else if (g_audioTransport) {
+            // Startup/fail-soft fallback before the speaker manager exists.
+            g_audioTransport->setSpeakerVolume(
+                live.speakerVolume);
         }
 
         if (g_controller) {
@@ -4092,14 +4099,35 @@ if (connected && g_controller->bluetoothTransport()) {
             pluginLog("Music haptics: INACTIVE reason=AdvancedHaptics-or-MusicHapticsEnabled-disabled wholeGameMix=no");
         }
 
-        auto speakerBackend = std::make_unique<sds::DualSenseAudioSpeakerClient>(g_audioTransport);
-        g_speakerManager = std::make_unique<sds::ControllerSpeakerManager>(
-            config,
-            std::move(speakerBackend),
-            nativeLog);
-        // start() records stable ownership even when startup master is OFF;
-        // Task 1 live-enable reuses this exact backend object later.
-        g_speakerManager->start();
+        auto wiredSpeakerBackend =
+            std::make_unique<sds::DualSenseAudioSpeakerClient>(
+                g_audioTransport);
+
+        auto bluetoothSpeakerBackend =
+            std::make_unique<sds::BluetoothSpeakerBackend>(
+                config.speakerVolume,
+                nativeLog);
+
+        auto speakerBackend =
+            std::make_unique<sds::DualModeSpeakerBackend>(
+                std::move(wiredSpeakerBackend),
+                std::move(bluetoothSpeakerBackend),
+                [] {
+                    return
+                        g_controller &&
+                        g_controller->connected() &&
+                        g_controller->bluetoothTransport();
+                },
+                nativeLog);
+
+        g_speakerManager =
+            std::make_unique<sds::ControllerSpeakerManager>(
+                config,
+                std::move(speakerBackend),
+                nativeLog);
+
+        // Start is deferred until the primary controller worker
+        // has established the active USB/Bluetooth transport.
 
         if (boostpackProductionEnabled) {
             {
@@ -4385,6 +4413,14 @@ if (connected && g_controller->bluetoothTransport()) {
             std::chrono::milliseconds(8),
             std::move(rightTriggerObserver));
         g_controller->start();
+
+        if (g_speakerManager) {
+            g_speakerManager->start();
+        }
+
+        pluginLog(
+            "Controller speaker transport: AUTO "
+            "USB=WASAPI Bluetooth=Opus-HID");
 
         g_eventRouter = std::make_unique<sds::RuntimeEventRouter>(
             [](sds::GameEvent event) {
@@ -5212,9 +5248,7 @@ if (connected && g_controller->bluetoothTransport()) {
                     g_uiSpeakerPreparedCache,
                     g_shipWeaponSemanticCache,
                     g_boostpackSpeakerPreparedCache);
-                // TEMP DIAGNOSTIC: isolate severe Bluetooth main-menu latency.
-                // Do not launch weapon/UI/music cache preparation.
-                g_weaponAudioPipeline.reset();
+                g_weaponAudioPipeline->start();
                 if (g_musicRecon && g_audioCapture && g_audioCapture->active()) {
                     pluginLog("Music recon: ACTIVE diagnostic-only source=existing-PostEvent-hook externalSources=zero resolver=shared-background-worker decode=music-name-candidates output=none wholeGameMix=no");
                     pluginLog("Music selection recon: ACTIVE diagnostic-only targetSource=SoundBanksInfo-Starfield_MUS-multi-media callback=AK_Duration existingCallbackMode=chain-preserve-cookie retirement=AK_EndOfEvent pool=128 output=none");
@@ -5223,7 +5257,7 @@ if (connected && g_controller->bluetoothTransport()) {
                 }
 
                 std::ostringstream pipelineLine;
-                pipelineLine << "Weapon audio pipeline: START SKIPPED diagnostic=bluetooth-main-menu-lag families="
+                pipelineLine << "Weapon audio pipeline: worker started families="
                              << sds::weaponSpeakerAudioFamilyCount()
                              << " profiles=" << sds::weaponSpeakerProfiles().size()
                              << " uiPreparation=" << (uiSpeakerPlaybackEnabled ? "yes" : "no")

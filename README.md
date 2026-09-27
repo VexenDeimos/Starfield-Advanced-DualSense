@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.3.91-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -10,7 +10,7 @@
 
 SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It uses Starfield's own gameplay state, input, audio, and Wwise events to drive adaptive triggers, haptics, controller-speaker audio, touchpad/lightbar behavior, and reconnect handling in ways that are tied to what is actually happening in the game.
 
-> **Native-first design:** plug a DualSense into the PC with a USB cable and use it the same way you would with a PC game that has built-in DualSense features. SAD does **not** require DSX, DualSenseX, reWASD, or similar controller-emulation software.
+> **Native-first design:** connect a DualSense to the PC over USB or Bluetooth and use it directly with SAD. SAD does **not** require DSX, DualSenseX, reWASD, or similar controller-emulation software.
 
 ---
 
@@ -77,7 +77,7 @@ The lightbar updates from Starfield's actual player-health state rather than usi
 - **Sony DualSense or DualSense Edge controller**  
   DualSense Edge is supported as a standard DualSense controller.  
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
-- **USB cable / wired controller connection**
+- **USB or Bluetooth DualSense connection**
 - **SFSE (Starfield Script Extender)** — required to load the SAD plugin DLL
 - **Address Library for SFSE Plugins** — required by SAD/CommonLibSF for runtime address relocation
 
@@ -164,9 +164,9 @@ Data\SFSE\Plugins\StarfieldDualSense.toml
 
 directly.
 
-### 5. Connect the DualSense by USB
+### 5. Connect the DualSense
 
-Connect the controller with a USB cable before launching the game.
+Connect the controller by USB or Bluetooth before launching the game.
 
 ### 6. Disable Starfield's own Adaptive Triggers accessibility option
 

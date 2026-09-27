@@ -37,7 +37,7 @@ assert "sds::isPromotedUiSpeakerEvent(eventId)" in capture and "uiAudioPlaybackA
 assert "SpeakerCategory category = definition->category;" in playback
 assert "if (isSharedGeneralCue(observation.eventId))" in playback, \
     "only shared General* cues should depend on menu-context override/suppression"
-assert "UI/digipick/crafting speaker: ACTIVE cues=" in plugin and "uiSpeakerCueDefinitions().size()" in plugin, \
+assert "UI/digipick/crafting/comms speaker: ACTIVE cues=" in plugin and "uiSpeakerCueDefinitions().size()" in plugin, \
     "runtime startup log must report the dynamic promoted cue count"
 
 print("PASS Task 6C Digipick equip speaker production source contract")

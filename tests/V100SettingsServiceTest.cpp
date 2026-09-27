@@ -140,8 +140,8 @@ int main()
     expect(
         near(
             settings.current().boostpackHapticsStrength,
-            2.0F),
-        "boostpack haptics clamp to 2.0");
+            3.0F),
+        "boostpack haptics clamp to 3.0");
 
     expect(
         settings.setFloat(
@@ -323,7 +323,7 @@ int main()
     expect(
         near(
             reloaded.current().boostpackHapticsStrength,
-            2.0F),
+            3.0F),
         "saved boostpack strength reloads clamped value");
 
     expect(

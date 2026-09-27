@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -52,6 +53,7 @@ struct sds::NativeBluetoothBackend::Impl
     bool lightbarInitialized{ false };
     bool lightbarStartupReady{ false };
     bool lightbarReleasePending{ false };
+    std::chrono::steady_clock::time_point connectionEstablishedAt{};
     std::uint16_t outputReportLength{ 0 };
     std::uint16_t featureReportLength{ 0 };
     std::uint8_t txSequence{ 0 };
@@ -98,6 +100,7 @@ struct sds::NativeBluetoothBackend::Impl
         lightbarInitialized = false;
         lightbarStartupReady = false;
         lightbarReleasePending = false;
+        connectionEstablishedAt = {};
         outputReportLength = 0;
         featureReportLength = 0;
         txSequence = 0;
@@ -254,9 +257,14 @@ struct sds::NativeBluetoothBackend::Impl
 
     void observeLightbarStartupState()
     {
-        constexpr std::uint32_t kLedStartupCompleteTimestamp = 10200000U;
+        constexpr std::uint32_t kLedStartupCompleteTimestamp =
+            10200000U;
 
-        if (lightbarStartupReady || inputReport[0] != 0x31U) {
+        constexpr auto kHostLedSettleDelay =
+            std::chrono::milliseconds(2000);
+
+        if (lightbarStartupReady ||
+            inputReport[0] != 0x31U) {
             return;
         }
 
@@ -270,12 +278,36 @@ struct sds::NativeBluetoothBackend::Impl
             return;
         }
 
-        lightbarStartupReady = true;
-        writeLog(
-            std::string("Native Bluetooth: LED startup complete timestamp=") +
-            std::to_string(timestamp));
+        const auto now =
+            std::chrono::steady_clock::now();
 
-        if (!lightbarInitialized && ensureLightbarInitialized()) {
+        if (connectionEstablishedAt !=
+                std::chrono::steady_clock::time_point{} &&
+            now - connectionEstablishedAt <
+                kHostLedSettleDelay) {
+            return;
+        }
+
+        lightbarStartupReady = true;
+
+        const auto hostElapsedMs =
+            connectionEstablishedAt ==
+                std::chrono::steady_clock::time_point{} ?
+                0LL :
+                std::chrono::duration_cast<
+                    std::chrono::milliseconds>(
+                    now - connectionEstablishedAt).count();
+
+        writeLog(
+            std::string(
+                "Native Bluetooth: LED startup complete timestamp=") +
+            std::to_string(timestamp) +
+            " hostElapsedMs=" +
+            std::to_string(hostElapsedMs));
+
+        if (!lightbarInitialized &&
+            ensureLightbarInitialized()) {
+
             (void)writeCurrentOutput(true);
         }
     }
@@ -457,6 +489,9 @@ bool sds::NativeBluetoothBackend::connect()
             _impl->markDisconnected();
             continue;
         }
+
+        _impl->connectionEstablishedAt =
+            std::chrono::steady_clock::now();
 
         connectedDevice = true;
         _impl->writeLog(

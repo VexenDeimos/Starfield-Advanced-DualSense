@@ -11,6 +11,7 @@ namespace sds
         virtual void start() = 0;
         virtual void stop() noexcept = 0;
         virtual void clearPlayback() noexcept {}
+        virtual void setSpeakerVolume(float volume) noexcept {}
         virtual bool enqueue(const SpeakerCommand& command) noexcept = 0;
         virtual bool enqueuePreparedPcm(const PreparedSpeakerPcm& pcm) noexcept = 0;
         virtual bool replacePreparedPcm(PreparedSpeakerPcm pcm) noexcept = 0;

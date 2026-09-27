@@ -15,6 +15,7 @@ namespace sds
         void start() override;
         void stop() noexcept override;
         void clearPlayback() noexcept override;
+        void setSpeakerVolume(float volume) noexcept override;
         bool enqueue(const SpeakerCommand& command) noexcept override;
         bool enqueuePreparedPcm(const PreparedSpeakerPcm& pcm) noexcept override;
         bool replacePreparedPcm(PreparedSpeakerPcm pcm) noexcept override;

@@ -39,10 +39,10 @@ namespace sds
             { "MusicHapticsStrength", "Music Haptics Strength", "Controls soundtrack-only vibration strength. Gameplay haptics retain priority.", SettingApplyMode::Live },
 
             { "BoostpackHaptics", "Boostpack Haptics", "Enable haptic feedback for genuine player boostpack thrust.", SettingApplyMode::Live },
-            { "BoostpackHapticsStrength", "Boostpack Haptics Strength", "Controls boostpack-only haptic intensity while retaining the global haptic strength.", SettingApplyMode::Live },
+            { "BoostpackHapticsStrength", "Boostpack Haptics Strength", "Controls boostpack-only haptic intensity while retaining the global haptic strength. Range: 0.0-3.0.", SettingApplyMode::Live },
 
-            { "ControllerSpeaker", "Controller Speaker (USB Only)", "Enable supported Starfield sounds through the DualSense controller speaker over USB. Bluetooth controller-speaker output is not supported yet.", SettingApplyMode::Live },
-            { "SpeakerVolume", "Speaker Volume", "Controls the master DualSense controller-speaker volume over USB.", SettingApplyMode::Live },
+            { "ControllerSpeaker", "Controller Speaker", "Enable supported Starfield sounds through the DualSense controller speaker over USB or Bluetooth.", SettingApplyMode::Live },
+            { "SpeakerVolume", "Speaker Volume", "Controls the master DualSense controller-speaker volume over the active connection.", SettingApplyMode::Live },
             { "SpeakerOutputMode", "Speaker Output Mode", "Choose how supported remote or radio voice is routed between normal audio and the controller speaker.", SettingApplyMode::Live },
 
             { "SpeakerComms", "Radio / Comms Voice", "Play supported remote and radio communications through the controller speaker.", SettingApplyMode::Live },

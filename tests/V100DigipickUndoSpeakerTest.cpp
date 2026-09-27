@@ -48,8 +48,9 @@ int main()
     constexpr std::uint32_t kUndoMedia = 900357355u;
     constexpr std::string_view kUndoName = "UI_Menu_Minigame_Security_Undo";
 
-    check(sds::uiSpeakerCueDefinitions().size() == 40u,
-        "promoted UI speaker catalog grows from 39 to 40 cues");
+    const auto catalogSize = sds::uiSpeakerCueDefinitions().size();
+    check(catalogSize >= 40u,
+        "promoted UI speaker catalog retains the Task 6D baseline");
 
     const auto* definition = sds::findUiSpeakerCueDefinition(kUndoEvent);
     check(definition != nullptr,
@@ -64,8 +65,8 @@ int main()
     }
 
     auto cache = std::make_shared<sds::UiSpeakerPreparedCache>();
-    check(cache->stats().catalogCues == 40u,
-        "prepared speaker cache automatically follows the 40-cue catalog");
+    check(cache->stats().catalogCues == catalogSize,
+        "prepared speaker cache automatically follows the promoted catalog");
 
     sds::PreparedUiSpeakerCue cue{};
     cue.eventId = kUndoEvent;

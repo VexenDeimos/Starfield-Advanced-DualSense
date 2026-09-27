@@ -42,7 +42,7 @@ checks = [
     ("real backend carries archive WEM path", "media.originalPath" in backend),
     ("real boostpack sources are production-linked", "src/core/BoostpackSpeakerPreparedCache.cpp" in xmake and "src/core/BoostpackSpeakerPlayback.cpp" in xmake),
     ("global SpeakerVolume remains shared transport multiplier",
-     "g_audioTransport->setSpeakerVolume(live.speakerVolume)" in plugin),
+     "g_speakerManager->setSpeakerVolume(" in plugin and "live.speakerVolume" in plugin),
     ("no synthetic waveform in boostpack speaker path",
      "frequencyHz" not in cache_h + cache_cpp + play_h + play_cpp and
      "SpeakerEffectKind" not in cache_h + cache_cpp + play_h + play_cpp),

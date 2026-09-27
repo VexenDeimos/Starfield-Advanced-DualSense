@@ -157,7 +157,7 @@ sds::Config sds::loadConfig(std::string_view text)
         } else if (key == "BoostpackHaptics") {
             parseBool(value, config.boostpackHaptics);
         } else if (key == "BoostpackHapticsStrength") {
-            parseFloat(value, config.boostpackHapticsStrength, 2.0F);
+            parseFloat(value, config.boostpackHapticsStrength, 3.0F);
         } else if (key == "SpeakerBoostpack") {
             parseBool(value, config.speakerBoostpack);
         } else if (key == "SpeakerBoostpackVolume") {

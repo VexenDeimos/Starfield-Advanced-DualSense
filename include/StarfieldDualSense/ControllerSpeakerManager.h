@@ -27,6 +27,7 @@ namespace sds
         void start();
         void stop() noexcept;
         void applyLiveSettings(ControllerSpeakerLiveSettings settings) noexcept;
+        void setSpeakerVolume(float volume) noexcept;
         [[nodiscard]] SpeakerOutputMode outputMode() const noexcept;
         [[nodiscard]] SpeakerVoiceLanguage voiceLanguage() const noexcept;
         [[nodiscard]] bool categoryEnabled(SpeakerCategory category) const noexcept;

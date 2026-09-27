@@ -31,6 +31,12 @@ void sds::DualSenseAudioSpeakerClient::clearPlayback() noexcept
     }
 }
 
+void sds::DualSenseAudioSpeakerClient::setSpeakerVolume(float volume) noexcept
+{
+    if (_transport) {
+        _transport->setSpeakerVolume(volume);
+    }
+}
 bool sds::DualSenseAudioSpeakerClient::enqueue(const SpeakerCommand& command) noexcept
 {
     return _transport && _started && _transport->enqueueSpeaker(command);

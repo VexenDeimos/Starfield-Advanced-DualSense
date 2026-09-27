@@ -22,7 +22,7 @@ namespace
         "Haptics",
         "Music",
         "Adaptive Triggers",
-        "Controller Speaker (USB Only)",
+        "Controller Speaker",
         "Controller Features",
         "Diagnostics / Status",
         "About",
@@ -36,7 +36,7 @@ namespace
         { "HapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
         { "BluetoothHapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
         { "BoostpackHaptics", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
-        { "BoostpackHapticsStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 2.0F },
+        { "BoostpackHapticsStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 3.0F },
 
         { "MusicHapticsEnabled", sds::SettingsMenuTab::Music, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "MusicHapticsStrength", sds::SettingsMenuTab::Music, sds::SettingsControlKind::Float, 0.0F, 2.0F },
