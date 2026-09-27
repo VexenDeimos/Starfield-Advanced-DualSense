@@ -2106,7 +2106,43 @@ void sds::GameStateAdapter::observeSemanticButton(
                     reinterpret_cast<const std::uint8_t*>(event) + 0x30,
                     sizeof(btCorrectionId));
 
-                if (btCorrectionId == 12) {
+                if (btCorrectionId == 11 &&
+                    _monocleOpen &&
+                    _landVehicleCorrelationArmed.load(
+                        std::memory_order_acquire)) {
+
+                    auto* btScannerMoveUserEvent =
+                        reinterpret_cast<RE::BSFixedString*>(
+                            reinterpret_cast<std::uint8_t*>(event) +
+                            0x28);
+
+                    const char* btScannerMoveName =
+                        btScannerMoveUserEvent->c_str();
+
+                    if (btScannerMoveName &&
+                        std::string_view(btScannerMoveName) == "Move") {
+
+                        auto* btScannerMoveInputEvent =
+                            reinterpret_cast<RE::InputEvent*>(event);
+
+                        btScannerMoveInputEvent->status =
+                            RE::InputEvent::Status::kContinue;
+
+
+
+                        static std::atomic_bool
+                            scannerMoveStatusLogged{ false };
+
+                        if (!scannerMoveStatusLogged.exchange(
+                                true,
+                                std::memory_order_acq_rel)) {
+
+                            log(
+                                "Bluetooth REV-8 scanner Move status parity: ACTIVE status=Continue");
+                        }
+                    }
+                }
+                else if (btCorrectionId == 12) {
                     auto* btCorrectionUserEvent =
                         reinterpret_cast<RE::BSFixedString*>(
                             reinterpret_cast<std::uint8_t*>(event) +
@@ -2195,9 +2231,16 @@ void sds::GameStateAdapter::observeSemanticButton(
             log(vehicleInput);
         }
 
-        if (vehicleReconInputActive && _landVehicleSemanticCallback &&
-            (std::strcmp(userEvent, "VehicleFireWeapon") == 0 ||
-             std::strcmp(userEvent, "VehicleAim") == 0)) {
+        const bool landVehicleProductionSemantic =
+            std::strcmp(userEvent, "VehicleFireWeapon") == 0 ||
+            std::strcmp(userEvent, "VehicleAim") == 0 ||
+            std::strcmp(userEvent, "VehicleBoost") == 0 ||
+            std::strcmp(userEvent, "VehicleVertBoost") == 0;
+
+        if (vehicleReconInputActive &&
+            _landVehicleSemanticCallback &&
+            landVehicleProductionSemantic) {
+
             _landVehicleSemanticCallback(
                 userEvent,
                 button->value > 0.0F,
@@ -2784,9 +2827,113 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
 
             const auto currentDirection =
                 bluetoothStickDirection(x, y);
+            // REV-8 scanner native-poll timing test.
+            //
+            // MonocleMenu changes Starfield's input context. While
+            // it is open in the REV-8, stick 11 and 12 are produced
+            // from the native slot-2 gamepad poll instead of the
+            // runtime-tick replay path.
+            const bool rev8ScannerNativePollSticks =
+                _monocleOpen &&
+                _landVehicleCorrelationArmed.load(
+                    std::memory_order_acquire);
 
+            if (rev8ScannerNativePollSticks) {
+                // Keep runtime state synchronized so closing the
+                // scanner does not create a stale activation edge.
+                previousX = x;
+                previousY = y;
+                previousDirection = currentDirection;
+                return;
+            }
             notifyInputPresentationDevice(
                 InputPresentationDevice::Gamepad);
+
+            // BLUETOOTH CONTEXT-SENSITIVE STICK CADENCE TEST V5
+            // On-foot movement/look remains on unrestricted runtime replay.
+            // Only map cursor and actual vehicle-camera contexts are capped.
+            // Keep the REV-8 scanner overlay on the proven vehicle-safe
+            // stick cadence. MonocleMenu can alter Starfield input/camera
+            // context while REV-8 authority itself remains valid.
+            bool cadenceLimitedContext = false;
+            bool rev8ScannerContext = false;
+
+            if (auto* ui = RE::UI::GetSingleton()) {
+                rev8ScannerContext =
+                    _landVehicleCorrelationArmed.load(
+                        std::memory_order_acquire) &&
+                    ui->IsMenuOpen(
+                        RE::BSFixedString("MonocleMenu"));
+
+                cadenceLimitedContext =
+                    rev8ScannerContext ||
+                    ui->IsMenuOpen(
+                        RE::BSFixedString("GalaxyStarMapMenu")) ||
+                    ui->IsMenuOpen(
+                        RE::BSFixedString("CursorMenu"));
+            }
+
+            if (!cadenceLimitedContext) {
+                if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+                    cadenceLimitedContext =
+                        camera->QCameraEquals(
+                            RE::CameraState::kVehicle);
+                }
+            }
+
+            if (rev8ScannerContext) {
+                static std::atomic_bool scannerCadenceLogged{ false };
+
+                if (!scannerCadenceLogged.exchange(
+                        true,
+                        std::memory_order_acq_rel)) {
+
+                    log(
+                        "Bluetooth REV-8 scanner stick cadence: ACTIVE mode=60Hz-pinned");
+                }
+            }
+
+            static float leftStickCadenceSeconds = 0.0F;
+            static float rightStickCadenceSeconds = 0.0F;
+
+            float& stickCadenceSeconds =
+                idCode == 12 ?
+                    rightStickCadenceSeconds :
+                    leftStickCadenceSeconds;
+
+            if (!cadenceLimitedContext) {
+                stickCadenceSeconds = 0.0F;
+            }
+            else {
+                if (deltaSeconds > 0.0F) {
+                    stickCadenceSeconds +=
+                        deltaSeconds;
+                }
+
+                if (stickCadenceSeconds > 0.100F) {
+                    stickCadenceSeconds = 0.100F;
+                }
+
+                const bool activationEdge =
+                    currentActive &&
+                    !previousActive;
+
+                const bool releaseEdge =
+                    !currentActive &&
+                    previousActive;
+
+                constexpr float kStickPublishIntervalSeconds =
+                    1.0F / 60.0F;
+
+                if (!activationEdge &&
+                    !releaseEdge &&
+                    stickCadenceSeconds <
+                        kStickPublishIntervalSeconds) {
+                    return;
+                }
+
+                stickCadenceSeconds = 0.0F;
+            }
 
             produceThumbstick(
                 reinterpret_cast<void*>(manager),
@@ -2796,7 +2943,6 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                 y,
                 previousDirection,
                 currentDirection);
-
             previousX = x;
             previousY = y;
             previousDirection = currentDirection;
@@ -2823,6 +2969,186 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
     }
 }
 
+void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
+    const TouchState& state) noexcept
+{
+    try {
+        static float leftPreviousX = 0.0F;
+        static float leftPreviousY = 0.0F;
+        static std::uint8_t leftPreviousDirection = 0;
+
+        static float rightPreviousX = 0.0F;
+        static float rightPreviousY = 0.0F;
+        static std::uint8_t rightPreviousDirection = 0;
+
+        static bool scannerNativePollActive = false;
+
+        const bool active =
+            _monocleOpen &&
+            _landVehicleCorrelationArmed.load(
+                std::memory_order_acquire);
+
+        if (!active) {
+            if (scannerNativePollActive) {
+                leftPreviousX = 0.0F;
+                leftPreviousY = 0.0F;
+                leftPreviousDirection = 0;
+                rightPreviousX = 0.0F;
+                rightPreviousY = 0.0F;
+                rightPreviousDirection = 0;
+            }
+
+            scannerNativePollActive = false;
+            return;
+        }
+
+        scannerNativePollActive = true;
+
+        const auto moduleBase =
+            g_starfieldModuleBase.load(
+                std::memory_order_acquire);
+
+        if (!moduleBase) {
+            return;
+        }
+
+        std::uintptr_t manager = 0;
+
+        if (!safeReadValue(
+                moduleBase + kInputQueueSingletonRva,
+                manager) ||
+            manager < 0x10000u) {
+
+            return;
+        }
+
+        using NativeThumbstickProducer = void (*)(
+            void* manager,
+            std::uint32_t deviceId,
+            std::uint8_t idCode,
+            float x,
+            float y,
+            std::uint8_t previousDirection,
+            std::uint8_t currentDirection);
+
+        constexpr std::uintptr_t kNativeThumbstickProducerRva =
+            0x22DA530u;
+
+        const auto produceThumbstick =
+            reinterpret_cast<NativeThumbstickProducer>(
+                moduleBase +
+                kNativeThumbstickProducerRva);
+
+        const auto left =
+            bluetoothStickValue(
+                state.leftX,
+                state.leftY);
+
+        const auto right =
+            bluetoothStickValue(
+                state.rightX,
+                state.rightY);
+
+        auto emitNativePollStick =
+            [&](std::uint8_t idCode,
+                float x,
+                float y,
+                float& previousX,
+                float& previousY,
+                std::uint8_t& previousDirection) noexcept
+        {
+            constexpr float kActiveThreshold =
+                0.0001F;
+
+            const bool currentActive =
+                std::fabs(x) > kActiveThreshold ||
+                std::fabs(y) > kActiveThreshold;
+
+            const bool previousActive =
+                std::fabs(previousX) > kActiveThreshold ||
+                std::fabs(previousY) > kActiveThreshold;
+
+            if (!currentActive && !previousActive) {
+                previousX = 0.0F;
+                previousY = 0.0F;
+                previousDirection = 0;
+                return;
+            }
+
+            std::uint8_t currentDirection =
+                bluetoothStickDirection(
+                    x,
+                    y);
+
+            // Real native USB captures change direction around
+            // the 0.50 dominant-axis boundary. Apply the same
+            // behavior to BOTH scanner sticks.
+            constexpr float kNativeDirectionThreshold =
+                0.50F;
+
+            const float dominantMagnitude =
+                std::max(
+                    std::fabs(x),
+                    std::fabs(y));
+
+            if (dominantMagnitude <
+                kNativeDirectionThreshold) {
+
+                currentDirection = 0;
+            }
+
+            g_bluetoothPhysicalBridgeActive.store(
+                true,
+                std::memory_order_release);
+
+            notifyInputPresentationDevice(
+                InputPresentationDevice::Gamepad);
+
+            produceThumbstick(
+                reinterpret_cast<void*>(manager),
+                0u,
+                idCode,
+                x,
+                y,
+                previousDirection,
+                currentDirection);
+
+            previousX = x;
+            previousY = y;
+            previousDirection = currentDirection;
+        };
+
+        emitNativePollStick(
+            11,
+            left.x,
+            left.y,
+            leftPreviousX,
+            leftPreviousY,
+            leftPreviousDirection);
+
+        emitNativePollStick(
+            12,
+            right.x,
+            right.y,
+            rightPreviousX,
+            rightPreviousY,
+            rightPreviousDirection);
+
+        static std::atomic_bool timingLogged{ false };
+
+        if (!timingLogged.exchange(
+                true,
+                std::memory_order_acq_rel)) {
+
+            log(
+                "Bluetooth REV-8 scanner sticks: NATIVE-SLOT2-TIMING ids=11/12 runtimeStickReplay=suppressed");
+        }
+    }
+    catch (...) {
+        log(
+            "Bluetooth REV-8 scanner sticks: native slot2 dispatch exception");
+    }
+}
 void sds::GameStateAdapter::resetBluetoothPhysicalInput() noexcept
 {
     TouchState neutral{};

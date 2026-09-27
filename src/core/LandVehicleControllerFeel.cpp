@@ -8,9 +8,9 @@ namespace
     constexpr float kMotionDeadband = 0.25F;
     constexpr float kSpeedFullScale = 20.0F;
     constexpr float kAccelerationFullScale = 30.0F;
-    constexpr float kCruiseFloor = 0.090F;
-    constexpr float kSpeedContribution = 0.140F;
-    constexpr float kAccelerationContribution = 0.20F;
+    constexpr float kCruiseFloor = 0.075F;
+    constexpr float kSpeedContribution = 0.120F;
+    constexpr float kAccelerationContribution = 0.170F;
     constexpr float kAirborneMultiplier = 0.25F;
     constexpr float kAttackAlpha = 0.35F;
     constexpr float kReleaseAlpha = 0.22F;
@@ -34,7 +34,7 @@ sds::LandVehicleContinuousTarget sds::LandVehicleControllerFeel::observeMotion(
     if (state.airborne) {
         target *= kAirborneMultiplier;
     }
-    target = std::clamp(target, 0.0F, 0.36F);
+    target = std::clamp(target, 0.0F, 0.31F);
 
     const float alpha = target > _smoothedBody ? kAttackAlpha : kReleaseAlpha;
     _smoothedBody += (target - _smoothedBody) * alpha;
@@ -48,7 +48,7 @@ sds::LandVehicleContinuousTarget sds::LandVehicleControllerFeel::observeMotion(
     }
 
     return {
-        .bodyGain = std::clamp(_smoothedBody, 0.0F, 0.36F),
+        .bodyGain = std::clamp(_smoothedBody, 0.0F, 0.31F),
         .textureLevel = texture,
     };
 }

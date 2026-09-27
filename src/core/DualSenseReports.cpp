@@ -59,7 +59,7 @@ sds::buildUsbOutputReport(const OutputState& state) noexcept
     // Bits 2/3 of valid_flag_0 select the two adaptive-trigger blocks; bit 2
     // of valid_flag_1 selects the lightbar RGB block.
     payload[0x00] = 0x0C;
-    payload[0x01] = 0x04;
+    payload[0x01] = 0x14;
 
     // Adaptive triggers: R2 precedes L2 in the output payload.
     encodeTrigger(payload + 0x0A, state.rightTrigger);
@@ -73,7 +73,7 @@ sds::buildUsbOutputReport(const OutputState& state) noexcept
     payload[0x26] = 0x00;
     payload[0x29] = 0x00;
     payload[0x2A] = 0x00;
-    payload[0x2B] = 0x00;
+    payload[0x2B] = static_cast<std::uint8_t>(state.playerLeds & 0x1FU);
 
     payload[0x2C] = state.lightbar.r;
     payload[0x2D] = state.lightbar.g;

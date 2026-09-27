@@ -255,10 +255,57 @@ sds::HapticContinuousState sds::HapticsManager::composeLandVehicleContinuousLock
     }
 
     auto state = _landVehicleContinuous;
-    state.gain = std::clamp(
-        state.gain * _hapticStrength.load(std::memory_order_acquire),
-        0.0F,
-        1.0F);
+
+    // Normal REV-8 chassis feedback is intentionally softer.
+    // Apply this before boost/thrust overlays so their tuned
+    // minimum strengths remain unchanged.
+    state.gain =
+        std::clamp(
+            state.gain * 0.25F,
+            0.0F,
+            1.0F);
+
+    if (_landVehicleForwardBoostActive ||
+        _landVehicleVerticalThrustActive) {
+
+        state.kind =
+            HapticContinuousKind::LandVehicleChassis;
+
+        state.shipLaserGain = 0.0F;
+    }
+
+    if (_landVehicleForwardBoostActive) {
+        state.gain =
+            std::max(
+                state.gain,
+                0.20F);
+
+        state.level =
+            std::max(
+                state.level,
+                0.62F);
+    }
+
+    if (_landVehicleVerticalThrustActive) {
+        state.gain =
+            std::max(
+                state.gain,
+                0.24F);
+
+        state.level =
+            std::max(
+                state.level,
+                0.88F);
+    }
+
+    state.gain =
+        std::clamp(
+            state.gain *
+                _hapticStrength.load(
+                    std::memory_order_acquire),
+            0.0F,
+            1.0F);
+
     return state;
 }
 void sds::HapticsManager::clearLandVehicleProductionLocked() noexcept
@@ -267,6 +314,10 @@ void sds::HapticsManager::clearLandVehicleProductionLocked() noexcept
     _landVehicleProductionEpoch = 0;
     _landVehicleMotion = {};
     _landVehicleContinuous = {};
+    _landVehicleForwardBoostActive = false;
+    _landVehicleVerticalThrustActive = false;
+    _landVehicleForwardBoostDeadline = {};
+    _landVehicleVerticalThrustDeadline = {};
     _landVehicleFeel.reset();
 }
 
@@ -793,6 +844,10 @@ void sds::HapticsManager::handleLandVehicleMotionState(
                 _shipBlockingMenuMask != 0 || !state.authorityActive || state.authorityEpoch == 0) {
                 _landVehicleMotion = {};
                 _landVehicleContinuous = {};
+                _landVehicleForwardBoostActive = false;
+                _landVehicleVerticalThrustActive = false;
+                _landVehicleForwardBoostDeadline = {};
+                _landVehicleVerticalThrustDeadline = {};
                 _landVehicleFeel.reset();
                 continuous = HapticContinuousState{};
                 submit = _landVehicleContextActive;
@@ -855,6 +910,128 @@ void sds::HapticsManager::handleLandVehicleMotionState(
     }
 }
 
+bool sds::HapticsManager::setLandVehicleBoostInput(
+    bool vertical,
+    bool active,
+    std::chrono::steady_clock::time_point when) noexcept
+{
+    try {
+        HapticContinuousState continuous{};
+        std::optional<HapticCommand> kick{};
+        bool changed = false;
+
+        {
+            std::scoped_lock lock(_engineMutex);
+
+            bool& inputState =
+                vertical ?
+                    _landVehicleVerticalThrustActive :
+                    _landVehicleForwardBoostActive;
+
+            auto& deadline =
+                vertical ?
+                    _landVehicleVerticalThrustDeadline :
+                    _landVehicleForwardBoostDeadline;
+
+            if (active) {
+                if (!_landVehicleProductionActive ||
+                    !_landVehicleContextActive ||
+                    _shipPilotActive ||
+                    _shipBlockingMenuMask != 0 ||
+                    _landVehicleProductionEpoch == 0 ||
+                    !_landVehicleMotion.authorityActive ||
+                    _landVehicleMotion.authorityEpoch !=
+                        _landVehicleProductionEpoch) {
+
+                    inputState = false;
+                    deadline = {};
+                    return true;
+                }
+
+                deadline =
+                    when +
+                    std::chrono::seconds(5);
+
+                if (inputState) {
+                    return true;
+                }
+
+                inputState = true;
+                changed = true;
+
+                if (!vertical) {
+                    kick = HapticCommand{
+                        .kind =
+                            HapticEffectKind::LandVehicleBoostKick,
+                        .gain =
+                            std::clamp(
+                                0.64F *
+                                    _hapticStrength.load(
+                                        std::memory_order_acquire),
+                                0.0F,
+                                1.0F),
+                        .when = when,
+                    };
+                }
+            }
+            else {
+                deadline = {};
+
+                if (!inputState) {
+                    return true;
+                }
+
+                inputState = false;
+                changed = true;
+            }
+
+            continuous =
+                composeLandVehicleContinuousLocked();
+        }
+
+        if (!changed ||
+            !_advancedHapticsEnabled.load(
+                std::memory_order_acquire) ||
+            !_backend) {
+
+            return true;
+        }
+
+        bool submitted =
+            _backend->setContinuous(
+                continuous);
+
+        if (kick) {
+            submitted =
+                _backend->enqueue(*kick) &&
+                submitted;
+        }
+
+        char diagnostic[256]{};
+
+        std::snprintf(
+            diagnostic,
+            sizeof(diagnostic),
+            "REV-8 sustained haptic: mode=%s action=%s gain=%.3f level=%.3f kick=%s submitted=%s",
+            vertical ? "vertical-thrust" : "forward-boost",
+            active ? "start" : "stop",
+            static_cast<double>(continuous.gain),
+            static_cast<double>(continuous.level),
+            kick ? "yes" : "no",
+            submitted ? "yes" : "no");
+
+        log(diagnostic);
+
+        return submitted;
+    }
+    catch (...) {
+        log(
+            "Haptics: REV-8 sustained boost/thrust dispatch failed; "
+            "other controller features unaffected");
+
+        return false;
+    }
+}
 bool sds::HapticsManager::handleShipPropulsionState(
     const ShipPropulsionState& state) noexcept
 {
@@ -1186,9 +1363,41 @@ bool sds::HapticsManager::tick(std::chrono::steady_clock::time_point now) noexce
     try {
         bool expired = false;
         bool shipLaserExpired = false;
+        bool landVehicleBoostExpired = false;
         HapticContinuousState state{};
         {
             std::scoped_lock lock(_engineMutex);
+
+            const bool forwardBoostExpired =
+                _landVehicleForwardBoostActive &&
+                _landVehicleForwardBoostDeadline !=
+                    std::chrono::steady_clock::time_point{} &&
+                now >= _landVehicleForwardBoostDeadline;
+
+            const bool verticalThrustExpired =
+                _landVehicleVerticalThrustActive &&
+                _landVehicleVerticalThrustDeadline !=
+                    std::chrono::steady_clock::time_point{} &&
+                now >= _landVehicleVerticalThrustDeadline;
+
+            if (forwardBoostExpired || verticalThrustExpired) {
+                if (forwardBoostExpired) {
+                    _landVehicleForwardBoostActive = false;
+                    _landVehicleForwardBoostDeadline = {};
+                }
+
+                if (verticalThrustExpired) {
+                    _landVehicleVerticalThrustActive = false;
+                    _landVehicleVerticalThrustDeadline = {};
+                }
+
+                state =
+                    composeLandVehicleContinuousLocked();
+
+                expired = true;
+                landVehicleBoostExpired = true;
+            }
+
             if (_shipContextSuppressed) {
                 if (_shipPilotActive && _shipLaserActive &&
                     _shipLaserLeaseDeadline != std::chrono::steady_clock::time_point{} &&
@@ -1215,16 +1424,22 @@ bool sds::HapticsManager::tick(std::chrono::steady_clock::time_point now) noexce
         if (!expired) {
             return true;
         }
-        log(shipLaserExpired ?
-            "Ship laser haptics: 250 ms heartbeat lease expired; stopping stale energy texture" :
-            "Haptics: Cutter beam heartbeat expired; stopping stale continuous feedback");
+        log(
+            landVehicleBoostExpired ?
+                "Haptics: REV-8 boost/thrust lease expired; clearing stale continuous feedback" :
+            shipLaserExpired ?
+                "Ship laser haptics: 250 ms heartbeat lease expired; stopping stale energy texture" :
+                "Haptics: Cutter beam heartbeat expired; stopping stale continuous feedback");
         if (!_advancedHapticsEnabled.load(std::memory_order_acquire) || !_backend) {
             return true;
         }
         if (!_backend->setContinuous(state)) {
-            log(shipLaserExpired ?
-                "Haptics: ship laser heartbeat timeout clear failed; HID features unaffected" :
-                "Haptics: Cutter heartbeat timeout clear failed; HID features unaffected");
+            log(
+                landVehicleBoostExpired ?
+                    "Haptics: REV-8 boost/thrust lease clear failed; HID features unaffected" :
+                shipLaserExpired ?
+                    "Haptics: ship laser heartbeat timeout clear failed; HID features unaffected" :
+                    "Haptics: Cutter heartbeat timeout clear failed; HID features unaffected");
             return false;
         }
         return true;

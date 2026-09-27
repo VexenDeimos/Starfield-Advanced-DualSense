@@ -49,6 +49,13 @@ namespace sds
         void stop() noexcept;
         void applyLiveSettings(ControllerLiveSettings settings) noexcept;
         void setControllerSpeakerRoutingEnabled(bool enabled) noexcept;
+        [[nodiscard]] bool pulseBluetoothRumble(
+            std::uint8_t left,
+            std::uint8_t right,
+            std::chrono::milliseconds duration) noexcept;
+        [[nodiscard]] bool setBluetoothContinuousRumble(
+            std::uint8_t left,
+            std::uint8_t right) noexcept;
         [[nodiscard]] bool enqueue(GameEvent event);
         [[nodiscard]] std::optional<InputAction> tryPopInputAction();
         [[nodiscard]] std::optional<ControllerInputSnapshot> latestInputSnapshot() const noexcept;
@@ -77,6 +84,13 @@ namespace sds
         mutable std::mutex _latestInputMutex{};
         std::optional<TouchState> _latestInputState{};
         std::uint64_t _latestInputGeneration{ 0 };
+        mutable std::mutex _bluetoothRumbleMutex{};
+        std::uint8_t _bluetoothRumbleLeft{ 0 };
+        std::uint8_t _bluetoothRumbleRight{ 0 };
+        std::chrono::steady_clock::time_point _bluetoothRumbleUntil{};
+        std::uint64_t _bluetoothRumbleGeneration{ 0 };
+        std::uint8_t _bluetoothContinuousLeft{ 0 };
+        std::uint8_t _bluetoothContinuousRight{ 0 };
         std::thread _worker{};
         std::atomic<bool> _running{ false };
         std::atomic<bool> _stopRequested{ false };

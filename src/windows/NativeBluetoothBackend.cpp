@@ -47,6 +47,8 @@ struct sds::NativeBluetoothBackend::Impl
     std::array<std::uint8_t, 78> inputReport{};
     DeviceIdentity device{};
     OutputState output{};
+    std::uint8_t rumbleLeft{ 0 };
+    std::uint8_t rumbleRight{ 0 };
     bool lightbarInitialized{ false };
     bool lightbarStartupReady{ false };
     bool lightbarReleasePending{ false };
@@ -91,6 +93,8 @@ struct sds::NativeBluetoothBackend::Impl
         readPending = false;
         device = {};
         output = {};
+        rumbleLeft = 0;
+        rumbleRight = 0;
         lightbarInitialized = false;
         lightbarStartupReady = false;
         lightbarReleasePending = false;
@@ -205,13 +209,21 @@ struct sds::NativeBluetoothBackend::Impl
         return true;
     }
 
-    bool writeCurrentOutput(bool includeLightbar = true)
+    bool writeCurrentOutput(bool includeLightbar = true, bool forceCompatibleRumble = false)
     {
         auto report =
             buildBluetoothOutputReport(
                 output,
                 nextSequence(),
                 includeLightbar);
+        if (forceCompatibleRumble ||
+            rumbleLeft != 0 ||
+            rumbleRight != 0) {
+            applyBluetoothCompatibleVibration(
+                report,
+                rumbleLeft,
+                rumbleRight);
+        }
         bool releasingLedsWithThisPacket = false;
 
         if (includeLightbar &&
@@ -425,6 +437,8 @@ bool sds::NativeBluetoothBackend::connect()
         _impl->readOverlapped.hEvent = readEvent;
         _impl->device = std::move(identity);
         _impl->output = {};
+        _impl->rumbleLeft = 0;
+        _impl->rumbleRight = 0;
         _impl->lightbarInitialized = false;
         _impl->lightbarStartupReady = false;
         _impl->lightbarReleasePending = false;
@@ -448,6 +462,7 @@ bool sds::NativeBluetoothBackend::connect()
         _impl->writeLog(
             std::string("Native Bluetooth: connected ") +
             modelName(_impl->device.type));
+
         break;
     }
 
@@ -464,7 +479,9 @@ void sds::NativeBluetoothBackend::disconnect() noexcept
     if (_impl->handle != INVALID_HANDLE_VALUE &&
         !_impl->presenceOnly) {
         _impl->output = {};
-        (void)_impl->writeCurrentOutput();
+        _impl->rumbleLeft = 0;
+        _impl->rumbleRight = 0;
+        (void)_impl->writeCurrentOutput(true, true);
     }
 
     _impl->markDisconnected();
@@ -694,6 +711,26 @@ bool sds::NativeBluetoothBackend::setOutputState(
     return _impl->writeCurrentOutput(true);
 }
 
+bool sds::NativeBluetoothBackend::setCompatibleRumble(
+    std::uint8_t left,
+    std::uint8_t right)
+{
+    if (!connected() || _impl->presenceOnly) {
+        return false;
+    }
+
+    _impl->rumbleLeft = left;
+    _impl->rumbleRight = right;
+
+    // Preserve the currently-owned lightbar state when available.
+    const bool includeLightbar =
+        _impl->lightbarStartupReady &&
+        _impl->lightbarInitialized;
+
+    return _impl->writeCurrentOutput(
+        includeLightbar,
+        true);
+}
 void sds::NativeBluetoothBackend::resetOutputs() noexcept
 {
     if (!connected() || _impl->presenceOnly) {
@@ -701,5 +738,7 @@ void sds::NativeBluetoothBackend::resetOutputs() noexcept
     }
 
     _impl->output = {};
-    (void)_impl->writeCurrentOutput();
+    _impl->rumbleLeft = 0;
+    _impl->rumbleRight = 0;
+    (void)_impl->writeCurrentOutput(true, true);
 }

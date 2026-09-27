@@ -79,7 +79,7 @@ sds::buildBluetoothOutputReport(
         // Bluetooth startup owns the lightbar until its connection
         // animation completes. Preserve trigger output without
         // validating the RGB block during that window.
-        report[4] = static_cast<std::uint8_t>(report[4] & ~0x04U);
+        report[4] = static_cast<std::uint8_t>(report[4] & ~0x14U);
         signBluetoothReport(report);
     }
 
@@ -105,6 +105,35 @@ void sds::applyBluetoothLightbarRelease(
     report[4] =
         static_cast<std::uint8_t>(
             report[4] | 0x08U);
+
+    signBluetoothReport(report);
+}
+void sds::applyBluetoothCompatibleVibration(
+    BluetoothDualSenseOutputReport& report,
+    std::uint8_t motorLeft,
+    std::uint8_t motorRight) noexcept
+{
+    if (report[0] != 0x31U) {
+        return;
+    }
+
+    // Select the DualSense compatible-rumble engine.
+    // HAPTICS_SELECT is valid_flag0 bit 1.
+    report[3] =
+        static_cast<std::uint8_t>(
+            report[3] | 0x02U);
+
+    // Modern DualSense firmware uses COMPATIBLE_VIBRATION2.
+    //
+    // The Bluetooth common payload begins at report[3].
+    // valid_flag2 is common offset 38, therefore report[41].
+    report[41] =
+        static_cast<std::uint8_t>(
+            report[41] | 0x04U);
+
+    // Common payload motor order is right, then left.
+    report[5] = motorRight;
+    report[6] = motorLeft;
 
     signBluetoothReport(report);
 }

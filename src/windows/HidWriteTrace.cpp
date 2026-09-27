@@ -290,7 +290,7 @@ namespace
             return;
         }
         std::ostringstream out;
-        out << "HID arbitration: stripped native trigger/lightbar ownership in-place"
+        out << "HID arbitration: stripped native trigger/lightbar/player-indicator ownership in-place"
             << " handle=" << hexValue(reinterpret_cast<std::uintptr_t>(handle))
             << " caller=" << callerDescription(caller)
             << " beforeFlags=" << std::hex << std::uppercase

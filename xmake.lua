@@ -1767,6 +1767,7 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             "src/windows/ControllerManager.cpp",
             "src/windows/DualSenseAudioTransport.cpp",
             "src/windows/DualSenseAudioHapticsClient.cpp",
+            "src/windows/DualModeHapticsBackend.cpp",
             "src/windows/DualSenseAudioSpeakerClient.cpp",
             "src/windows/NativeUsbBackend.cpp",
             "src/windows/NativeBluetoothBackend.cpp",
@@ -2221,6 +2222,21 @@ target("sds-v100-digipick-undo-speaker-tests", function()
         "tests/V100DigipickUndoSpeakerTest.cpp",
         "src/core/UiSpeakerPreparedCache.cpp",
         "src/core/UiSpeakerPlayback.cpp")
+end)
+
+target("sds-v0391-controller-indicators-tests", function()
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_includedirs("include")
+    add_files(
+        "tests/V0391ControllerIndicatorsTest.cpp",
+        "src/core/Config.cpp",
+        "src/core/WeaponProfiles.cpp",
+        "src/core/EffectsEngine.cpp",
+        "src/core/Touchpad.cpp",
+        "src/core/DualSenseReports.cpp",
+        "src/core/BluetoothDualSenseReports.cpp")
 end)
 
 target("sds-bluetooth-report-tests", function()

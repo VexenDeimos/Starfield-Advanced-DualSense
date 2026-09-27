@@ -37,6 +37,11 @@ namespace sds
         [[nodiscard]] bool handleShipPropulsionState(
             const ShipPropulsionState& state) noexcept;
         void handleLandVehicleMotionState(const LandVehicleMotionState& state) noexcept;
+        [[nodiscard]] bool setLandVehicleBoostInput(
+            bool vertical,
+            bool active,
+            std::chrono::steady_clock::time_point when =
+                std::chrono::steady_clock::now()) noexcept;
         [[nodiscard]] bool setShipLaunchLandingRumble(
             bool active,
             std::string_view phase) noexcept;
@@ -82,6 +87,10 @@ namespace sds
         LandVehicleControllerFeel _landVehicleFeel{};
         LandVehicleMotionState _landVehicleMotion{};
         HapticContinuousState _landVehicleContinuous{};
+        bool _landVehicleForwardBoostActive{ false };
+        bool _landVehicleVerticalThrustActive{ false };
+        std::chrono::steady_clock::time_point _landVehicleForwardBoostDeadline{};
+        std::chrono::steady_clock::time_point _landVehicleVerticalThrustDeadline{};
         bool _landVehicleProductionActive{ false };
         std::uint64_t _landVehicleProductionEpoch{ 0 };
         std::chrono::steady_clock::time_point _nextLandVehicleDiagnosticLog{};

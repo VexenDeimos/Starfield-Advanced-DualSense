@@ -23,7 +23,7 @@ namespace
     std::optional<sds::TouchState> decodeInputPayload(
         std::span<const std::uint8_t> payload) noexcept
     {
-        if (payload.size() < 0x28) {
+        if (payload.size() < 0x35) {
             return std::nullopt;
         }
 
@@ -63,6 +63,55 @@ namespace
 
         state.first = decodeTouch(payload, 0x20);
         state.second = decodeTouch(payload, 0x24);
+        // SAD controller battery status.
+        // DualSense common input payload offset 0x34:
+        //   low nibble  = capacity units (0..10)
+        //   high nibble = charging/status
+        const auto rawBattery =
+            payload[0x34];
+
+        const auto capacityUnits =
+            static_cast<std::uint8_t>(
+                rawBattery & 0x0FU);
+
+        const auto chargingStatus =
+            static_cast<std::uint8_t>(
+                (rawBattery >> 4U) & 0x0FU);
+
+        state.batteryStatus =
+            chargingStatus;
+
+        const auto normalizedCapacity =
+            static_cast<std::uint8_t>(
+                std::min<unsigned>(
+                    static_cast<unsigned>(capacityUnits) * 10U + 5U,
+                    100U));
+
+        switch (chargingStatus) {
+        case 0x0U:
+            state.batteryPercent = normalizedCapacity;
+            state.batteryKnown = true;
+            break;
+
+        case 0x1U:
+            state.batteryPercent = normalizedCapacity;
+            state.batteryKnown = true;
+            state.batteryCharging = true;
+            break;
+
+        case 0x2U:
+            state.batteryPercent = 100;
+            state.batteryKnown = true;
+            state.batteryFull = true;
+            break;
+
+        default:
+            state.batteryPercent = 0;
+            state.batteryKnown = false;
+            state.batteryCharging = false;
+            state.batteryFull = false;
+            break;
+        }
         return state;
     }
 }

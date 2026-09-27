@@ -14,6 +14,7 @@
 #include <StarfieldDualSense/ControllerManager.h>
 #include <StarfieldDualSense/DualSenseAudioTransport.h>
 #include <StarfieldDualSense/DualSenseAudioHapticsClient.h>
+#include <StarfieldDualSense/DualModeHapticsBackend.h>
 #include <StarfieldDualSense/DualSenseAudioSpeakerClient.h>
 #include <StarfieldDualSense/ControllerSpeakerManager.h>
 #include <StarfieldDualSense/WeaponSpeakerPlayback.h>
@@ -1111,6 +1112,25 @@ if (connected && g_controller->bluetoothTransport()) {
         bool active,
         std::chrono::steady_clock::time_point when) noexcept
     {
+        // Button-down only expresses player intent. The REV-8 can
+        // exhaust its boost/thrust charge while the button remains
+        // held, so actual sustained feedback is started/stopped by
+        // the observed vehicle Wwise lifecycle below. A physical
+        // release remains an immediate fail-safe clear.
+        if (g_haptics && !active) {
+            if (semantic == "VehicleBoost") {
+                (void)g_haptics->setLandVehicleBoostInput(
+                    false,
+                    false,
+                    when);
+            } else if (semantic == "VehicleVertBoost") {
+                (void)g_haptics->setLandVehicleBoostInput(
+                    true,
+                    false,
+                    when);
+            }
+        }
+
         sds::LandVehicleAction action = sds::LandVehicleAction::None;
         {
             std::scoped_lock lock(g_landVehicleActionGateMutex);
@@ -1171,6 +1191,72 @@ if (connected && g_controller->bluetoothTransport()) {
     {
         if (!g_gameState || !g_gameState->landVehicleReconCorrelationArmed()) {
             return;
+        }
+
+        // Hardware-observed REV-8 boost/thrust lifecycle.
+        // Unlike the input semantic, these events follow actual
+        // vehicle output and stop when the available charge ends
+        // even if the player continues holding the button.
+        constexpr std::uint32_t kRev8ForwardBoostStartEventId =
+            0x6F4CEC6Cu;
+
+        constexpr std::uint32_t kRev8ForwardBoostStopEventId =
+            0xE4B57376u;
+
+        constexpr std::uint32_t kRev8VerticalBoostStopEventId =
+            0x59BD1A2Eu;
+
+        constexpr std::uintptr_t kRev8BoostStartCallsiteRva =
+            0xF1C21Du;
+
+        constexpr std::uintptr_t kRev8BoostStopCallsiteRva =
+            0xF1C4ABu;
+
+        const bool rev8BoostStartCallsite =
+            observation.callsiteRva ==
+                kRev8BoostStartCallsiteRva;
+
+        const bool rev8BoostStopCallsite =
+            observation.callsiteRva ==
+                kRev8BoostStopCallsiteRva;
+
+        if (g_haptics) {
+            if (rev8BoostStartCallsite &&
+                observation.eventId ==
+                    kRev8ForwardBoostStartEventId) {
+
+                (void)g_haptics->setLandVehicleBoostInput(
+                    false,
+                    true,
+                    observation.when);
+            }
+            else if (rev8BoostStopCallsite &&
+                     observation.eventId ==
+                         kRev8ForwardBoostStopEventId) {
+
+                (void)g_haptics->setLandVehicleBoostInput(
+                    false,
+                    false,
+                    observation.when);
+            }
+            else if (rev8BoostStartCallsite &&
+                     observation.eventId ==
+                         sds::kHardwareObservedLandVehicleVerticalBoostEventId) {
+
+                (void)g_haptics->setLandVehicleBoostInput(
+                    true,
+                    true,
+                    observation.when);
+            }
+            else if (rev8BoostStopCallsite &&
+                     observation.eventId ==
+                         kRev8VerticalBoostStopEventId) {
+
+                (void)g_haptics->setLandVehicleBoostInput(
+                    true,
+                    false,
+                    observation.when);
+            }
         }
 
         if (observation.eventId == sds::kHardwareObservedLandVehicleVerticalBoostEventId) {
@@ -1396,6 +1482,12 @@ if (connected && g_controller->bluetoothTransport()) {
         g_shipLaunchLandingStartedAtUs.store(steadyMicros(now), std::memory_order_release);
         g_shipTakeoffFirstFaderClosed.store(false, std::memory_order_release);
         g_shipTakeoffBoundaryObserved.store(false, std::memory_order_release);
+
+        if (phase == ShipLaunchLandingRumblePhase::Takeoff) {
+            pluginLog(
+                "Ship launch/landing haptics: stage=armed phase=takeoff waiting=landed-to-airborne-boundary");
+            return;
+        }
 
         if (g_haptics) {
             (void)g_haptics->setShipLaunchLandingRumble(true, shipLaunchLandingRumblePhaseName(phase));
@@ -2756,6 +2848,16 @@ if (connected && g_controller->bluetoothTransport()) {
                 &next,
                 sizeof(next));
 
+            // REV-8 scanner analog timing parity.
+            //
+            // Native USB stick events originate during Starfield's
+            // own gamepad polling stage. During REV-8 scanner mode,
+            // reproduce IDs 11/12 here instead of from runtimeTick.
+            if (g_gameState) {
+                g_gameState->dispatchBluetoothScannerSticksAtNativePoll(
+                    state);
+            }
+
             // Do NOT touch gamepad +0x08 here.
             // Dynamic last-device presentation owns that field.
         }
@@ -3587,8 +3689,30 @@ if (connected && g_controller->bluetoothTransport()) {
                             if (boundary->type == sds::ShipLaunchLandingTransition::Takeoff &&
                                 g_shipLaunchLandingRumblePhase.load(std::memory_order_acquire) ==
                                     ShipLaunchLandingRumblePhase::Takeoff) {
-                                g_shipTakeoffBoundaryObserved.store(true, std::memory_order_release);
-                                pluginLog("Ship launch/landing haptics: takeoff-boundary-observed action=continue-until-next-transition-boundary");
+                                const bool startTakeoffHaptics =
+                                    !g_shipTakeoffBoundaryObserved.exchange(
+                                        true,
+                                        std::memory_order_acq_rel);
+
+                                if (startTakeoffHaptics) {
+                                    g_shipLaunchLandingStartedAtUs.store(
+                                        steadyMicros(propulsionWhen),
+                                        std::memory_order_release);
+
+                                    if (g_haptics) {
+                                        (void)g_haptics->setShipLaunchLandingRumble(
+                                            true,
+                                            "takeoff");
+                                    }
+
+                                    dispatchShipLaunchLandingTriggerSemantic(
+                                        sds::GameEventType::ShipLaunchLandingHapticsStarted,
+                                        ShipLaunchLandingRumblePhase::Takeoff,
+                                        propulsionWhen);
+
+                                    pluginLog(
+                                        "Ship launch/landing haptics: stage=start phase=takeoff authority=landed-to-airborne-boundary");
+                                }
                             }
                         }
                     }
@@ -3915,8 +4039,9 @@ if (connected && g_controller->bluetoothTransport()) {
         if (!musicReconEnabled) {
             pluginLog("Music recon: INACTIVE reason=DebugLogging-disabled");
         }
-        pluginLog("Land vehicle state: ACTIVE source=AIProcess.occupiedFurniture authority=tier-a-hardware-validated camera=kVehicle-corroboration-only positionTelemetry=reference-world-finite-difference physics=boost-armed-airborne+descent+touchdown touchdownAuthority=accepted-vertical-boost+vertical-motion WwiseContact=0xDC42D80F,0xA3BB6A5E gunEvent=0x3DD3DADD verticalBoostEvent=0xF6A67354 controllerOutput=haptics+triggers");
-        pluginLog("REV-8 controller feel: ACTIVE authority=tier-a-occupiedFurniture motion=telemetry-load-biased boost=0xF6A67354 gun=VehicleFireWeapon+0x3DD3DADD aim=VehicleAim touchdown=boost-armed-physics haptics=chassis+boost+gun+touchdown triggers=R2-gun+L2-aim speaker=none lightbar=none");
+        pluginLog("Land vehicle state: ACTIVE source=AIProcess.occupiedFurniture authority=tier-a-hardware-validated camera=kVehicle-corroboration-only positionTelemetry=reference-world-finite-difference physics=boost-armed-airborne+descent+touchdown touchdownAuthority=accepted-vertical-boost+vertical-motion WwiseContact=0xDC42D80F,0xA3BB6A5E gunEvent=0x3DD3DADD verticalBoostEvent=0xF6A67354 controllerOutput=haptics+triggers+health-lightbar");
+        pluginLog("REV-8 controller feel: ACTIVE authority=tier-a-occupiedFurniture motion=telemetry-load-biased boost=0xF6A67354 gun=VehicleFireWeapon+0x3DD3DADD aim=VehicleAim touchdown=boost-armed-physics haptics=chassis+boost+gun+touchdown triggers=R2-gun+L2-aim speaker=none lightbar=player-health");
+        pluginLog("Controller indicators: ACTIVE MainMenu=white-blue-white-fade-4s batteryLeds=5-step-solid USBnativePlayerLedArbitration=filtered transports=USB+Bluetooth");
         resetLandVehicleWwiseRecon(std::chrono::steady_clock::now());
 
         auto nativeLog = [](std::string_view message) { pluginLog(message); };
@@ -3926,8 +4051,37 @@ if (connected && g_controller->bluetoothTransport()) {
             config.speakerVolume);
         g_haptics = std::make_unique<sds::HapticsManager>(
             config,
-            [transport = g_audioTransport] {
-                return std::make_unique<sds::DualSenseAudioHapticsClient>(transport);
+            [transport = g_audioTransport, nativeLog] {
+                auto wiredBackend =
+                    std::make_unique<sds::DualSenseAudioHapticsClient>(
+                        transport);
+
+                return std::make_unique<sds::DualModeHapticsBackend>(
+                    std::move(wiredBackend),
+                    [] {
+                        return g_controller &&
+                            g_controller->connected() &&
+                            g_controller->bluetoothTransport();
+                    },
+                    [](
+                        std::uint8_t left,
+                        std::uint8_t right,
+                        std::chrono::milliseconds duration) {
+                        return g_controller &&
+                            g_controller->pulseBluetoothRumble(
+                                left,
+                                right,
+                                duration);
+                    },
+                    [](
+                        std::uint8_t left,
+                        std::uint8_t right) {
+                        return g_controller &&
+                            g_controller->setBluetoothContinuousRumble(
+                                left,
+                                right);
+                    },
+                    nativeLog);
             },
             nativeLog);
         g_haptics->start();
@@ -4280,17 +4434,33 @@ if (connected && g_controller->bluetoothTransport()) {
                     ShipLaunchLandingRumblePhase::Takeoff) {
                     if (event.type == sds::GameEventType::MenuClosed &&
                         eventIdentity(event) == "FaderMenu") {
-                        if (!g_shipTakeoffFirstFaderClosed.exchange(true, std::memory_order_acq_rel)) {
-                            pluginLog("Ship launch/landing haptics: takeoff-first-fader-closed action=continue");
+
+                        if (!g_shipTakeoffFirstFaderClosed.exchange(
+                                true,
+                                std::memory_order_acq_rel)) {
+
+                            pluginLog(
+                                "Ship launch/landing haptics: takeoff-first-fader-closed action=continue");
+                        } else if (g_shipTakeoffBoundaryObserved.load(
+                                       std::memory_order_acquire)) {
+
+                            stopShipLaunchLandingHaptics(
+                                "takeoff-final-fader-close");
                         }
                     } else if (event.type == sds::GameEventType::MenuOpened &&
                                eventIdentity(event) == "FaderMenu" &&
-                               g_shipTakeoffFirstFaderClosed.load(std::memory_order_acquire)) {
-                        stopShipLaunchLandingHaptics("takeoff-next-fader-open");
+                               g_shipTakeoffFirstFaderClosed.load(
+                                   std::memory_order_acquire)) {
+
+                        pluginLog(
+                            "Ship launch/landing haptics: takeoff-second-fader-open action=continue-until-final-fader-close");
                     } else if (event.type == sds::GameEventType::MenuOpened &&
                                eventIdentity(event) == "LoadingMenu" &&
-                               g_shipTakeoffFirstFaderClosed.load(std::memory_order_acquire)) {
-                        stopShipLaunchLandingHaptics("takeoff-loading-fallback");
+                               g_shipTakeoffFirstFaderClosed.load(
+                                   std::memory_order_acquire)) {
+
+                        pluginLog(
+                            "Ship launch/landing haptics: takeoff-loading-open action=continue-until-final-fader-close");
                     }
                 }
                 std::uint8_t bit = 0;

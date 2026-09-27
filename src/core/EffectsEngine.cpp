@@ -610,7 +610,10 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
 {
     switch (event.type) {
     case GameEventType::PlayerHealthChanged:
-        if (_persistentContextSuppressed) {
+        // Ship context owns/suppresses the normal health lightbar,
+        // but the REV-8 deliberately keeps player health visible.
+        if (_persistentContextSuppressed &&
+            !_landVehicleContextActive) {
             break;
         }
         if (_config.lightbar) {
@@ -871,27 +874,46 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
         }
         break;
 
-    case GameEventType::LandVehicleContextEntered:
+    case GameEventType::LandVehicleContextEntered: {
         if (!_shipPilotActive) {
+            const auto retainedHealthLightbar =
+                _state.output.lightbar;
+
             clearLandVehicleProductionState();
             _landVehicleBlockingMenuMask = 0;
             _landVehicleContextActive = true;
             _persistentContextSuppressed = true;
             clearOnFootPersistentState();
+
+            if (_config.lightbar) {
+                _state.output.lightbar =
+                    retainedHealthLightbar;
+            }
         }
         break;
+    }
 
-    case GameEventType::LandVehicleContextExited:
+    case GameEventType::LandVehicleContextExited: {
         if (_landVehicleContextActive) {
+            const auto retainedHealthLightbar =
+                _state.output.lightbar;
+
             clearLandVehicleProductionState();
             _landVehicleBlockingMenuMask = 0;
             _landVehicleContextActive = false;
             clearOnFootPersistentState();
+
+            if (_config.lightbar) {
+                _state.output.lightbar =
+                    retainedHealthLightbar;
+            }
+
             if (!_shipPilotActive) {
                 _persistentContextSuppressed = false;
             }
         }
         break;
+    }
 
     case GameEventType::LandVehicleAuthorityAcquired:
         if (_landVehicleContextActive && !_shipPilotActive) {

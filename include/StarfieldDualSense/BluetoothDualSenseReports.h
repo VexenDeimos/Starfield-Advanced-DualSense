@@ -29,4 +29,10 @@ namespace sds
 
     void applyBluetoothLightbarRelease(
         BluetoothDualSenseOutputReport& report) noexcept;
+    // Bluetooth-compatible vibration uses the DualSense legacy motor path.
+    // This is distinct from USB audio-driven advanced haptics.
+    void applyBluetoothCompatibleVibration(
+        BluetoothDualSenseOutputReport& report,
+        std::uint8_t motorLeft,
+        std::uint8_t motorRight) noexcept;
 }

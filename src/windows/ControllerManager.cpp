@@ -6,6 +6,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -28,6 +29,80 @@ namespace
         }
     }
 
+    [[nodiscard]] std::uint8_t batteryLedStep(
+        std::uint8_t percent) noexcept
+    {
+        if (percent <= 20U) {
+            return 1U;
+        }
+        if (percent <= 40U) {
+            return 2U;
+        }
+        if (percent <= 60U) {
+            return 3U;
+        }
+        if (percent <= 80U) {
+            return 4U;
+        }
+        return 5U;
+    }
+
+    [[nodiscard]] std::uint8_t batteryLedMask(
+        std::uint8_t step) noexcept
+    {
+        // Symmetric DualSense player-indicator patterns:
+        // 1=center, 2=inner pair, 3=outer pair+center,
+        // 4=outer+inner pairs, 5=all.
+        switch (step) {
+        case 1U: return 0x04U;
+        case 2U: return 0x0AU;
+        case 3U: return 0x15U;
+        case 4U: return 0x1BU;
+        case 5U: return 0x1FU;
+        default: return 0x00U;
+        }
+    }
+
+    [[nodiscard]] sds::Color menuFadeColor(
+        std::chrono::steady_clock::time_point now) noexcept
+    {
+        const auto milliseconds =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()).count();
+
+        // Four-second breathing cycle: white -> blue -> white.
+        // Quantize to 20 ms steps to keep Bluetooth traffic sane.
+        constexpr std::int64_t halfCycleMs = 2000;
+        constexpr std::int64_t fullCycleMs = 4000;
+        constexpr std::int64_t stepMs = 20;
+
+        const auto phase =
+            milliseconds % fullCycleMs;
+
+        auto towardBlue =
+            phase <= halfCycleMs ?
+                phase :
+                fullCycleMs - phase;
+
+        towardBlue =
+            (towardBlue / stepMs) * stepMs;
+
+        const auto blueWeight =
+            static_cast<unsigned>(
+                (towardBlue * 255) / halfCycleMs);
+
+        const auto whiteWeight =
+            255U - blueWeight;
+
+        return sds::Color{
+            static_cast<std::uint8_t>(whiteWeight),
+            static_cast<std::uint8_t>(
+                (255U * whiteWeight +
+                 64U * blueWeight +
+                 127U) / 255U),
+            255U
+        };
+    }
     bool sameOutput(const sds::OutputState& lhs, const sds::OutputState& rhs)
     {
         return lhs.lightbar == rhs.lightbar &&
@@ -124,6 +199,65 @@ void sds::ControllerManager::setControllerSpeakerRoutingEnabled(bool enabled) no
     }
 }
 
+bool sds::ControllerManager::pulseBluetoothRumble(
+    std::uint8_t left,
+    std::uint8_t right,
+    std::chrono::milliseconds duration) noexcept
+{
+    if (left == 0 && right == 0) {
+        return false;
+    }
+
+    if (duration <= std::chrono::milliseconds::zero()) {
+        return false;
+    }
+
+    if (!_connected.load(std::memory_order_acquire) ||
+        !_bluetoothTransport.load(std::memory_order_acquire)) {
+        return false;
+    }
+
+    try {
+        std::scoped_lock lock(_bluetoothRumbleMutex);
+
+        _bluetoothRumbleLeft = left;
+        _bluetoothRumbleRight = right;
+        _bluetoothRumbleUntil =
+            std::chrono::steady_clock::now() + duration;
+        ++_bluetoothRumbleGeneration;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+bool sds::ControllerManager::setBluetoothContinuousRumble(
+    std::uint8_t left,
+    std::uint8_t right) noexcept
+{
+    const bool clearing =
+        left == 0 &&
+        right == 0;
+
+    if (!clearing &&
+        (!_connected.load(std::memory_order_acquire) ||
+         !_bluetoothTransport.load(std::memory_order_acquire))) {
+
+        return false;
+    }
+
+    try {
+        std::scoped_lock lock(_bluetoothRumbleMutex);
+
+        _bluetoothContinuousLeft = left;
+        _bluetoothContinuousRight = right;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 sds::ControllerLiveSettings sds::ControllerManager::snapshotLiveSettings() const noexcept
 {
     try {
@@ -153,11 +287,27 @@ void sds::ControllerManager::stop() noexcept
 
     _stopRequested = true;
     _events.stop();
+
     if (_worker.joinable()) {
         _worker.join();
     }
+
+    try {
+        std::scoped_lock lock(_bluetoothRumbleMutex);
+
+        _bluetoothRumbleLeft = 0;
+        _bluetoothRumbleRight = 0;
+        _bluetoothRumbleUntil = {};
+        ++_bluetoothRumbleGeneration;
+        _bluetoothContinuousLeft = 0;
+        _bluetoothContinuousRight = 0;
+    } catch (...) {
+    }
+
     _connected = false;
-    _bluetoothTransport.store(false, std::memory_order_release);
+    _bluetoothTransport.store(
+        false,
+        std::memory_order_release);
     _running = false;
 }
 
@@ -273,6 +423,46 @@ void sds::ControllerManager::run() noexcept
         bool haveAppliedOutput = false;
         std::uint64_t appliedSpeakerRoutingGeneration = 0;
         bool speakerRoutingApplied = false;
+        std::uint64_t appliedBluetoothRumbleGeneration = 0;
+        bool bluetoothRumbleActive = false;
+        std::chrono::steady_clock::time_point bluetoothRumbleUntil{};
+        std::uint8_t appliedBluetoothLeft = 0;
+        std::uint8_t appliedBluetoothRight = 0;
+        std::chrono::steady_clock::time_point lastBluetoothRumbleSubmit{};
+
+        // Starfield starts with MainMenu already open, so default to
+        // active until the first MainMenu close event arrives.
+        bool mainMenuActive = true;
+
+        bool batteryKnown = false;
+        std::uint8_t batteryPercent = 0;
+        std::uint8_t batteryStatus = 0xFF;
+        bool batteryCharging = false;
+        bool batteryFull = false;
+
+        auto clearBluetoothRumbleState = [this]() noexcept {
+            try {
+                std::scoped_lock lock(_bluetoothRumbleMutex);
+
+                const bool hadTransient =
+                    _bluetoothRumbleLeft != 0 ||
+                    _bluetoothRumbleRight != 0 ||
+                    _bluetoothRumbleUntil !=
+                        std::chrono::steady_clock::time_point{};
+
+                _bluetoothRumbleLeft = 0;
+                _bluetoothRumbleRight = 0;
+                _bluetoothRumbleUntil = {};
+
+                if (hadTransient) {
+                    ++_bluetoothRumbleGeneration;
+                }
+
+                _bluetoothContinuousLeft = 0;
+                _bluetoothContinuousRight = 0;
+            } catch (...) {
+            }
+        };
 
         auto applySpeakerRouting = [&]() noexcept {
             const auto generation = _speakerRoutingGeneration.load(std::memory_order_acquire);
@@ -316,6 +506,18 @@ void sds::ControllerManager::run() noexcept
         while (!_stopRequested.load()) {
             bool stateChanged = false;
             while (auto event = _events.tryPop()) {
+                if (event->type == GameEventType::MenuOpened ||
+                    event->type == GameEventType::MenuClosed) {
+
+                    const auto menuName =
+                        std::string_view(event->text.data());
+
+                    if (menuName == "MainMenu") {
+                        mainMenuActive =
+                            event->type == GameEventType::MenuOpened;
+                    }
+                }
+
                 (void)effects.handle(*event);
                 stateChanged = true;
             }
@@ -329,10 +531,18 @@ void sds::ControllerManager::run() noexcept
 
             if (!backend->connected()) {
                 clearObservedR2();
+                clearBluetoothRumbleState();
                 _connected = false;
                 _bluetoothTransport.store(false, std::memory_order_release);
                 haveAppliedOutput = false;
                 speakerRoutingApplied = false;
+                batteryKnown = false;
+                batteryPercent = 0;
+                batteryStatus = 0xFF;
+                batteryCharging = false;
+                batteryFull = false;
+                bluetoothRumbleActive = false;
+                bluetoothRumbleUntil = {};
                 if (now >= nextConnectAttempt) {
                     if (backend->connect()) {
                         _bluetoothTransport.store(
@@ -374,12 +584,30 @@ void sds::ControllerManager::run() noexcept
                     desired.rightTrigger = {};
                 }
 
+                // Main menu activity indicator. This intentionally
+                // overrides the gameplay health color only while the
+                // actual MainMenu is active.
+                if (live.lightbar && mainMenuActive) {
+                    desired.lightbar =
+                        menuFadeColor(now);
+                }
+
+                // Five-step symmetric battery gauge.
+                // Keep the battery display solid on both transports.
+                desired.playerLeds =
+                    batteryKnown ?
+                        batteryLedMask(
+                            batteryLedStep(batteryPercent)) :
+                        0;
+
                 // Apply a coherent DualSense output state only when it changes.
                 // Native USB sends one HID packet containing both LED and trigger
                 // state, after a one-time lightbar initialization packet. This
                 // avoids the old pair of back-to-back full reports and never
                 // repeats the one-shot LED setup command as a pseudo-keepalive.
-                if (stateChanged || !haveAppliedOutput || !sameOutput(desired, lastApplied)) {
+                if (stateChanged ||
+                    !haveAppliedOutput ||
+                    !sameOutput(desired, lastApplied)) {
                     const bool applyLightbar = caps.lightbar;
                     const bool applyTriggers = caps.adaptiveTriggers;
                     bool outputOk = true;
@@ -404,6 +632,138 @@ void sds::ControllerManager::run() noexcept
                     }
                 }
 
+                // Bluetooth compatible-rumble requests are consumed here so
+                // gameplay/event threads never write directly to HID.
+                if (caps.bluetoothTransport && backend->connected()) {
+                    std::uint64_t rumbleGeneration = 0;
+                    std::uint8_t rumbleLeft = 0;
+                    std::uint8_t rumbleRight = 0;
+                    std::chrono::steady_clock::time_point rumbleUntil{};
+                    std::uint8_t continuousLeft = 0;
+                    std::uint8_t continuousRight = 0;
+
+                    {
+                        std::scoped_lock rumbleLock(_bluetoothRumbleMutex);
+
+                        rumbleGeneration =
+                            _bluetoothRumbleGeneration;
+
+                        rumbleLeft =
+                            _bluetoothRumbleLeft;
+
+                        rumbleRight =
+                            _bluetoothRumbleRight;
+
+                        rumbleUntil =
+                            _bluetoothRumbleUntil;
+
+                        continuousLeft =
+                            _bluetoothContinuousLeft;
+
+                        continuousRight =
+                            _bluetoothContinuousRight;
+                    }
+
+                    if (rumbleGeneration !=
+                        appliedBluetoothRumbleGeneration) {
+
+                        appliedBluetoothRumbleGeneration =
+                            rumbleGeneration;
+
+                        if ((rumbleLeft != 0 || rumbleRight != 0) &&
+                            now < rumbleUntil) {
+
+                            bluetoothRumbleActive = true;
+                            bluetoothRumbleUntil = rumbleUntil;
+                        } else {
+                            bluetoothRumbleActive = false;
+                            bluetoothRumbleUntil = {};
+                        }
+                    }
+
+                    if (bluetoothRumbleActive &&
+                        now >= bluetoothRumbleUntil) {
+
+                        bluetoothRumbleActive = false;
+                        bluetoothRumbleUntil = {};
+                    }
+
+                    const auto blendMotor =
+                        [](std::uint8_t base,
+                           std::uint8_t overlay) noexcept {
+
+                            const unsigned b = base;
+                            const unsigned o = overlay;
+
+                            return static_cast<std::uint8_t>(
+                                b + o -
+                                ((b * o + 127U) / 255U));
+                        };
+
+                    std::uint8_t desiredLeft =
+                        continuousLeft;
+
+                    std::uint8_t desiredRight =
+                        continuousRight;
+
+                    if (bluetoothRumbleActive) {
+                        desiredLeft =
+                            blendMotor(
+                                desiredLeft,
+                                rumbleLeft);
+
+                        desiredRight =
+                            blendMotor(
+                                desiredRight,
+                                rumbleRight);
+                    }
+
+                    const bool bluetoothRumbleChanged =
+                        desiredLeft != appliedBluetoothLeft ||
+                        desiredRight != appliedBluetoothRight;
+
+                    const bool bluetoothRumbleNonzero =
+                        desiredLeft != 0 ||
+                        desiredRight != 0;
+
+                    const bool bluetoothRumbleRefreshDue =
+                        bluetoothRumbleNonzero &&
+                        (lastBluetoothRumbleSubmit ==
+                             std::chrono::steady_clock::time_point{} ||
+                         now - lastBluetoothRumbleSubmit >=
+                             std::chrono::milliseconds(250));
+
+                    if (bluetoothRumbleChanged ||
+                        bluetoothRumbleRefreshDue) {
+
+                        if (backend->setCompatibleRumble(
+                                desiredLeft,
+                                desiredRight)) {
+
+                            appliedBluetoothLeft =
+                                desiredLeft;
+
+                            appliedBluetoothRight =
+                                desiredRight;
+
+                            lastBluetoothRumbleSubmit =
+                                now;
+                        } else {
+                            lastBluetoothRumbleSubmit =
+                                now;
+
+                            log(
+                                "Bluetooth compatible rumble: "
+                                "composed output submission failed");
+                        }
+                    }
+                    } else {
+                        bluetoothRumbleActive = false;
+                        bluetoothRumbleUntil = {};
+                        appliedBluetoothLeft = 0;
+                        appliedBluetoothRight = 0;
+                        lastBluetoothRumbleSubmit = {};
+                    }
                 // One native input stream feeds touch data and analog trigger
                 // axes. Bluetooth also uses input polling to observe the
                 // controller startup timestamp before taking lightbar ownership.
@@ -412,9 +772,15 @@ void sds::ControllerManager::run() noexcept
                 const bool needsInput =
                     live.touchpad || live.adaptiveTriggers ||
                     static_cast<bool>(_rightTriggerObserver) ||
-                    (caps.bluetoothTransport && caps.lightbar && live.lightbar);
+                    caps.lightbar;
                 if (needsInput && caps.touchpadInput && backend->connected()) {
                     if (const auto input = backend->pollTouch()) {
+                        batteryKnown = input->batteryKnown;
+                        batteryPercent = input->batteryPercent;
+                        batteryStatus = input->batteryStatus;
+                        batteryCharging = input->batteryCharging;
+                        batteryFull = input->batteryFull;
+
                         if (caps.bluetoothTransport) {
                             std::scoped_lock inputLock(_latestInputMutex);
                             _latestInputState = *input;
@@ -499,6 +865,7 @@ void sds::ControllerManager::run() noexcept
 
                 if (!backend->connected()) {
                     clearObservedR2();
+                    clearBluetoothRumbleState();
                     _connected = false;
                     _bluetoothTransport.store(false, std::memory_order_release);
                     nextConnectAttempt = now + _reconnectInterval;
@@ -509,6 +876,7 @@ void sds::ControllerManager::run() noexcept
         }
 
         clearObservedR2();
+        clearBluetoothRumbleState();
         if (backend->connected()) {
             backend->resetOutputs();
             backend->disconnect();

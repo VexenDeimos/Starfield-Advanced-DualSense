@@ -39,6 +39,9 @@ namespace sds
             const TriggerEffect& right) override;
         bool setOutputState(const OutputState& state) override;
         bool setControllerSpeakerRoutingEnabled(bool enabled) override;
+        bool setCompatibleRumble(
+            std::uint8_t left,
+            std::uint8_t right) override;
         void resetOutputs() noexcept override;
 
     private:

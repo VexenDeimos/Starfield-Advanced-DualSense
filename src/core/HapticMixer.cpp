@@ -110,7 +110,7 @@ void sds::HapticMixer::render(std::span<HapticFrame> output) noexcept
         constexpr double turbineHz = 96.0;
         const double gain = std::clamp(static_cast<double>(_continuous.gain), 0.0, 1.0);
         const double texture = std::clamp(static_cast<double>(_continuous.level), 0.0, 1.0);
-        const double amplitude = gain * (0.30 + 0.10 * texture);
+        const double amplitude = gain * (0.50 + 0.15 * texture);
 
         for (auto& frame : output) {
             const double attackFrames = 0.012 * sampleRate;

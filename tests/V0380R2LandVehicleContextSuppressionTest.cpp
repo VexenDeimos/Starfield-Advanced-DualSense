@@ -168,6 +168,15 @@ int main()
 {
     const auto now = std::chrono::steady_clock::now();
 
+    const auto neutralVehicleTriggers =
+        [](const sds::EffectState& state) noexcept {
+            return
+                state.output.leftTrigger.mode ==
+                    sds::TriggerEffectMode::Off &&
+                state.output.rightTrigger.mode ==
+                    sds::TriggerEffectMode::Off;
+        };
+
     // Adaptive trigger/lightbar ownership: kVehicle is suppression-only, never vehicle authority.
     auto controllerConfig = sds::Config::defaults();
     controllerConfig.adaptiveTriggers = true;
@@ -180,28 +189,28 @@ int main()
     (void)effects.handle(event(sds::GameEventType::PlayerHealthChanged, std::string_view{}, 0.80F));
 
     const auto vehicleEnter = effects.handle(event(sds::GameEventType::LandVehicleContextEntered, "kVehicle"));
-    require(neutralPersistentOutput(vehicleEnter),
-        "land vehicle entry immediately clears handheld trigger and lightbar ownership");
+    require(neutralVehicleTriggers(vehicleEnter),
+        "land vehicle entry clears handheld trigger ownership while preserving health lightbar");
     require(effects.equippedWeaponProfile() == nullptr,
         "land vehicle entry forgets cached handheld weapon profile");
 
     const auto vehicleHeldR2 = effects.handleRightTriggerInput(255u, now + 1ms);
-    require(neutralPersistentOutput(vehicleHeldR2),
+    require(neutralVehicleTriggers(vehicleHeldR2),
         "REV-8 R2 gun input cannot resurrect stale handheld trigger ownership");
-    require(neutralPersistentOutput(effects.handle(event(sds::GameEventType::WeaponEquipped, "Eon"))),
+    require(neutralVehicleTriggers(effects.handle(event(sds::GameEventType::WeaponEquipped, "Eon"))),
         "handheld equip observations are suppressed while kVehicle is active");
-    require(neutralPersistentOutput(effects.handle(event(sds::GameEventType::PlayerHealthChanged, std::string_view{}, 0.10F))),
-        "health polling cannot repaint handheld lightbar ownership while kVehicle is active");
+    require(neutralVehicleTriggers(effects.handle(event(sds::GameEventType::PlayerHealthChanged, std::string_view{}, 0.10F))),
+        "health polling keeps player-health lightbar live while kVehicle is active");
 
-    require(neutralPersistentOutput(effects.handle(event(sds::GameEventType::MenuClosed, "LoadingMenu"))),
+    require(neutralVehicleTriggers(effects.handle(event(sds::GameEventType::MenuClosed, "LoadingMenu"))),
         "LoadingMenu close cannot release suppression while kVehicle remains active");
-    require(neutralPersistentOutput(effects.handleRightTriggerInput(255u, now + 2ms)),
+    require(neutralVehicleTriggers(effects.handleRightTriggerInput(255u, now + 2ms)),
         "held R2 remains neutral after in-vehicle LoadingMenu close");
 
     const auto vehicleExit = effects.handle(event(sds::GameEventType::LandVehicleContextExited, "kVehicle"));
-    require(neutralPersistentOutput(vehicleExit),
-        "land vehicle exit restores no cached handheld controller bytes");
-    require(neutralPersistentOutput(effects.handleRightTriggerInput(255u, now + 3ms)),
+    require(neutralVehicleTriggers(vehicleExit),
+        "land vehicle exit preserves health lightbar while restoring no cached handheld trigger bytes");
+    require(neutralVehicleTriggers(effects.handleRightTriggerInput(255u, now + 3ms)),
         "held R2 after land vehicle exit cannot resurrect stale handheld wall");
     require(effects.handle(event(sds::GameEventType::WeaponEquipped, "Maelstrom")).output.rightTrigger.mode !=
             sds::TriggerEffectMode::Off,

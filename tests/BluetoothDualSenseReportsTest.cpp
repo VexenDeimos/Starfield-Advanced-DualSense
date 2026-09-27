@@ -74,7 +74,7 @@ int main()
     require(report[2] == 0x10, "Bluetooth tag must be 0x10");
 
     require(report[3] == 0x0C, "Both adaptive triggers must be valid");
-    require(report[4] == 0x04, "Lightbar RGB must be valid");
+    require(report[4] == 0x14, "Lightbar RGB + player LEDs must be valid");
 
     require(report[13] == 0x01, "R2 mode offset is wrong");
     require(report[14] == 80, "R2 start-position offset is wrong");

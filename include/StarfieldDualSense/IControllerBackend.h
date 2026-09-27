@@ -29,6 +29,14 @@ namespace sds
             return connected();
         }
 
+        // Compatible vibration is optional. Bluetooth overrides this
+        // with DualSense COMPATIBLE_VIBRATION2.
+        virtual bool setCompatibleRumble(
+            std::uint8_t left,
+            std::uint8_t right)
+        {
+            return left == 0 && right == 0;
+        }
         // Live speaker routing is optional. Unsupported backends treat OFF as
         // harmless success and fail-soft when asked to enable the route.
         virtual bool setControllerSpeakerRoutingEnabled(bool enabled)

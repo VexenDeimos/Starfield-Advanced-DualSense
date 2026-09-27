@@ -107,6 +107,14 @@ namespace sds
         bool ps{ false };
         bool click{ false };
         bool mute{ false };
+        // Normalized DualSense battery state from the common
+        // USB/Bluetooth input-report status byte.
+        std::uint8_t batteryPercent{ 0 };
+        std::uint8_t batteryStatus{ 0xFF };
+        bool batteryKnown{ false };
+        bool batteryCharging{ false };
+        bool batteryFull{ false };
+
 
         friend constexpr bool operator==(const TouchState&, const TouchState&) = default;
     };

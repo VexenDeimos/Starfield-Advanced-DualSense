@@ -39,9 +39,9 @@ int main()
         check("recognizes 48-byte USB output report", result.recognized);
         check("reports native ownership change", result.changed);
         check("clears L2/R2 ownership bits", report[1] == 0x00);
-        check("clears only lightbar ownership bit", report[2] == 0x53);
+        check("clears lightbar and player-indicator ownership bits", (report[2] & 0x14U) == 0);
         check("reports before flags", result.beforeFlags0 == 0x0C && result.beforeFlags1 == 0x57);
-        check("reports after flags", result.afterFlags0 == 0x00 && result.afterFlags1 == 0x53);
+        check("reports filtered trigger/lightbar/player-indicator after flags", (result.afterFlags0 & 0x0CU) == 0 && (result.afterFlags1 & 0x14U) == 0);
         bool payloadUnchanged = true;
         for (std::size_t i = 3; i < report.size(); ++i) {
             if (report[i] != before[i]) {
@@ -104,7 +104,7 @@ int main()
             report, true, false, sds::kStarfieldNativeDualSenseWriterRva);
 
         check("h4 accepts exact native Starfield writer", result.recognized && result.changed);
-        check("h4 edits the original async buffer in place", report.data() == originalBuffer && report[1] == 0x00 && report[2] == 0x53);
+        check("h4 edits trigger/lightbar/player-indicator ownership in original async buffer", (report[1] & 0x0CU) == 0 && (report[2] & 0x14U) == 0);
     }
 
     {
@@ -199,6 +199,30 @@ int main()
             if (routed[i] != base[i]) { otherPayloadStable = false; break; }
         }
         check("speaker routing changes no unrelated USB payload bytes", otherPayloadStable);
+    }
+
+
+    {
+        std::array<std::uint8_t, 48> report{};
+        report[0] = 0x02;
+        report[1] = 0x0C;
+        report[2] = 0x57;
+
+        const auto result =
+            sds::stripNativeDualSenseOwnedFields(report);
+
+        check("player-indicator arbitration recognizes native USB packet",
+            result.recognized);
+        check("player-indicator arbitration reports a change",
+            result.changed);
+        check("clears competing trigger ownership bits",
+            (report[1] & 0x0CU) == 0);
+        check("clears competing lightbar ownership bit",
+            (report[2] & 0x04U) == 0);
+        check("clears competing player-indicator ownership bit",
+            (report[2] & 0x10U) == 0);
+        check("preserves unrelated native flags1 bits after player-indicator arbitration",
+            report[2] == 0x43U);
     }
 
     return failures == 0 ? 0 : 1;

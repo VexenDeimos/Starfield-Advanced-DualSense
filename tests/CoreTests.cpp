@@ -1701,12 +1701,12 @@ UnknownFutureOption = 123
         const auto t0 = std::chrono::steady_clock::now();
         sds::TouchState state{};
 
-        // Left-side physical click belongs to Starfield's native POV toggle and must
-        // never produce a plugin gesture/action.
+        // Left-side physical click is surfaced as LeftClick so the transport
+        // layer can leave USB native while Bluetooth bridges TogglePOV.
         state.first = { 300, 500, 1, true };
         state.click = true;
-        expect(tracker.update(state, t0) == sds::TouchGesture::None,
-            "gesture tracker leaves left touchpad click untouched");
+        expect(tracker.update(state, t0) == sds::TouchGesture::LeftClick,
+            "gesture tracker exposes left touchpad click for transport-aware POV handling");
         state.click = false;
         expect(tracker.update(state, t0 + std::chrono::milliseconds(10)) == sds::TouchGesture::None,
             "gesture tracker leaves left touchpad release untouched");
@@ -1789,8 +1789,8 @@ UnknownFutureOption = 123
         const auto report = sds::buildUsbOutputReport(output);
         expect(report.size() == 48, "USB output report is 48 bytes");
         expect(report[0] == 0x02, "USB output report id");
-        expect(report[1] == 0x0C && report[2] == 0x04,
-            "USB output owns only adaptive triggers and lightbar");
+        expect(report[1] == 0x0C && report[2] == 0x14,
+            "USB output owns adaptive triggers, lightbar, and player indicators");
         expect((report[0x2C] & 0x20) == 0,
             "steady USB output omits one-shot lightbar setup command");
         expect(report[0x0B] == 0x01 && report[0x0C] == 81 && report[0x0D] == 123,
@@ -1801,8 +1801,8 @@ UnknownFutureOption = 123
         expect(report[0x1A] == 11 && report[0x1B] == 22 && report[0x1C] == 33,
             "USB output encodes EffectEx forces");
         expect(report[0x1F] == 25, "USB output encodes EffectEx frequency");
-        expect((report[0x2C] & 0x1F) == 0,
-            "USB output leaves player LEDs untouched");
+        expect((report[0x2C] & 0x1F) == 0x04,
+            "USB output encodes requested player LED mask");
         expect(report[0x2D] == 12 && report[0x2E] == 34 && report[0x2F] == 56,
             "USB output encodes lightbar RGB");
     }
@@ -1979,6 +1979,17 @@ UnknownFutureOption = 123
         manager.start();
         expect(waitUntil(std::chrono::milliseconds(100), [&] { return manager.connected(); }),
             "controller manager connects for stable output test");
+
+        sds::GameEvent closeMainMenu{};
+        closeMainMenu.type = sds::GameEventType::MenuClosed;
+        constexpr std::string_view mainMenuName = "MainMenu";
+        std::memcpy(
+            closeMainMenu.text.data(),
+            mainMenuName.data(),
+            mainMenuName.size());
+        expect(manager.enqueue(closeMainMenu),
+            "stable output test exits MainMenu animation");
+
         sds::GameEvent health{};
         health.type = sds::GameEventType::PlayerHealthChanged;
         health.value = 0.75F;

@@ -21,9 +21,9 @@ check("does not skip overlapped writes", "overlapped == nullptr" not in src and 
 check("forwards original buffer and async arguments", "::WriteFile(file, buffer, bytesToWrite, bytesWritten, overlapped)" in src)
 check("throttles arbitration logging", "kArbitrationLogIntervalMs" in src and "shouldLogArbitration" in src)
 check("logs before and after validity flags", "beforeFlags=" in src and "afterFlags=" in src)
-check("logs in-place async-safe activation", "stripped native trigger/lightbar ownership in-place" in src and "overlapped == nullptr" not in src)
+check("logs in-place async-safe activation", "stripped native trigger/lightbar/player-indicator ownership in-place" in src and "overlapped == nullptr" not in src)
 check("does not suppress entire native output packet", "return TRUE" not in src and "bytesToWrite" in src)
-check("h5 diagnostic retains h4 arbitration runtime", "0.3.01-voice-archive-manifest-probe" in plugin)
+check("runtime reports HID arbitration active", "HID arbitration: ACTIVE;" in src)
 check("standalone ownership behavior test target", 'target("sds-hid-ownership-tests"' in xmake and 'tests/HidOutputOwnershipTest.cpp' in xmake)
 
 if not all(ok for _, ok in checks):

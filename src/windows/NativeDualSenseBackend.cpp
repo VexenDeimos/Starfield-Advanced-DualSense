@@ -160,6 +160,16 @@ bool sds::NativeDualSenseBackend::setOutputState(
         _impl->active->setOutputState(state);
 }
 
+bool sds::NativeDualSenseBackend::setCompatibleRumble(
+    std::uint8_t left,
+    std::uint8_t right)
+{
+    return _impl &&
+        _impl->active &&
+        _impl->active->setCompatibleRumble(
+            left,
+            right);
+}
 bool sds::NativeDualSenseBackend::setControllerSpeakerRoutingEnabled(
     bool enabled)
 {

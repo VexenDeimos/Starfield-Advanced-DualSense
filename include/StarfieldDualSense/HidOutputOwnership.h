@@ -25,6 +25,11 @@ namespace sds
         constexpr std::uint8_t kUsbOutputReportId = 0x02;
         constexpr std::uint8_t kAdaptiveTriggerOwnershipMask = 0x0C;
         constexpr std::uint8_t kLightbarOwnershipMask = 0x04;
+        constexpr std::uint8_t kPlayerIndicatorOwnershipMask = 0x10;
+        constexpr std::uint8_t kVisualOwnershipMask =
+            static_cast<std::uint8_t>(
+                kLightbarOwnershipMask |
+                kPlayerIndicatorOwnershipMask);
 
         HidOutputOwnershipResult result{};
         if (report.size() != kUsbOutputReportSize || report[0] != kUsbOutputReportId) {
@@ -37,7 +42,7 @@ namespace sds
         result.afterFlags0 = static_cast<std::uint8_t>(
             result.beforeFlags0 & static_cast<std::uint8_t>(~kAdaptiveTriggerOwnershipMask));
         result.afterFlags1 = static_cast<std::uint8_t>(
-            result.beforeFlags1 & static_cast<std::uint8_t>(~kLightbarOwnershipMask));
+            result.beforeFlags1 & static_cast<std::uint8_t>(~kVisualOwnershipMask));
         result.changed =
             result.afterFlags0 != result.beforeFlags0 || result.afterFlags1 != result.beforeFlags1;
 
