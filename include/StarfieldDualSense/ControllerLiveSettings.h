@@ -12,6 +12,7 @@ namespace sds
         float triggerStrength{ 1.0F };
         bool lightbar{ true };
         bool touchpad{ true };
+        float bluetoothHapticStrength{ 1.0F };
 
         friend bool operator==(const ControllerLiveSettings&, const ControllerLiveSettings&) = default;
     };
@@ -24,6 +25,7 @@ namespace sds
             .triggerStrength = std::clamp(config.triggerStrength, 0.0F, 1.0F),
             .lightbar = config.lightbar,
             .touchpad = config.touchpad,
+            .bluetoothHapticStrength = std::clamp(config.bluetoothHapticStrength, 0.0F, 1.0F),
         };
     }
 }

@@ -44,18 +44,19 @@ namespace sds
         "Haptics",
         "Music",
         "Adaptive Triggers",
-        "Controller Speaker",
+        "Controller Speaker (USB Only)",
         "Controller Features",
         "Diagnostics / Status",
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 26> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 27> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
         { "AdvancedHaptics", SettingsMenuTab::Haptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "HapticStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 1.0F },
+        { "BluetoothHapticStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 1.0F },
         { "BoostpackHaptics", SettingsMenuTab::Haptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "BoostpackHapticsStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 2.0F },
 

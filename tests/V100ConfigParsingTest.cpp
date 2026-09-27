@@ -81,6 +81,31 @@ int main()
             sds::SpeakerVoiceLanguage::Auto,
         "invalid SpeakerVoiceLanguage preserves Auto default");
 
+    expect(
+        near(defaults.bluetoothHapticStrength, 1.0F),
+        "BluetoothHapticStrength defaults 1.0");
+
+    const auto bluetoothHalf =
+        sds::loadConfig("BluetoothHapticStrength = 0.5");
+
+    expect(
+        near(bluetoothHalf.bluetoothHapticStrength, 0.5F),
+        "BluetoothHapticStrength parses 0.5");
+
+    const auto bluetoothHigh =
+        sds::loadConfig("BluetoothHapticStrength = 99.0");
+
+    expect(
+        near(bluetoothHigh.bluetoothHapticStrength, 1.0F),
+        "BluetoothHapticStrength clamps high");
+
+    const auto bluetoothLow =
+        sds::loadConfig("BluetoothHapticStrength = -4.0");
+
+    expect(
+        near(bluetoothLow.bluetoothHapticStrength, 0.0F),
+        "BluetoothHapticStrength clamps low");
+
     const auto reconnectOnly =
         sds::loadConfig("OperatingMode = \"ReconnectFixOnly\"");
 

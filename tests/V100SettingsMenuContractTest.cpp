@@ -8,13 +8,14 @@
 
 namespace
 {
-    constexpr std::array<std::string_view, 26> kExpectedKeys{
+    constexpr std::array<std::string_view, 27> kExpectedKeys{
         "OperatingMode",
         "DualSenseReconnectFix",
         "AdaptiveTriggers",
         "TriggerStrength",
         "AdvancedHaptics",
         "HapticStrength",
+        "BluetoothHapticStrength",
         "MusicHapticsEnabled",
         "MusicHapticsStrength",
         "BoostpackHaptics",
@@ -90,7 +91,7 @@ int main()
 
     expect(
         descriptors.size() == kExpectedKeys.size(),
-        "exactly 26 public settings have descriptors");
+        "exactly 27 public settings have descriptors");
 
     for (const auto expectedKey : kExpectedKeys) {
         std::size_t matches = 0;

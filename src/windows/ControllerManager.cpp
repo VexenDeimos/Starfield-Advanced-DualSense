@@ -718,6 +718,38 @@ void sds::ControllerManager::run() noexcept
                                 rumbleRight);
                     }
 
+                    // Apply the Bluetooth-only multiplier after finite and
+                    // continuous feedback have been composed.
+                    //
+                    // USB advanced haptics never use this rumble path.
+                    const auto scaleBluetoothMotor =
+                        [](std::uint8_t value,
+                           float strength) noexcept {
+
+                            float clamped = strength;
+
+                            if (clamped < 0.0F) {
+                                clamped = 0.0F;
+                            } else if (clamped > 1.0F) {
+                                clamped = 1.0F;
+                            }
+
+                            return static_cast<std::uint8_t>(
+                                static_cast<float>(value) *
+                                    clamped +
+                                0.5F);
+                        };
+
+                    desiredLeft =
+                        scaleBluetoothMotor(
+                            desiredLeft,
+                            live.bluetoothHapticStrength);
+
+                    desiredRight =
+                        scaleBluetoothMotor(
+                            desiredRight,
+                            live.bluetoothHapticStrength);
+
                     const bool bluetoothRumbleChanged =
                         desiredLeft != appliedBluetoothLeft ||
                         desiredRight != appliedBluetoothRight;

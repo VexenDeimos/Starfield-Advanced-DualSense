@@ -365,6 +365,12 @@ namespace sds
                 },
 
                 {
+                    "BluetoothHapticStrength",
+                    formatFloat(
+                        config.bluetoothHapticStrength)
+                },
+
+                {
                     "MusicHapticsEnabled",
                     boolText(
                         config.musicHapticsEnabled)
@@ -684,6 +690,12 @@ namespace sds
 
         if (key == "HapticStrength") {
             current_.hapticStrength =
+                std::clamp(value, 0.0F, 1.0F);
+            return true;
+        }
+
+        if (key == "BluetoothHapticStrength") {
+            current_.bluetoothHapticStrength =
                 std::clamp(value, 0.0F, 1.0F);
             return true;
         }

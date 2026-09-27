@@ -140,6 +140,8 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.advancedHaptics);
         } else if (key == "HapticStrength") {
             parseFloat(value, config.hapticStrength);
+        } else if (key == "BluetoothHapticStrength") {
+            parseFloat(value, config.bluetoothHapticStrength);
         } else if (key == "MusicHapticsEnabled") {
             parseBool(value, config.musicHapticsEnabled);
         } else if (key == "MusicHapticsStrength") {

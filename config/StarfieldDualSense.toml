@@ -33,9 +33,16 @@ TriggerStrength = 1.0
 # =============================================================================
 # HAPTICS
 # =============================================================================
+# Master gameplay haptic feedback.
+# USB uses DualSense advanced audio haptics; Bluetooth uses SAD compatible rumble.
 AdvancedHaptics = true
 # Overall gameplay-haptic strength. Valid range: 0.0-1.0
 HapticStrength = 1.0
+
+# Additional Bluetooth-only haptic multiplier.
+# Effective Bluetooth feedback = normal SAD haptics * this value.
+# USB haptics are unaffected. Valid range: 0.0-1.0
+BluetoothHapticStrength = 1.0
 
 # Boostpack-only haptics. The boostpack strength is multiplied by the global
 # HapticStrength setting above. Valid boostpack range: 0.0-2.0
@@ -48,7 +55,8 @@ MusicHapticsEnabled = false
 MusicHapticsStrength = 0.1
 
 # =============================================================================
-# CONTROLLER SPEAKER
+# CONTROLLER SPEAKER - USB ONLY
+# Bluetooth controller-speaker output is not supported yet.
 # =============================================================================
 ControllerSpeaker = true
 # Master controller-speaker volume. Valid range: 0.0-1.0

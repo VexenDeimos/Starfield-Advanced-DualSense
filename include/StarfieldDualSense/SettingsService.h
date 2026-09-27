@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 26>
+    inline constexpr std::array<SettingDescriptor, 27>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -31,8 +31,9 @@ namespace sds
             { "AdaptiveTriggers", "Adaptive Triggers", "Enable DualSense adaptive-trigger effects.", SettingApplyMode::Live },
             { "TriggerStrength", "Trigger Strength", "Controls the overall strength of adaptive-trigger effects.", SettingApplyMode::Live },
 
-            { "AdvancedHaptics", "Advanced Haptics", "Enable advanced DualSense haptic feedback.", SettingApplyMode::Live },
-            { "HapticStrength", "Haptic Strength", "Controls the overall strength of gameplay haptics.", SettingApplyMode::Live },
+            { "AdvancedHaptics", "Haptic Feedback", "Enable gameplay haptic feedback. USB uses advanced DualSense audio haptics; Bluetooth uses SAD compatible-rumble translation.", SettingApplyMode::Live },
+            { "HapticStrength", "Haptic Strength", "Controls the overall strength of gameplay haptics on all transports.", SettingApplyMode::Live },
+            { "BluetoothHapticStrength", "Bluetooth Haptic Strength", "Additional Bluetooth-only haptic multiplier. USB haptics are unchanged.", SettingApplyMode::Live },
 
             { "MusicHapticsEnabled", "Music Haptics", "Enable haptic feedback generated from Starfield's soundtrack.", SettingApplyMode::Live },
             { "MusicHapticsStrength", "Music Haptics Strength", "Controls soundtrack-only vibration strength. Gameplay haptics retain priority.", SettingApplyMode::Live },
@@ -40,8 +41,8 @@ namespace sds
             { "BoostpackHaptics", "Boostpack Haptics", "Enable haptic feedback for genuine player boostpack thrust.", SettingApplyMode::Live },
             { "BoostpackHapticsStrength", "Boostpack Haptics Strength", "Controls boostpack-only haptic intensity while retaining the global haptic strength.", SettingApplyMode::Live },
 
-            { "ControllerSpeaker", "Controller Speaker", "Enable supported Starfield sounds through the DualSense controller speaker.", SettingApplyMode::Live },
-            { "SpeakerVolume", "Speaker Volume", "Controls the master DualSense controller-speaker volume.", SettingApplyMode::Live },
+            { "ControllerSpeaker", "Controller Speaker (USB Only)", "Enable supported Starfield sounds through the DualSense controller speaker over USB. Bluetooth controller-speaker output is not supported yet.", SettingApplyMode::Live },
+            { "SpeakerVolume", "Speaker Volume", "Controls the master DualSense controller-speaker volume over USB.", SettingApplyMode::Live },
             { "SpeakerOutputMode", "Speaker Output Mode", "Choose how supported remote or radio voice is routed between normal audio and the controller speaker.", SettingApplyMode::Live },
 
             { "SpeakerComms", "Radio / Comms Voice", "Play supported remote and radio communications through the controller speaker.", SettingApplyMode::Live },

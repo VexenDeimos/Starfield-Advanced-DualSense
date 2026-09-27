@@ -66,6 +66,7 @@ namespace sds
         {
             if (key == "TriggerStrength") value = c.triggerStrength;
             else if (key == "HapticStrength") value = c.hapticStrength;
+            else if (key == "BluetoothHapticStrength") value = c.bluetoothHapticStrength;
             else if (key == "MusicHapticsStrength") value = c.musicHapticsStrength;
             else if (key == "BoostpackHapticsStrength") value = c.boostpackHapticsStrength;
             else if (key == "SpeakerVolume") value = c.speakerVolume;

@@ -34,6 +34,7 @@ namespace sds
         float triggerStrength{ 1.0F };
         bool advancedHaptics{ true };
         float hapticStrength{ 1.0F };
+        float bluetoothHapticStrength{ 1.0F };
         bool musicHapticsEnabled{ true };
         float musicHapticsStrength{ 1.0F };
         bool controllerSpeaker{ true };

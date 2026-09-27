@@ -22,18 +22,19 @@ namespace
         "Haptics",
         "Music",
         "Adaptive Triggers",
-        "Controller Speaker",
+        "Controller Speaker (USB Only)",
         "Controller Features",
         "Diagnostics / Status",
         "About",
     };
 
-    constexpr std::array<ExpectedControl, 26> kExpectedControls{{
+    constexpr std::array<ExpectedControl, 27> kExpectedControls{{
         { "OperatingMode", sds::SettingsMenuTab::General, sds::SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", sds::SettingsMenuTab::General, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
 
         { "AdvancedHaptics", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "HapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
+        { "BluetoothHapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
         { "BoostpackHaptics", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "BoostpackHapticsStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 2.0F },
 
@@ -88,7 +89,7 @@ int main()
     }
 
     const auto controls = sds::settingsMenuControls();
-    expect(controls.size() == 26, "exactly 26 public controls are mapped");
+    expect(controls.size() == 27, "exactly 27 public controls are mapped");
 
     for (const auto& expected : kExpectedControls) {
         std::size_t matches = 0;
