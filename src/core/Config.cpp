@@ -1,4 +1,5 @@
 #include <StarfieldDualSense/Config.h>
+#include <StarfieldDualSense/HapticStrength.h>
 
 #include <algorithm>
 #include <cctype>
@@ -139,7 +140,7 @@ sds::Config sds::loadConfig(std::string_view text)
         } else if (key == "AdvancedHaptics") {
             parseBool(value, config.advancedHaptics);
         } else if (key == "HapticStrength") {
-            parseFloat(value, config.hapticStrength);
+            parseFloat(value, config.hapticStrength, sds::kHapticStrengthSettingMax);
         } else if (key == "BluetoothHapticStrength") {
             parseFloat(value, config.bluetoothHapticStrength);
         } else if (key == "MusicHapticsEnabled") {

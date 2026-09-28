@@ -1,3 +1,13 @@
+## 0.5.2 - 2026-09-28
+
+- Extended the v0.5.2 `HapticStrength` overdrive range to `3.0`. `2.0` remains exactly at the previously tested 2.5x effective pre-limit gain, while `3.0` reaches 5.0x before final actuator-output clamping.
+
+- Expanded the global `HapticStrength` range from `0.0-1.0` to `0.0-3.0`.
+- `HapticStrength = 1.0` preserves the established SAD haptic tuning exactly.
+- Values above `1.0` enter an intentional overdrive range, with `2.0` reaching a 2.5x effective pre-limit gain where actuator headroom is available.
+- Existing final output clamping remains in place so overdrive drives the current haptic waveforms harder without producing invalid actuator samples.
+- Corrected the live boostpack haptic-strength ceiling so `BoostpackHapticsStrength = 3.0` is honored when changed live as well as at startup.
+- ProductVersion/FileVersion: `0.5.2.0`.
 ## 0.5.1 - 2026-09-28
 
 - Improved Main Menu return safety so gameplay-world polling and player animation-graph access are suspended while the real Main Menu is active and restored cleanly when returning to gameplay.

@@ -1,4 +1,4 @@
-# Starfield DualSense v0.5.0
+# Starfield DualSense v0.5.2
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -36,7 +36,9 @@ TriggerStrength = 1.0
 # Master gameplay haptic feedback.
 # USB uses DualSense advanced audio haptics; Bluetooth uses SAD compatible rumble.
 AdvancedHaptics = true
-# Overall gameplay-haptic strength. Valid range: 0.0-1.0
+# Overall gameplay-haptic strength. Valid range: 0.0-3.0
+# 1.0 preserves SAD's standard tuning exactly.
+# 2.0 preserves the first overdrive level; values above 2.0 enter the extreme range up to 3.0.
 HapticStrength = 1.0
 
 # Additional Bluetooth-only haptic multiplier.

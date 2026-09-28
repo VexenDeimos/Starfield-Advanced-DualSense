@@ -33,7 +33,7 @@ namespace
         { "DualSenseReconnectFix", sds::SettingsMenuTab::General, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
 
         { "AdvancedHaptics", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
-        { "HapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
+        { "HapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 3.0F },
         { "BluetoothHapticStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 1.0F },
         { "BoostpackHaptics", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "BoostpackHapticsStrength", sds::SettingsMenuTab::Haptics, sds::SettingsControlKind::Float, 0.0F, 3.0F },

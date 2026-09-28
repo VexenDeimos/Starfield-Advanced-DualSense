@@ -1,4 +1,5 @@
 #include <StarfieldDualSense/HapticWaveforms.h>
+#include <StarfieldDualSense/HapticStrength.h>
 
 #include <algorithm>
 #include <cmath>
@@ -23,7 +24,8 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
         return {};
     }
 
-    const float gain = std::clamp(command.gain, 0.0F, 1.0F);
+    const float gain = sds::clampHapticGain(command.gain);
+    const float durationGain = std::clamp(gain, 0.0F, 1.0F);
     float duration = 0.0F;
     switch (command.kind) {
     case HapticEffectKind::EonSnap:
@@ -93,7 +95,7 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
         duration = 0.120F;
         break;
     case HapticEffectKind::IncomingDamageImpact:
-        duration = gain < 0.60F ? 0.032F : 0.030F + 0.070F * gain;
+        duration = durationGain < 0.60F ? 0.032F : 0.030F + 0.070F * durationGain;
         break;
     case HapticEffectKind::ShipBallisticCannonKick:
         duration = 0.045F;

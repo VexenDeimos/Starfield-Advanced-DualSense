@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.5.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.2-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -276,6 +276,19 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
 | Controller Features | `Lightbar`, `Touchpad` |
 | Diagnostics | `DebugLogging` |
+
+### Haptic Strength
+
+`HapticStrength` supports a range of `0.0` to `3.0`.
+
+- `1.0` preserves SAD's normal haptic tuning exactly.
+- Values below `1.0` reduce haptic strength as before.
+- `1.0` through `2.0` uses the first overdrive curve.
+- `2.0` remains at the previously tested `2.5x` effective pre-limit gain.
+- Values above `2.0` enter the extreme overdrive range.
+- `3.0` reaches `5.0x` effective pre-limit gain before final actuator-output clamping.
+
+Bluetooth still applies the separate `BluetoothHapticStrength` multiplier to SAD's Bluetooth-compatible feedback.
 
 ### Operating modes
 

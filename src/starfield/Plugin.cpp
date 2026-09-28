@@ -32,6 +32,7 @@
 #include <StarfieldDualSense/FireMarkerBridge.h>
 #include <StarfieldDualSense/HidWriteTrace.h>
 #include <StarfieldDualSense/HapticsManager.h>
+#include <StarfieldDualSense/HapticStrength.h>
 #include <StarfieldDualSense/MusicReconProbe.h>
 #include <StarfieldDualSense/RuntimeEventRouter.h>
 #include <StarfieldDualSense/NativeDualSenseBackend.h>
@@ -84,7 +85,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.5.1";
+    constexpr std::string_view kVersion = "0.5.2";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -4318,7 +4319,7 @@ if (connected && g_controller->bluetoothTransport()) {
         const bool musicHapticsEnabled = config.advancedHaptics && config.musicHapticsEnabled;
         const bool musicSelectionEnabled = musicReconEnabled || musicHapticsEnabled;
         g_musicHapticsEnabled.store(musicHapticsEnabled, std::memory_order_release);
-        g_musicHapticsStrength.store(config.hapticStrength, std::memory_order_release);
+        g_musicHapticsStrength.store(sds::effectiveHapticStrength(config.hapticStrength), std::memory_order_release);
         g_musicHapticsUserScale.store(config.musicHapticsStrength, std::memory_order_release);
         if (musicReconEnabled) {
             g_musicRecon = std::make_unique<sds::MusicReconProbe>();

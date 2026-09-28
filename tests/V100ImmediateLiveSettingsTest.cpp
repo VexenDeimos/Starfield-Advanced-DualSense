@@ -46,7 +46,7 @@ int main()
     config.musicHapticsStrength = -2.0F;
     config.speakerVolume = 4.0F;
     live = sds::immediateLiveSettings(config);
-    expect(near(live.musicHapticsBaseStrength, 1.0F), "global haptic live strength clamps high");
+    expect(near(live.musicHapticsBaseStrength, 5.0F), "global haptic live strength maps high to maximum extreme-overdrive gain");
     expect(near(live.musicHapticsUserScale, 0.0F), "music live scale clamps low");
     expect(near(live.speakerVolume, 1.0F), "speaker live volume clamps high");
 

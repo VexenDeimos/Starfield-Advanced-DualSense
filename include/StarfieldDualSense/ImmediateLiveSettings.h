@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StarfieldDualSense/Config.h"
+#include "StarfieldDualSense/HapticStrength.h"
 
 #include <algorithm>
 
@@ -19,7 +20,7 @@ namespace sds
     {
         return {
             .musicHapticsEnabled = config.advancedHaptics && config.musicHapticsEnabled,
-            .musicHapticsBaseStrength = std::clamp(config.hapticStrength, 0.0F, 1.0F),
+            .musicHapticsBaseStrength = effectiveHapticStrength(config.hapticStrength),
             .musicHapticsUserScale = std::clamp(config.musicHapticsStrength, 0.0F, 2.0F),
             .speakerVolume = std::clamp(config.speakerVolume, 0.0F, 1.0F),
         };

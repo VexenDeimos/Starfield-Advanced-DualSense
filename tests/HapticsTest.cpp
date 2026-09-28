@@ -815,8 +815,22 @@ int main()
     sds::HapticsEngine clampedHigh(9.0F);
     (void)clampedHigh.handle(equip("Bridger"));
     const auto clamped = clampedHigh.handle(fire(now));
-    expect(clamped && std::fabs(clamped->gain - 1.0F) < 0.0001F,
-        "haptic gain clamps to 1.0");
+    expect(clamped && std::fabs(clamped->gain - 5.0F) < 0.0001F,
+        "HapticStrength overdrive clamps to 5.0 effective gain");
+
+    sds::HapticsEngine overdriveEon(2.0F);
+    (void)overdriveEon.handle(equip("Eon"));
+    const auto overdriveEonShot = overdriveEon.handle(fire(now));
+    expect(overdriveEonShot && std::fabs(overdriveEonShot->gain - 0.75F) < 0.0001F,
+        "HapticStrength 2.0 raises Eon 0.3 base gain to 0.75");
+
+    sds::HapticsEngine extremeEon(3.0F);
+    (void)extremeEon.handle(equip("Eon"));
+    const auto extremeEonShot = extremeEon.handle(fire(now));
+    expect(extremeEonShot &&
+            std::fabs(extremeEonShot->gain - 1.5F) < 0.0001F,
+        "HapticStrength 3.0 raises Eon 0.3 base gain to 1.5");
+
 
     const auto packedNone = sds::packHapticContinuousState({});
     expect(packedNone == 0U,

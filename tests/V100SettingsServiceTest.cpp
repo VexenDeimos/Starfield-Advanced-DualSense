@@ -121,6 +121,10 @@ int main()
         !settings.restartRequired(),
         "live music change does not require restart");
 
+    expect(settings.setFloat("HapticStrength", 99.0F),
+        "setFloat accepts HapticStrength overdrive");
+    expect(near(settings.current().hapticStrength, 3.0F),
+        "HapticStrength clamps high to 3.0");
     expect(
         settings.setBool(
             "SpeakerWeapons",

@@ -32,7 +32,7 @@ namespace sds
             { "TriggerStrength", "Trigger Strength", "Controls the overall strength of adaptive-trigger effects.", SettingApplyMode::Live },
 
             { "AdvancedHaptics", "Haptic Feedback", "Enable gameplay haptic feedback. USB uses advanced DualSense audio haptics; Bluetooth uses SAD compatible-rumble translation.", SettingApplyMode::Live },
-            { "HapticStrength", "Haptic Strength", "Controls the overall strength of gameplay haptics on all transports.", SettingApplyMode::Live },
+            { "HapticStrength", "Haptic Strength", "Overall haptic strength. 1.0 preserves standard SAD tuning; 2.0 keeps the first overdrive level; values up to 3.0 enter the extreme overdrive range.", SettingApplyMode::Live },
             { "BluetoothHapticStrength", "Bluetooth Haptic Strength", "Additional Bluetooth-only haptic multiplier. USB haptics are unchanged.", SettingApplyMode::Live },
 
             { "MusicHapticsEnabled", "Music Haptics", "Enable haptic feedback generated from Starfield's soundtrack.", SettingApplyMode::Live },

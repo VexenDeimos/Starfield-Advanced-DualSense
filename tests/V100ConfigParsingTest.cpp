@@ -85,6 +85,27 @@ int main()
         near(defaults.bluetoothHapticStrength, 1.0F),
         "BluetoothHapticStrength defaults 1.0");
 
+    const auto hapticNormal =
+        sds::loadConfig("HapticStrength = 1.0");
+    expect(near(hapticNormal.hapticStrength, 1.0F),
+        "HapticStrength 1.0 preserves normal tuning");
+
+    const auto hapticOverdrive =
+        sds::loadConfig("HapticStrength = 2.0");
+    expect(near(hapticOverdrive.hapticStrength, 2.0F),
+        "HapticStrength preserves first overdrive level 2.0");    const auto hapticExtreme =
+        sds::loadConfig("HapticStrength = 3.0");
+
+    expect(
+        near(hapticExtreme.hapticStrength, 3.0F),
+        "HapticStrength parses extreme maximum 3.0");
+
+
+
+    const auto hapticTooHigh =
+        sds::loadConfig("HapticStrength = 99.0");
+    expect(near(hapticTooHigh.hapticStrength, 3.0F),
+        "HapticStrength clamps high to 3.0");
     const auto bluetoothHalf =
         sds::loadConfig("BluetoothHapticStrength = 0.5");
 

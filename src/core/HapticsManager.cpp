@@ -1,4 +1,5 @@
 #include <StarfieldDualSense/HapticsManager.h>
+#include <StarfieldDualSense/HapticStrength.h>
 #include <StarfieldDualSense/ShipPropulsionHaptics.h>
 #include <StarfieldDualSense/SustainedFireLiveness.h>
 
@@ -56,7 +57,7 @@ namespace
 sds::HapticsManager::HapticsManager(Config config, BackendFactory backendFactory, LogCallback log) :
     _config(config),
     _advancedHapticsEnabled(config.advancedHaptics),
-    _hapticStrength(std::clamp(config.hapticStrength, 0.0F, 1.0F)),
+    _hapticStrength(sds::effectiveHapticStrength(config.hapticStrength)),
     _boostpackHapticsEnabled(config.boostpackHaptics),
     _boostpackHapticsStrength(std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F)),
     _backendFactory(std::move(backendFactory)),
@@ -103,9 +104,13 @@ void sds::HapticsManager::applyLiveSettings(
     GameplayHapticsLiveSettings settings) noexcept
 {
     try {
-        settings.hapticStrength = std::clamp(settings.hapticStrength, 0.0F, 1.0F);
+        settings.hapticStrength =
+            sds::clampHapticStrengthSetting(settings.hapticStrength);
         settings.boostpackHapticsStrength =
-            std::clamp(settings.boostpackHapticsStrength, 0.0F, 2.0F);
+            std::clamp(settings.boostpackHapticsStrength, 0.0F, 3.0F);
+
+        const float effectiveStrength =
+            sds::effectiveHapticStrength(settings.hapticStrength);
 
         const bool boostpackEnabledChanged =
             _boostpackHapticsEnabled.exchange(settings.boostpackHaptics, std::memory_order_acq_rel) !=
@@ -120,8 +125,8 @@ void sds::HapticsManager::applyLiveSettings(
         const bool wasEnabled =
             _advancedHapticsEnabled.load(std::memory_order_acquire);
         const float previousStrength =
-            _hapticStrength.exchange(settings.hapticStrength, std::memory_order_acq_rel);
-        const bool strengthChanged = previousStrength != settings.hapticStrength;
+            _hapticStrength.exchange(effectiveStrength, std::memory_order_acq_rel);
+        const bool strengthChanged = previousStrength != effectiveStrength;
 
         {
             std::scoped_lock lock(_engineMutex);
@@ -202,9 +207,7 @@ sds::HapticContinuousState sds::HapticsManager::composeOnFootContinuousLocked() 
         const float effectiveGain = std::clamp(
             0.30F *
                 _hapticStrength.load(std::memory_order_acquire) *
-                _boostpackHapticsStrength.load(std::memory_order_acquire),
-            0.0F,
-            1.0F);
+                _boostpackHapticsStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax);
         if (effectiveGain > 0.0F) {
             return {
                 .kind = HapticContinuousKind::BoostpackThrust,
@@ -302,9 +305,7 @@ sds::HapticContinuousState sds::HapticsManager::composeLandVehicleContinuousLock
         std::clamp(
             state.gain *
                 _hapticStrength.load(
-                    std::memory_order_acquire),
-            0.0F,
-            1.0F);
+                    std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax);
 
     return state;
 }
@@ -456,8 +457,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     command = HapticCommand{
                         .kind = HapticEffectKind::LandVehicleTouchdownThump,
                         .gain = std::clamp(
-                            LandVehicleControllerFeel::touchdownGain(event.value) * _hapticStrength.load(std::memory_order_acquire),
-                            0.0F, 1.0F),
+                            LandVehicleControllerFeel::touchdownGain(event.value) * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                 }
@@ -467,7 +467,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     _shipBlockingMenuMask == 0 && _landVehicleProductionEpoch != 0) {
                     command = HapticCommand{
                         .kind = HapticEffectKind::LandVehicleGunRecoil,
-                        .gain = std::clamp(0.72F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.72F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                 }
@@ -477,7 +477,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     _shipBlockingMenuMask == 0 && _landVehicleProductionEpoch != 0) {
                     command = HapticCommand{
                         .kind = HapticEffectKind::LandVehicleBoostKick,
-                        .gain = std::clamp(0.78F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.78F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                 }
@@ -504,7 +504,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     clearShipLaserLocked();
                     command = HapticCommand{
                         .kind = HapticEffectKind::ShipBallisticCannonKick,
-                        .gain = std::clamp(0.82F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.82F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                     continuous = composeShipContinuousLocked();
@@ -516,7 +516,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     _shipLaserLeaseDeadline = event.when + kShipLaserHeartbeatLease;
                     command = HapticCommand{
                         .kind = HapticEffectKind::ShipLaserPulseCrest,
-                        .gain = std::clamp(0.55F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.55F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                     continuous = composeShipContinuousLocked();
@@ -533,7 +533,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     clearShipLaserLocked();
                     command = HapticCommand{
                         .kind = HapticEffectKind::ShipParticlePulse,
-                        .gain = std::clamp(0.70F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.70F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                     continuous = composeShipContinuousLocked();
@@ -544,7 +544,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     clearShipLaserLocked();
                     command = HapticCommand{
                         .kind = HapticEffectKind::ShipMissileLaunchThump,
-                        .gain = std::clamp(0.90F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.90F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                     continuous = composeShipContinuousLocked();
@@ -555,7 +555,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     clearShipLaserLocked();
                     command = HapticCommand{
                         .kind = HapticEffectKind::ShipEMPulse,
-                        .gain = std::clamp(0.70F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                        .gain = std::clamp(0.70F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = event.when,
                     };
                     continuous = composeShipContinuousLocked();
@@ -566,7 +566,7 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                 continuous = composeShipContinuousLocked();
                 command = HapticCommand{
                     .kind = HapticEffectKind::ShipTouchdownThump,
-                    .gain = std::clamp(0.90F * _hapticStrength.load(std::memory_order_acquire), 0.0F, 1.0F),
+                    .gain = std::clamp(0.90F * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                     .when = event.when,
                 };
                 contextHandled = true;
@@ -967,9 +967,7 @@ bool sds::HapticsManager::setLandVehicleBoostInput(
                             std::clamp(
                                 0.64F *
                                     _hapticStrength.load(
-                                        std::memory_order_acquire),
-                                0.0F,
-                                1.0F),
+                                        std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax),
                         .when = when,
                     };
                 }
@@ -1224,9 +1222,7 @@ bool sds::HapticsManager::emitDigipickWwiseEvent(
         }
 
         const float effectiveGain = std::clamp(
-            baseGain * _hapticStrength.load(std::memory_order_acquire),
-            0.0F,
-            1.0F);
+            baseGain * _hapticStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax);
         if (effectiveGain <= 0.0F) {
             return true;
         }
@@ -1260,9 +1256,7 @@ bool sds::HapticsManager::emitBoostpackIgnition(
                 const float effectiveGain = std::clamp(
                     0.48F *
                         _hapticStrength.load(std::memory_order_acquire) *
-                        _boostpackHapticsStrength.load(std::memory_order_acquire),
-                    0.0F,
-                    1.0F);
+                        _boostpackHapticsStrength.load(std::memory_order_acquire), 0.0F, sds::kHapticOverdriveGainMax);
                 if (effectiveGain > 0.0F) {
                     command = HapticCommand{
                         .kind = HapticEffectKind::BoostpackIgnition,

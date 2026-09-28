@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StarfieldDualSense/Config.h"
+#include "StarfieldDualSense/HapticStrength.h"
 
 #include <algorithm>
 
@@ -24,7 +25,7 @@ namespace sds
     {
         return {
             .advancedHaptics = config.advancedHaptics,
-            .hapticStrength = std::clamp(config.hapticStrength, 0.0F, 1.0F),
+            .hapticStrength = clampHapticStrengthSetting(config.hapticStrength),
             .boostpackHaptics = config.boostpackHaptics,
             .boostpackHapticsStrength = std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F),
         };

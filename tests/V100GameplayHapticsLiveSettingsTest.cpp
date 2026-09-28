@@ -90,8 +90,8 @@ int main()
 
     config.hapticStrength = 99.0F;
     expect(
-        near(sds::gameplayHapticsLiveSettings(config).hapticStrength, 1.0F),
-        "projection clamps HapticStrength high");
+        near(sds::gameplayHapticsLiveSettings(config).hapticStrength, 3.0F),
+        "projection clamps HapticStrength high to 3.0");
 
     config.hapticStrength = -4.0F;
     expect(
@@ -137,6 +137,37 @@ int main()
     expect(!backendState->commands.empty(), "enabled gameplay haptics deliver command");
 
     const float fullGain = backendState->commands.back().gain;
+
+    live.hapticStrength = 2.0F;
+    manager.applyLiveSettings(live);
+    const auto commandCountBeforeOverdriveFire = backendState->commands.size();
+    expect(manager.handle(fire), "overdrive-strength fire semantic accepted");
+    expect(backendState->commands.size() == commandCountBeforeOverdriveFire + 1,
+        "overdrive-strength fire still delivers command");
+    expect(backendState->commands.back().gain > fullGain,
+        "HapticStrength 2.0 drives the same weapon harder than 1.0");
+
+    const float twoPointZeroGain =
+        backendState->commands.back().gain;
+
+    live.hapticStrength = 3.0F;
+    manager.applyLiveSettings(live);
+
+    const auto commandCountBeforeExtremeFire =
+        backendState->commands.size();
+
+    expect(
+        manager.handle(fire),
+        "extreme-strength fire semantic accepted");
+
+    expect(
+        backendState->commands.size() ==
+            commandCountBeforeExtremeFire + 1,
+        "extreme-strength fire still delivers command");
+
+    expect(
+        backendState->commands.back().gain > twoPointZeroGain,
+        "HapticStrength 3.0 drives the same weapon harder than 2.0");
 
     live.hapticStrength = 0.25F;
     manager.applyLiveSettings(live);

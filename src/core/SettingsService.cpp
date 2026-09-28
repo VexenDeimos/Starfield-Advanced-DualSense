@@ -1,4 +1,5 @@
 #include "StarfieldDualSense/SettingsService.h"
+#include "StarfieldDualSense/HapticStrength.h"
 
 #include <algorithm>
 #include <fstream>
@@ -690,7 +691,7 @@ namespace sds
 
         if (key == "HapticStrength") {
             current_.hapticStrength =
-                std::clamp(value, 0.0F, 1.0F);
+                clampHapticStrengthSetting(value);
             return true;
         }
 
