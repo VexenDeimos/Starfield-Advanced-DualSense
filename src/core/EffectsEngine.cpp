@@ -10,6 +10,59 @@ namespace
     using namespace std::chrono_literals;
     constexpr auto kShipLaserHeartbeatLease = 250ms;
 
+    sds::Color mixShipLightbarColor(
+        sds::Color from,
+        sds::Color to,
+        float t) noexcept
+    {
+        t = std::clamp(t, 0.0F, 1.0F);
+
+        const auto channel =
+            [t](std::uint8_t a, std::uint8_t b) noexcept {
+                const auto value =
+                    std::lround(
+                        static_cast<float>(a) +
+                        (static_cast<float>(b) - static_cast<float>(a)) * t);
+
+                return static_cast<std::uint8_t>(
+                    std::clamp<long>(value, 0, 255));
+            };
+
+        return {
+            channel(from.r, to.r),
+            channel(from.g, to.g),
+            channel(from.b, to.b)
+        };
+    }
+
+    sds::Color playerHealthLightbarColor(float ratio) noexcept
+    {
+        ratio = std::clamp(ratio, 0.0F, 1.0F);
+
+        if (ratio < 0.25F) {
+            return { 255, 0, 0 };
+        }
+        if (ratio <= 0.50F) {
+            return { 255, 160, 0 };
+        }
+        return { 0, 64, 255 };
+    }
+    sds::Color shipHealthLightbarColor(float ratio) noexcept
+    {
+        ratio = std::clamp(ratio, 0.0F, 1.0F);
+
+        // Match the existing on-foot health lightbar exactly.
+        if (ratio < 0.25F) {
+            return { 255, 0, 0 };
+        }
+
+        if (ratio <= 0.50F) {
+            return { 255, 160, 0 };
+        }
+
+        return { 0, 64, 255 };
+    }
+
     std::uint8_t scaledByte(std::uint8_t value, float scale)
     {
         const auto scaled = std::lround(static_cast<float>(value) * std::clamp(scale, 0.0F, 1.0F));
@@ -610,19 +663,65 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
 {
     switch (event.type) {
     case GameEventType::PlayerHealthChanged:
+        _playerHealthRatio = std::clamp(event.value, 0.0F, 1.0F);
+        _playerHealthValid = true;
+
+        // Physical pilot-seat authority owns the lightbar independently of
+        // the menu-based ship trigger/haptic context. Keep the fresh player
+        // health cached, but do not paint it over ship/cinematic output.
+        if (_shipLightbarSeatActive) {
+            break;
+        }
+
         // Ship context owns/suppresses the normal health lightbar,
         // but the REV-8 deliberately keeps player health visible.
         if (_persistentContextSuppressed &&
             !_landVehicleContextActive) {
             break;
         }
+
         if (_config.lightbar) {
-            if (event.value < 0.25F) {
-                _state.output.lightbar = { 255, 0, 0 };
-            } else if (event.value <= 0.50F) {
-                _state.output.lightbar = { 255, 160, 0 };
-            } else {
-                _state.output.lightbar = { 0, 64, 255 };
+            _state.output.lightbar =
+                playerHealthLightbarColor(_playerHealthRatio);
+        }
+        break;
+
+    case GameEventType::ShipHealthChanged:
+        _shipHealthRatio = std::clamp(event.value, 0.0F, 1.0F);
+        _shipHealthValid = true;
+        if (_config.lightbar &&
+            _shipLightbarSeatActive &&
+            _shipLightbarPhase == ShipLightbarPhase::None &&
+            _shipTouchdownFlashUntil == std::chrono::steady_clock::time_point{}) {
+            _state.output.lightbar =
+                shipHealthLightbarColor(_shipHealthRatio);
+        }
+        break;
+
+    case GameEventType::ShipLightbarSeatEntered:
+        // Lightbar-only authority. Do not touch ship trigger, haptic, speaker,
+        // propulsion, or weapon ownership.
+        _shipLightbarSeatActive = true;
+        _shipHealthValid = false;
+        break;
+
+    case GameEventType::ShipLightbarSeatExited:
+        // Actual physical pilot-seat release is the only normal path that
+        // releases persistent ship/cinematic lightbar ownership.
+        _shipLightbarSeatActive = false;
+        _shipHealthValid = false;
+        _shipLightbarPhase = ShipLightbarPhase::None;
+        _shipLightbarPhaseStartedAt = {};
+        _shipTouchdownFlashStartedAt = {};
+        _shipTouchdownFlashUntil = {};
+
+        if (_config.lightbar) {
+            if (_persistentContextSuppressed &&
+                !_landVehicleContextActive) {
+                _state.output.lightbar = {};
+            } else if (_playerHealthValid) {
+                _state.output.lightbar =
+                    playerHealthLightbarColor(_playerHealthRatio);
             }
         }
         break;
@@ -732,6 +831,36 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
                 }
             }
         }
+        break;
+
+    case GameEventType::ShipLaunchLandingLightbarStarted: {
+        const auto phase = eventIdentity(event);
+
+        if (phase == "takeoff") {
+            _shipLightbarPhase = ShipLightbarPhase::Takeoff;
+        } else if (phase == "landing") {
+            _shipLightbarPhase = ShipLightbarPhase::Landing;
+        } else {
+            _shipLightbarPhase = ShipLightbarPhase::None;
+        }
+
+        _shipLightbarPhaseStartedAt = event.when;
+        _shipTouchdownFlashStartedAt = {};
+        _shipTouchdownFlashUntil = {};
+        break;
+    }
+
+    case GameEventType::ShipLaunchLandingLightbarStopped:
+        _shipLightbarPhase = ShipLightbarPhase::None;
+        _shipLightbarPhaseStartedAt = {};
+        break;
+
+    case GameEventType::ShipTouchdown:
+        _shipLightbarPhase = ShipLightbarPhase::None;
+        _shipLightbarPhaseStartedAt = {};
+        _shipTouchdownFlashStartedAt = event.when;
+        _shipTouchdownFlashUntil =
+            event.when + std::chrono::milliseconds(350);
         break;
 
     case GameEventType::ShipLaunchLandingHapticsStarted:
@@ -848,6 +977,9 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
         clearLandVehicleProductionState();
         _landVehicleBlockingMenuMask = 0;
         _shipPilotActive = true;
+        _shipLightbarSeatActive = true;
+        _shipHealthValid = false;
+        _shipHealthRatio = 1.0F;
         _landVehicleContextActive = false;
         _persistentContextSuppressed = true;
         _shipR2BallisticConfirmed = false;
@@ -974,6 +1106,19 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
 
     case GameEventType::MenuOpened: {
         const auto identity = eventIdentity(event);
+
+        if (identity == "MainMenu") {
+            _shipLightbarSeatActive = false;
+            _shipHealthValid = false;
+            _shipLightbarPhase = ShipLightbarPhase::None;
+            _shipLightbarPhaseStartedAt = {};
+            _shipTouchdownFlashStartedAt = {};
+            _shipTouchdownFlashUntil = {};
+            if (_config.lightbar) {
+                _state.output.lightbar = {};
+            }
+        }
+
         const auto shipBit = shipBlockingMenuBit(identity);
         if ((_shipPilotActive || _shipLaunchLandingHapticsActive) && shipBit != 0) {
             _shipBlockingMenuMask = static_cast<std::uint8_t>(_shipBlockingMenuMask | shipBit);
@@ -1182,6 +1327,118 @@ sds::EffectState sds::EffectsEngine::handleRightTriggerInput(
 
 sds::EffectState sds::EffectsEngine::tick(std::chrono::steady_clock::time_point now) noexcept
 {
+    if (_config.lightbar) {
+        const auto emptyTime =
+            std::chrono::steady_clock::time_point{};
+
+        if (_shipTouchdownFlashUntil != emptyTime) {
+            if (now < _shipTouchdownFlashUntil) {
+                const auto elapsedMs =
+                    std::max<std::int64_t>(
+                        0,
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - _shipTouchdownFlashStartedAt).count());
+
+                constexpr Color white{ 255, 255, 255 };
+                constexpr Color amber{ 255, 120, 8 };
+
+                if (elapsedMs < 100) {
+                    _state.output.lightbar = white;
+                } else {
+                    const auto step =
+                        std::clamp<std::int64_t>(
+                            (elapsedMs - 100) / 50,
+                            0,
+                            5);
+
+                    _state.output.lightbar =
+                        mixShipLightbarColor(
+                            white,
+                            amber,
+                            static_cast<float>(step) / 5.0F);
+                }
+            } else {
+                _shipTouchdownFlashStartedAt = {};
+                _shipTouchdownFlashUntil = {};
+            }
+        }
+
+        if (_shipTouchdownFlashUntil == emptyTime) {
+            if (_shipLightbarPhase != ShipLightbarPhase::None) {
+                const auto elapsedMs =
+                    std::max<std::int64_t>(
+                        0,
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now - _shipLightbarPhaseStartedAt).count());
+
+                if (_shipLightbarPhase == ShipLightbarPhase::Takeoff) {
+                    constexpr Color ignitionBase{ 0, 24, 150 };
+                    constexpr Color ignitionPeak{ 190, 245, 255 };
+                    constexpr Color engineLow{ 0, 40, 170 };
+                    constexpr Color engineHigh{ 70, 225, 255 };
+
+                    if (elapsedMs < 250) {
+                        const auto step =
+                            std::clamp<std::int64_t>(
+                                elapsedMs / 50,
+                                0,
+                                5);
+
+                        _state.output.lightbar =
+                            mixShipLightbarColor(
+                                ignitionBase,
+                                ignitionPeak,
+                                static_cast<float>(step) / 5.0F);
+                    } else {
+                        const auto step =
+                            static_cast<int>(
+                                ((elapsedMs - 250) / 50) % 20);
+
+                        const float pulse =
+                            step <= 10 ?
+                                static_cast<float>(step) / 10.0F :
+                                static_cast<float>(20 - step) / 10.0F;
+
+                        _state.output.lightbar =
+                            mixShipLightbarColor(
+                                engineLow,
+                                engineHigh,
+                                pulse);
+                    }
+                } else {
+                    constexpr Color landingLow{ 100, 20, 0 };
+                    constexpr Color landingHigh{ 255, 155, 20 };
+
+                    const auto step =
+                        static_cast<int>(
+                            (elapsedMs / 50) % 30);
+
+                    const float pulse =
+                        step <= 15 ?
+                            static_cast<float>(step) / 15.0F :
+                            static_cast<float>(30 - step) / 15.0F;
+
+                    _state.output.lightbar =
+                        mixShipLightbarColor(
+                            landingLow,
+                            landingHigh,
+                            pulse);
+                }
+            } else if (_shipLightbarSeatActive) {
+                _state.output.lightbar =
+                    _shipHealthValid ?
+                        shipHealthLightbarColor(_shipHealthRatio) :
+                        Color{};
+            } else if (_persistentContextSuppressed &&
+                       !_landVehicleContextActive) {
+                _state.output.lightbar = {};
+            } else if (_playerHealthValid) {
+                _state.output.lightbar =
+                    playerHealthLightbarColor(_playerHealthRatio);
+            }
+        }
+    }
+
     if (_shipEMTriggerRefreshPhase == ShipEMTriggerRefreshPhase::NeutralFrameQueued) {
         // Keep the trigger neutral for the remainder of this controller cycle.
         // ControllerManager applies outputs after tick(), so the next loop is

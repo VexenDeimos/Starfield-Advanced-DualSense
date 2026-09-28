@@ -86,6 +86,13 @@ int main()
     assert(qualifiesRemoteCommsVoCandidate(candidate));
 
     candidate = qualifying();
+    candidate.eventId = kDataslateVoEventId;
+    candidate.dialogueMenuActive = false;
+    assert(qualifiesRemoteCommsVoCandidate(candidate));
+
+    candidate.dialogueMenuActive = true;
+    assert(!qualifiesRemoteCommsVoCandidate(candidate));
+    candidate = qualifying();
     candidate.eventId = kFaceToFaceVoEventId;
     candidate.dialogueMenuActive = true;
     assert(!qualifiesRemoteCommsVoCandidate(candidate));

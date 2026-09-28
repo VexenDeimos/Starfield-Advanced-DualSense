@@ -42,6 +42,8 @@ namespace sds
         void stop() noexcept;
         void drainDiagnostics();
         void setDialogueMenuActive(bool active) noexcept;
+        void setDataslateControllerOnlyRoutingEnabled(bool enabled) noexcept;
+        [[nodiscard]] bool dataslateControllerOnlyRoutingActive() const noexcept;
         void setWeaponSfxDiscoveryArmed(bool armed) noexcept;
         void setShipWeaponObservationArmed(bool armed) noexcept;
         [[nodiscard]] std::uint64_t takeWeaponSfxDropped() noexcept;

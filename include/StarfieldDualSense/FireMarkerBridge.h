@@ -106,6 +106,25 @@ namespace sds
             }
         }
 
+        void suspendPlayerGraphsForWorldTeardown() noexcept
+        {
+            try {
+                std::scoped_lock lock(_mutex);
+                const auto graphCount = _graphs.size();
+                unregisterPlayerGraphsLocked();
+
+                char buffer[192]{};
+                std::snprintf(
+                    buffer,
+                    sizeof(buffer),
+                    "Fire marker bridge: player graph sinks DETACHED reason=LoadingMenu-open graphs=%zu",
+                    graphCount);
+                log(buffer);
+            } catch (...) {
+                log("Fire marker bridge: player graph detach exception ignored reason=LoadingMenu-open");
+            }
+        }
+
         RE::BSEventNotifyControl ProcessEvent(
             const RE::ActorItemEquipped::Event& event,
             RE::BSTEventSource<RE::ActorItemEquipped::Event>*) override

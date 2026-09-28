@@ -4,6 +4,7 @@
 #include <StarfieldDualSense/UiAudioCandidateCatalog.h>
 #include <StarfieldDualSense/WwiseRemoteVoMirrorGate.h>
 #include <StarfieldDualSense/WwiseRemoteVoDelay.h>
+#include <StarfieldDualSense/WwiseCanarySafety.h>
 
 #include <RE/Starfield.h>
 #include <REL/Relocation.h>
@@ -22,6 +23,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -33,6 +35,336 @@ constexpr auto kWwiseEndOfEventCallback = 0x0001u;
 
 namespace
 {
+    constexpr std::uint64_t kDataslateRegisterGameObjId = 150401;
+
+    constexpr std::uint64_t kDataslateSetListenersId = 150415;
+
+    constexpr std::uint64_t kDataslateSetListenersCoreId = 150352;
+
+    constexpr std::uint64_t kDataslateUnregisterGameObjId = 150436;
+
+    constexpr std::uint32_t kDataslateAkSuccess = 1u;
+
+    constexpr std::uint64_t kDataslateSilentEmitterId =
+
+        0x5344534400000001ULL; // "SDSD" + 1, distinct from the old SDSC canary IDs.
+
+
+
+    using DataslateRegisterGameObjFn =
+
+        std::uint32_t (*)(std::uint64_t);
+
+    using DataslateSetListenersFn =
+
+        std::uint32_t (*)(std::uint64_t, const std::uint64_t*, std::uint32_t);
+
+    using DataslateUnregisterGameObjFn =
+
+        std::uint32_t (*)(std::uint64_t);
+
+
+
+    std::atomic_bool g_dataslateSilentEmitterReady{ false };
+
+    std::atomic_bool g_dataslateSilentEmitterRoutingEnabled{ false };
+
+    std::mutex g_dataslateSilentEmitterMutex{};
+
+
+
+    [[nodiscard]] std::uintptr_t resolveDataslateWwiseId(
+
+        std::uint64_t id) noexcept
+
+    {
+
+        try {
+
+            REL::Relocation<std::uintptr_t> relocation{ REL::ID(id) };
+
+            return relocation.address();
+
+        } catch (...) {
+
+            return 0;
+
+        }
+
+    }
+
+
+
+    [[nodiscard]] bool readDataslateWwiseCode(
+
+        std::uintptr_t address,
+
+        std::size_t count,
+
+        std::vector<std::uint8_t>& out) noexcept
+
+    {
+
+        out.assign(count, 0);
+
+
+
+        SIZE_T bytesRead = 0;
+
+        if (!address ||
+
+            !count ||
+
+            ::ReadProcessMemory(
+
+                ::GetCurrentProcess(),
+
+                reinterpret_cast<const void*>(address),
+
+                out.data(),
+
+                out.size(),
+
+                &bytesRead) == FALSE ||
+
+            bytesRead != out.size()) {
+
+
+
+            out.clear();
+
+            return false;
+
+        }
+
+
+
+        return true;
+
+    }
+
+
+
+    [[nodiscard]] bool ensureDataslateSilentEmitter() noexcept
+
+    {
+
+        if (g_dataslateSilentEmitterReady.load(
+
+                std::memory_order_acquire)) {
+
+            return true;
+
+        }
+
+
+
+        std::scoped_lock lock(
+
+            g_dataslateSilentEmitterMutex);
+
+
+
+        if (g_dataslateSilentEmitterReady.load(
+
+                std::memory_order_relaxed)) {
+
+            return true;
+
+        }
+
+
+
+        try {
+
+            const auto registerAddress =
+
+                resolveDataslateWwiseId(
+
+                    kDataslateRegisterGameObjId);
+
+
+
+            const auto setListenersAddress =
+
+                resolveDataslateWwiseId(
+
+                    kDataslateSetListenersId);
+
+
+
+            const auto setListenersCoreAddress =
+
+                resolveDataslateWwiseId(
+
+                    kDataslateSetListenersCoreId);
+
+
+
+            const auto unregisterAddress =
+
+                resolveDataslateWwiseId(
+
+                    kDataslateUnregisterGameObjId);
+
+
+
+            if (!registerAddress ||
+
+                !setListenersAddress ||
+
+                !setListenersCoreAddress ||
+
+                !unregisterAddress) {
+
+                return false;
+
+            }
+
+
+
+            std::vector<std::uint8_t> registerCode{};
+
+            std::vector<std::uint8_t> setListenersCode{};
+
+            std::vector<std::uint8_t> unregisterCode{};
+
+
+
+            if (!readDataslateWwiseCode(
+
+                    registerAddress,
+
+                    96,
+
+                    registerCode) ||
+
+                !readDataslateWwiseCode(
+
+                    setListenersAddress,
+
+                    16,
+
+                    setListenersCode) ||
+
+                !readDataslateWwiseCode(
+
+                    unregisterAddress,
+
+                    96,
+
+                    unregisterCode) ||
+
+                !sds::matchesWwiseCanarySignature(
+
+                    sds::WwiseCanaryApi::RegisterGameObj,
+
+                    registerCode) ||
+
+                !sds::matchesSetListenersWrapper(
+
+                    setListenersCode,
+
+                    setListenersAddress,
+
+                    setListenersCoreAddress) ||
+
+                !sds::matchesWwiseCanarySignature(
+
+                    sds::WwiseCanaryApi::UnregisterGameObj,
+
+                    unregisterCode)) {
+
+                return false;
+
+            }
+
+
+
+            const auto registerGameObj =
+
+                reinterpret_cast<DataslateRegisterGameObjFn>(
+
+                    registerAddress);
+
+
+
+            const auto setListeners =
+
+                reinterpret_cast<DataslateSetListenersFn>(
+
+                    setListenersAddress);
+
+
+
+            const auto unregisterGameObj =
+
+                reinterpret_cast<DataslateUnregisterGameObjFn>(
+
+                    unregisterAddress);
+
+
+
+            if (registerGameObj(
+
+                    kDataslateSilentEmitterId) !=
+
+                kDataslateAkSuccess) {
+
+                return false;
+
+            }
+
+
+
+            // Explicit zero-listener assignment is the key:
+
+            // this emitter retains a live Wwise playing lifecycle but has
+
+            // no audible normal-output listener route.
+
+            if (setListeners(
+
+                    kDataslateSilentEmitterId,
+
+                    nullptr,
+
+                    0u) !=
+
+                kDataslateAkSuccess) {
+
+
+
+                (void)unregisterGameObj(
+
+                    kDataslateSilentEmitterId);
+
+
+
+                return false;
+
+            }
+
+
+
+            g_dataslateSilentEmitterReady.store(
+
+                true,
+
+                std::memory_order_release);
+
+
+
+            return true;
+
+        } catch (...) {
+
+            return false;
+
+        }
+
+    }
+
     constexpr std::size_t kDiagnosticQueueCapacity = 256;
     constexpr std::size_t kWeaponSfxQueueCapacity = 512;
     constexpr std::size_t kUiAudioQueueCapacity = 1024;
@@ -580,9 +912,13 @@ namespace
         const bool wantsUiDiscovery = observer && observer->started.load(std::memory_order_acquire) &&
             observer->uiAudioDiscoveryArmed.load(std::memory_order_relaxed) && zeroExternal &&
             !sds::isPromotedUiSpeakerEvent(eventId);
-        const bool wantsUiPlayback = observer && observer->started.load(std::memory_order_acquire) &&
-            observer->uiAudioPlaybackArmed.load(std::memory_order_relaxed) && zeroExternal &&
-            sds::isPromotedUiSpeakerEvent(eventId);
+        const bool wantsUiPlayback = observer &&
+            observer->started.load(std::memory_order_acquire) &&
+            zeroExternal &&
+            ((observer->uiAudioPlaybackArmed.load(std::memory_order_relaxed) &&
+                sds::isPromotedUiSpeakerEvent(eventId)) ||
+                eventId == 0xB7129071u ||
+                eventId == 0xCED3059Bu);
         const bool wantsUi = wantsUiDiscovery || wantsUiPlayback;
         const bool wantsMusic = observer && observer->started.load(std::memory_order_acquire) &&
             observer->musicReconArmed.load(std::memory_order_acquire) && externalCount == 0;
@@ -675,10 +1011,26 @@ namespace
                     : callback);
         void* const effectiveCookie = injectDurationCallback ? nullptr : cookie;
 
+        const bool routeDataslateNativeSilently =
+            g_dataslateSilentEmitterRoutingEnabled.load(
+                std::memory_order_acquire) &&
+            g_dataslateSilentEmitterReady.load(
+                std::memory_order_acquire) &&
+            eventId == sds::kDataslateVoEventId &&
+            externalCount == 1u &&
+            externalSources != nullptr &&
+            externalSources[0].iExternalSrcCookie ==
+                RE::BGSAudio::kExternalSourceCookie;
+
+        const auto forwardedGameObjectId =
+            routeDataslateNativeSilently ?
+                kDataslateSilentEmitterId :
+                gameObjectId;
+
         const auto original = g_originalPostEvent.load(std::memory_order_acquire);
         const auto returnedPlayingId = original ? original(
             eventId,
-            gameObjectId,
+            forwardedGameObjectId,
             effectiveFlags,
             effectiveCallback,
             effectiveCookie,
@@ -1224,11 +1576,108 @@ void sds::StarfieldAudioCapture::drainDiagnostics()
 }
 
 void sds::StarfieldAudioCapture::setDialogueMenuActive(bool active) noexcept
+
 {
+
     if (_impl) {
+
         _impl->dialogueMenuActive.store(active, std::memory_order_release);
+
     }
+
 }
+
+
+
+void sds::StarfieldAudioCapture::setDataslateControllerOnlyRoutingEnabled(
+
+    bool enabled) noexcept
+
+{
+
+    if (!enabled) {
+
+        const bool wasEnabled =
+
+            g_dataslateSilentEmitterRoutingEnabled.exchange(
+
+                false,
+
+                std::memory_order_acq_rel);
+
+
+
+        if (wasEnabled && _impl && _impl->log) {
+
+            _impl->log(
+
+                "Dataslate native route: INACTIVE silent-emitter=no reason=live-policy normal-output=passthrough");
+
+        }
+
+
+
+        return;
+
+    }
+
+
+
+    const bool ready =
+
+        ensureDataslateSilentEmitter();
+
+
+
+    const bool wasEnabled =
+
+        g_dataslateSilentEmitterRoutingEnabled.exchange(
+
+            ready,
+
+            std::memory_order_acq_rel);
+
+
+
+    if (_impl && _impl->log) {
+
+        if (ready && !wasEnabled) {
+
+            _impl->log(
+
+                "Dataslate native route: ACTIVE ControllerOnly silent-emitter=0x5344534400000001 listeners=0 lifecycle=preserved");
+
+        } else if (!ready) {
+
+            _impl->log(
+
+                "Dataslate native route: INACTIVE reason=silent-emitter-setup-failed failOpen=normal-output");
+
+        }
+
+    }
+
+}
+
+
+
+bool sds::StarfieldAudioCapture::dataslateControllerOnlyRoutingActive() const noexcept
+
+{
+
+    return
+
+        g_dataslateSilentEmitterRoutingEnabled.load(
+
+            std::memory_order_acquire) &&
+
+        g_dataslateSilentEmitterReady.load(
+
+            std::memory_order_acquire);
+
+}
+
+
 
 void sds::StarfieldAudioCapture::setWeaponSfxDiscoveryArmed(bool armed) noexcept
 {

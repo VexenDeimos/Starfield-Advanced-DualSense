@@ -93,6 +93,7 @@ namespace sds
         void unregisterSinks() noexcept;
         void pollHealth();
         [[nodiscard]] bool refreshPlayerHealth();
+        void pollShipLightbarSeatAuthority();
         [[nodiscard]] std::optional<ShipPropulsionState> pollShipPropulsionState();
         [[nodiscard]] std::optional<ShipPropulsionState> pollShipLandingReconState();
         [[nodiscard]] std::optional<ShipLandingReconStateObservation> pollShipLandingReconStatePrecision();
@@ -103,6 +104,7 @@ namespace sds
         void setLandVehicleMotionCallback(LandVehicleMotionCallback callback);
         void setLandVehicleSemanticCallback(LandVehicleSemanticCallback callback);
         [[nodiscard]] bool landVehicleReconCorrelationArmed() const noexcept { return _landVehicleCorrelationArmed.load(std::memory_order_acquire); }
+        [[nodiscard]] bool mainMenuOpen() const noexcept { return _mainMenuOpen.load(std::memory_order_acquire); }
         [[nodiscard]] bool queueNativeInputAction(InputAction action) noexcept;
         void pollNativeInputInjection() noexcept;
         void dispatchBluetoothPhysicalInput(
@@ -177,6 +179,7 @@ namespace sds
         bool _incomingDamageDiagnosticEnabled{ false };
         bool _tesHitSessionDiscoveryAttempted{ false };
         bool _registered{ false };
+        std::atomic_bool _mainMenuOpen{ false };
         static constexpr std::size_t kMaxFireMarkerSources = 8;
         std::mutex _fireMarkerGraphMutex{};
         std::array<RE::BSTSmartPointer<RE::BSAnimationGraph>, kMaxFireMarkerSources> _fireMarkerGraphs{};
@@ -209,6 +212,8 @@ namespace sds
         float _lastPeriodicHealthRatio{ 0.0F };
         std::chrono::steady_clock::time_point _lastPeriodicHealthSampleAt{};
         std::uint64_t _lastIncomingDamageDropCountLogged{ 0 };
+        float _lastShipHealthRatio{ -1.0F };
+        std::uint32_t _lastShipHealthFormId{ 0 };
         ShipPilotContext _shipPilotContext{};
         LandVehicleReconProbe _landVehicleReconProbe{};
         LandVehicleTelemetryProbe _landVehicleTelemetryProbe{};
@@ -234,6 +239,9 @@ namespace sds
         std::atomic_bool _landVehicleCorrelationArmed{ false };
         ShipPropulsionProbe _shipPropulsionProbe{};
         std::chrono::steady_clock::time_point _nextShipPropulsionPoll{};
+        std::chrono::steady_clock::time_point _nextShipLightbarSeatPoll{};
+        bool _shipLightbarSeatKnown{ false };
+        bool _shipLightbarSeatActive{ false };
         bool _hudMenuOpen{ false };
         float _lastHealthRatio{ -1.0F };
         std::chrono::steady_clock::time_point _nextHealthPoll{};

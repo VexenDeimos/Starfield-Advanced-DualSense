@@ -37,6 +37,12 @@ bool sds::qualifiesRemoteCommsVoCandidate(
                 kRemoteCommsDialogueVoMirrorProfile);
     }
 
+    if (candidate.eventId == kDataslateVoEventId) {
+        return qualifiesRemoteVoCandidate(
+            candidate,
+            kDataslateVoMirrorProfile);
+    }
+
     return false;
 }
 

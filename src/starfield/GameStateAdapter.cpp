@@ -1377,6 +1377,13 @@ bool sds::GameStateAdapter::registerSinks()
     equipSource->RegisterSink(this);
     ui->RegisterSink<RE::MenuOpenCloseEvent>(this);
 
+    _mainMenuOpen.store(
+        ui->IsMenuOpen(RE::BSFixedString("MainMenu")),
+        std::memory_order_release);
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        log("Game state: MainMenu safety gate ACTIVE at sink registration; gameplay world polling suspended");
+    }
+
     _registered = true;
     _nextHealthPoll = std::chrono::steady_clock::now();
     // CommonLibSF declares WeaponFiredEvent for this runtime, but its Address
@@ -1390,19 +1397,14 @@ bool sds::GameStateAdapter::registerSinks()
         log("Fire marker trace: disabled because this Starfield runtime is not the validated 1.16.244.0 ABI; controller behavior unchanged");
     }
 
-    if (!installSemanticBroadcasterDiagnosticHook()) {
-        log("Semantic observer: failed to install; native semantic verification logging will be incomplete");
-        return false;
-    }
-    if (!installShipFlightControlDiagnosticHook()) {
-        log("Ship flight-control probe: passive writer capture unavailable; propulsion diagnostic will continue with boost-state evidence only");
-    }
+    if (!installSemanticBroadcasterDiagnosticHook()) {         log("Semantic observer: failed to install; native semantic verification logging will be incomplete");         return false;     }     log("CTD RESTORE: semantic native-pipeline hook ACTIVE");
+    if (!installShipFlightControlDiagnosticHook()) {         log("Ship flight-control probe: passive writer capture unavailable; propulsion diagnostic will continue with boost-state evidence only");     }     log("CTD RESTORE: ship flight-control hook startup RESTORED; FireMarker lifecycle fix retained");
     if (!registerLandVehicleDriverEventReconSink()) {
         log("Land vehicle recon: VehicleDriverEnterExitEvent source unavailable; camera corroboration will continue diagnostic-only");
     }
     _nextLandVehicleReconPoll = std::chrono::steady_clock::now();
     _nextLandVehicleSummaryLog = _nextLandVehicleReconPoll;
-    log("Native input pool: Starfield-owned 30-event pool + native-style recycle armed; controls enabled Up=Inventory Down=Missions Left=Powers Right=Skills RightClick=Map Create=PhotoMode");
+    log("CTD RESTORE: runtimeTick active; semantic and ship direct hooks active");
     return true;
 }
 
@@ -4242,6 +4244,9 @@ void sds::GameStateAdapter::drainIncomingDamageCorrelations(
 
 std::optional<sds::ShipLandingReconStateObservation> sds::GameStateAdapter::pollShipLandingReconStatePrecision()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return std::nullopt;
+    }
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player) {
         return std::nullopt;
@@ -4279,6 +4284,9 @@ std::optional<sds::ShipLandingReconStateObservation> sds::GameStateAdapter::poll
 
 std::optional<sds::ShipPropulsionState> sds::GameStateAdapter::pollShipLandingReconState()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return std::nullopt;
+    }
     const auto now = std::chrono::steady_clock::now();
     if (now < _nextShipPropulsionPoll) {
         return std::nullopt;
@@ -4318,6 +4326,9 @@ std::optional<sds::ShipPropulsionState> sds::GameStateAdapter::pollShipLandingRe
 
 std::optional<sds::LandVehicleReconResult> sds::GameStateAdapter::pollLandVehicleReconState()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return std::nullopt;
+    }
     const auto now = std::chrono::steady_clock::now();
     if (now < _nextLandVehicleReconPoll) {
         return std::nullopt;
@@ -4656,8 +4667,153 @@ bool sds::GameStateAdapter::armLandVehicleVerticalBoost() noexcept
     return armed;
 }
 
+void sds::GameStateAdapter::pollShipLightbarSeatAuthority()
+{
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now < _nextShipLightbarSeatPoll) {
+        return;
+    }
+    _nextShipLightbarSeatPoll =
+        now + std::chrono::milliseconds(50);
+
+    // Never release physical seat authority from a transient loading-world
+    // pointer gap. The first post-load poll resolves the real current state.
+    auto* ui = RE::UI::GetSingleton();
+    if (ui &&
+        ui->IsMenuOpen(RE::BSFixedString("LoadingMenu"))) {
+        return;
+    }
+
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!player) {
+        return;
+    }
+
+    auto* ship = player->GetSpaceship();
+
+    bool seatActive = false;
+    std::uint32_t shipFormId = 0;
+
+    if (ship) {
+        shipFormId = ship->GetFormID();
+        seatActive =
+            ship->GetSpaceshipPilot() == player;
+    }
+
+    // Establish an on-foot startup baseline silently. A real first seat
+    // acquisition still emits the normalized ENTER event.
+    if (!_shipLightbarSeatKnown && !seatActive) {
+        _shipLightbarSeatKnown = true;
+        _shipLightbarSeatActive = false;
+        return;
+    }
+
+    if (_shipLightbarSeatKnown &&
+        seatActive == _shipLightbarSeatActive) {
+        return;
+    }
+
+    GameEvent seatEvent{};
+    seatEvent.type =
+        seatActive ?
+            GameEventType::ShipLightbarSeatEntered :
+            GameEventType::ShipLightbarSeatExited;
+    seatEvent.formId = shipFormId;
+    seatEvent.when = now;
+
+    char message[256]{};
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Game state: ship lightbar seat %s ship=0x%08X authority=current-ship-pilot-pointer",
+        seatActive ? "ENTER" : "EXIT",
+        static_cast<unsigned int>(shipFormId));
+
+    if (!emit(seatEvent, message)) {
+        return;
+    }
+
+    _shipLightbarSeatKnown = true;
+    _shipLightbarSeatActive = seatActive;
+
+    // Physical pilot-pointer authority arrives before SpaceshipHudMenu when
+    // auto-entering from outside the ship. Force one current hull-health
+    // sample here so ship lightbar ownership never has to fall back to black
+    // while waiting for the normal propulsion/menu path.
+    if (seatActive && ship) {
+        auto* actorValues =
+            RE::ActorValue::GetSingleton();
+
+        if (actorValues && actorValues->health) {
+            const float healthCurrent =
+                readShipActorValue(
+                    ship,
+                    actorValues->health);
+
+            const float healthMaximum =
+                readShipPermanentActorValue(
+                    ship,
+                    actorValues->health);
+
+            if (std::isfinite(healthCurrent) &&
+                std::isfinite(healthMaximum) &&
+                healthMaximum > 0.0F) {
+
+                const float healthRatio =
+                    std::clamp(
+                        healthCurrent / healthMaximum,
+                        0.0F,
+                        1.0F);
+
+                GameEvent healthEvent{};
+                healthEvent.type =
+                    GameEventType::ShipHealthChanged;
+                healthEvent.value =
+                    healthRatio;
+                healthEvent.formId =
+                    shipFormId;
+                healthEvent.when =
+                    now;
+
+                char healthMessage[256]{};
+                std::snprintf(
+                    healthMessage,
+                    sizeof(healthMessage),
+                    "Game state: ship hull health %.1f%% current=%.3f max=%.3f ship=0x%08X source=physical-seat-acquire",
+                    healthRatio * 100.0F,
+                    healthCurrent,
+                    healthMaximum,
+                    static_cast<unsigned int>(
+                        shipFormId));
+
+                if (emit(
+                        std::move(healthEvent),
+                        healthMessage)) {
+
+                    _lastShipHealthRatio =
+                        healthRatio;
+                    _lastShipHealthFormId =
+                        shipFormId;
+                }
+            }
+        }
+    }
+
+    // A real physical seat exit must rebuild on-foot lightbar state even when
+    // health did not move enough to trigger the normal material-delta poll.
+    if (!seatActive) {
+        (void)refreshPlayerHealth();
+    }
+}
 std::optional<sds::ShipPropulsionState> sds::GameStateAdapter::pollShipPropulsionState()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return std::nullopt;
+    }
     const auto now = std::chrono::steady_clock::now();
     if (now < _nextShipPropulsionPoll) {
         return std::nullopt;
@@ -4691,6 +4847,77 @@ std::optional<sds::ShipPropulsionState> sds::GameStateAdapter::pollShipPropulsio
             static_cast<void*>(player));
         log(message);
         return ShipPropulsionState{};
+    }
+
+    //
+    // Ship hull-health candidate. First hardware pass validates
+    // generic Health against the actual Starfield hull meter.
+    //
+    auto* actorValues =
+        RE::ActorValue::GetSingleton();
+
+    if (actorValues && actorValues->health) {
+        const float healthCurrent =
+            readShipActorValue(
+                ship,
+                actorValues->health);
+
+        const float healthMaximum =
+            readShipPermanentActorValue(
+                ship,
+                actorValues->health);
+
+        if (std::isfinite(healthCurrent) &&
+            std::isfinite(healthMaximum) &&
+            healthMaximum > 0.0F) {
+
+            const float healthRatio =
+                std::clamp(
+                    healthCurrent / healthMaximum,
+                    0.0F,
+                    1.0F);
+
+            const auto shipFormId =
+                ship->GetFormID();
+
+            const bool freshShip =
+                shipFormId != _lastShipHealthFormId;
+
+            const bool materialChange =
+                _lastShipHealthRatio < 0.0F ||
+                std::fabs(
+                    healthRatio - _lastShipHealthRatio) >=
+                    kHealthMaterialDelta;
+
+            if (freshShip || materialChange) {
+                GameEvent healthEvent{};
+                healthEvent.type =
+                    GameEventType::ShipHealthChanged;
+                healthEvent.value =
+                    healthRatio;
+                healthEvent.formId =
+                    shipFormId;
+                healthEvent.when =
+                    now;
+
+                char healthMessage[256]{};
+                std::snprintf(
+                    healthMessage,
+                    sizeof(healthMessage),
+                    "Game state: ship hull health %.1f%% current=%.3f max=%.3f ship=0x%08X source=Health-actor-value",
+                    healthRatio * 100.0F,
+                    healthCurrent,
+                    healthMaximum,
+                    static_cast<unsigned int>(shipFormId));
+
+                if (emit(healthEvent, healthMessage)) {
+                    _lastShipHealthRatio =
+                        healthRatio;
+                    _lastShipHealthFormId =
+                        shipFormId;
+                }
+            }
+        }
     }
 
     std::uintptr_t cluster = 0;
@@ -4750,6 +4977,9 @@ std::optional<sds::ShipPropulsionState> sds::GameStateAdapter::pollShipPropulsio
 
 bool sds::GameStateAdapter::refreshPlayerHealth()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return false;
+    }
     auto* player = RE::PlayerCharacter::GetSingleton();
     const auto ratioValue = readPlayerHealthRatio(player);
     if (!ratioValue) {
@@ -4775,6 +5005,9 @@ bool sds::GameStateAdapter::refreshPlayerHealth()
 
 void sds::GameStateAdapter::pollHealth()
 {
+    if (_mainMenuOpen.load(std::memory_order_acquire)) {
+        return;
+    }
     const auto now = std::chrono::steady_clock::now();
     if (now < _nextHealthPoll) {
         return;
@@ -5460,6 +5693,36 @@ RE::BSEventNotifyControl sds::GameStateAdapter::ProcessEvent(
     normalized.type = event.opening ? GameEventType::MenuOpened : GameEventType::MenuClosed;
     normalized.when = std::chrono::steady_clock::now();
     const char* name = event.menuName.c_str();
+
+    if (name && std::strcmp(name, "MainMenu") == 0) {
+        const bool wasOpen = _mainMenuOpen.exchange(
+            event.opening,
+            std::memory_order_acq_rel);
+
+        if (event.opening && !wasOpen) {
+            _shipPropulsionProbe.reset();
+            _nextShipPropulsionPoll = {};
+            _nextLandVehicleReconPoll = {};
+            _lastHealthRatio = -1.0F;
+
+            {
+                std::scoped_lock healthGuard(_incomingDamageMutex);
+                _incomingDamageNullTargetFallback.clear();
+                _lastPeriodicHealthAvailable = false;
+                _lastPeriodicHealthRatio = 0.0F;
+                _lastPeriodicHealthSampleAt = {};
+            }
+
+            log("Game state: MainMenu safety gate ACTIVE; gameplay world polling suspended");
+        } else if (!event.opening && wasOpen) {
+            const auto now = std::chrono::steady_clock::now();
+            _nextHealthPoll = now;
+            _nextLandVehicleReconPoll = now;
+            _nextShipPropulsionPoll = {};
+            log("Game state: MainMenu safety gate RELEASED; gameplay world polling resumed");
+        }
+    }
+
     ShipPilotTransition shipTransition = ShipPilotTransition::None;
     if (name) {
         copyText(normalized, name);
@@ -5502,6 +5765,10 @@ RE::BSEventNotifyControl sds::GameStateAdapter::ProcessEvent(
     if (shipTransition != ShipPilotTransition::None) {
         _shipPropulsionProbe.reset();
         _nextShipPropulsionPoll = {};
+        _nextShipLightbarSeatPoll = {};
+
+        _lastShipHealthRatio = -1.0F;
+        _lastShipHealthFormId = 0;
     }
     if (shipTransition == ShipPilotTransition::Entered || shipTransition == ShipPilotTransition::Resumed) {
         {

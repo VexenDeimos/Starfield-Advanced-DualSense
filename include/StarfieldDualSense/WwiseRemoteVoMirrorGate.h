@@ -7,6 +7,7 @@ namespace sds
 {
     inline constexpr std::uint32_t kRemoteCommsVoEventId = 0x89E658E8u;
     inline constexpr std::uint32_t kRemoteCommsDialogueVoEventId = 0x06638D4Eu;
+    inline constexpr std::uint32_t kDataslateVoEventId = 0xBDB11FAAu;
     inline constexpr std::uint32_t kFaceToFaceVoEventId = 0x5E6C95CEu;
 
     struct VoMirrorQualificationProfile
@@ -30,6 +31,10 @@ namespace sds
         .expectedDialogueMenuActive = true,
     };
 
+    inline constexpr VoMirrorQualificationProfile kDataslateVoMirrorProfile{
+        .eventId = kDataslateVoEventId,
+        .expectedDialogueMenuActive = false,
+    };
     inline constexpr VoMirrorQualificationProfile kFaceToFaceVoMirrorProfile{
         .eventId = kFaceToFaceVoEventId,
         .expectedDialogueMenuActive = true,

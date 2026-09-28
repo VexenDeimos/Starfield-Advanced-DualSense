@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.1.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -10,7 +10,7 @@
 
 SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It uses Starfield's own gameplay state, input, audio, and Wwise events to drive adaptive triggers, haptics, controller-speaker audio, touchpad/lightbar behavior, and reconnect handling in ways that are tied to what is actually happening in the game.
 
-> **Native-first design:** connect a DualSense to the PC over USB or Bluetooth and use it directly with SAD. SAD does **not** require DSX, DualSenseX, reWASD, or similar controller-emulation software.
+> **Native-first design:** connect a real DualSense over USB or Bluetooth and use it directly. SAD does **not** require DSX, DualSenseX, reWASD, an Xbox-controller wrapper, or another virtual-controller layer.
 
 ---
 
@@ -18,20 +18,22 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 
 | Feature | What SAD adds |
 | --- | --- |
-| **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot and ship combat behavior. |
-| **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, and more. |
+| **Native USB + Bluetooth** | Direct DualSense support over USB and Bluetooth without requiring DSX, DualSenseX, reWASD, an Xbox wrapper, or another virtual controller. |
+| **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and the REV-8. |
+| **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
 | **Music Haptics** | Optional score-driven tactile feedback mixed underneath gameplay haptics so combat and other gameplay effects keep priority. |
-| **Controller Speaker** | Selected real in-game audio routed to the DualSense speaker, including supported communications, UI/scanner sounds, weapons, Digipicks, crafting/research, and boostpack audio. |
+| **Controller Speaker** | Real Starfield audio through the DualSense speaker over USB or Bluetooth, including supported communications, UI/scanner sounds, weapons, Digipicks, crafting/research, and boostpack audio. |
+| **Dataslate / Comms Voice** | Supported spoken dataslates and communications can use `Both` or `ControllerOnly` output while preserving Starfield's native STOP/PLAY and continuation behavior. |
 | **Digipick Feedback** | Real Digipick sounds through the controller speaker plus tactile feedback for rotation, shape selection, successful insertion, and puzzle completion. |
-| **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research station sounds through the controller speaker. |
+| **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research-station sounds through the controller speaker. |
 | **Boostpack Feedback** | Dedicated boostpack haptics and real boostpack audio through the controller speaker. |
-| **Touchpad & Lightbar** | Native touchpad shortcuts plus dynamic lightbar feedback that changes color based on the player's current health. |
+| **Touchpad** | Native DualSense touchpad shortcuts using Starfield's own input actions. |
+| **Dynamic Lightbar** | Player-health colors, a Main Menu white-to-blue breathing effect, and ship takeoff/landing/touchdown lighting. |
+| **Battery Indicator** | The five DualSense player-indicator LEDs act as a battery gauge on both USB and Bluetooth. |
 | **Reconnect Repair** | Repairs the Starfield timing problem that can cause a reconnected DualSense to fall back to a generic/Xbox-style controller path. |
 | **ReconnectFixOnly Mode** | Runs only the passive reconnect repair if you want Starfield's native DualSense handling without the rest of SAD's feedback stack. |
 
 Where controller-speaker audio is supported, SAD prefers **real Starfield audio** rather than invented replacement beeps. The same evidence-first approach is used throughout the project: feedback is tied to proven game state or native events instead of guessed timers whenever possible.
-
----
 
 ## Touchpad Controls
 
@@ -54,19 +56,67 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 ---
 
-## Lightbar Feedback
+## Lightbar and Battery Indicators
 
-When `Lightbar = true`, SAD uses the DualSense lightbar as a visual health indicator:
+### Colored Lightbar
+
+When `Lightbar = true`, SAD uses the DualSense lightbar for contextual visual feedback.
+
+#### Player Health
 
 | Player Health | Lightbar |
 | --- | --- |
 | **Above 50%** | Blue |
-| **25%–50%** | Orange |
+| **25%-50%** | Orange |
 | **Below 25%** | Red |
 
-The lightbar updates from Starfield's actual player-health state rather than using timers or simulated status.
+#### Main Menu
 
----
+While the Main Menu is open, the lightbar smoothly breathes:
+
+    White -> Blue -> White
+
+The full breathing cycle is approximately four seconds.
+
+#### Ship Takeoff and Landing
+
+SAD also uses the lightbar during supported ship launch and landing sequences:
+
+| Ship Event | Lightbar |
+| --- | --- |
+| **Takeoff** | Blue / cyan |
+| **Landing** | Amber |
+| **Touchdown** | White flash |
+
+Setting:
+
+    Lightbar = false
+
+disables **all colored SAD lightbar effects**, including player health, Main Menu, REV-8 health feedback, takeoff, landing, and touchdown lighting.
+
+### Battery Player LEDs
+
+The five small white **player-indicator LEDs below the touchpad** are used as a battery gauge on both USB and Bluetooth.
+
+These LEDs are separate from the colored lightbar.
+
+| Battery Level | Player LEDs |
+| --- | ---: |
+| **81%-100%** | 5 |
+| **61%-80%** | 4 |
+| **41%-60%** | 3 |
+| **21%-40%** | 2 |
+| **0%-20%** | 1 |
+
+The LED patterns remain symmetrical as battery charge decreases:
+
+- **1 LED:** center
+- **2 LEDs:** inner pair
+- **3 LEDs:** outer pair + center
+- **4 LEDs:** outer pair + inner pair
+- **5 LEDs:** all five
+
+Because these are the DualSense player-indicator LEDs rather than the colored lightbar, the battery gauge is independent of `Lightbar = false`.
 
 ## Requirements
 
@@ -77,25 +127,21 @@ The lightbar updates from Starfield's actual player-health state rather than usi
 - **Sony DualSense or DualSense Edge controller**  
   DualSense Edge is supported as a standard DualSense controller.  
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
-- **USB or Bluetooth DualSense connection**
-- **SFSE (Starfield Script Extender)** — required to load the SAD plugin DLL
-- **Address Library for SFSE Plugins** — required by SAD/CommonLibSF for runtime address relocation
+- **USB or Bluetooth controller connection**
+- **SFSE (Starfield Script Extender)** - required to load the SAD plugin DLL
+- **Address Library for SFSE Plugins** - required by SAD/CommonLibSF for runtime address relocation
 
 ### Optional
 
-- **SFSE Menu Framework / compatible in-game settings menu support** — only needed if you want to change SAD settings from inside Starfield
+- **SFSE Menu Framework / compatible in-game settings menu support** - only needed if you want to change SAD settings from inside Starfield
 
 You do **not** need the in-game menu to use SAD. If you prefer, configure the mod entirely through `StarfieldDualSense.toml`.
 
 > **Important dependency distinction:** **SFSE and Address Library for SFSE Plugins are required.** The **menu framework is optional**. Without the menu framework, SAD still runs normally and reads its settings from the TOML file.
 
----
+## Native USB and Bluetooth - No DSX Required
 
-## Wired DualSense — No DSX Required
-
-SAD is designed around a **real wired DualSense**, just like PC games that expose native DualSense features.
-
-Use the controller over **USB** for the full feature set. The controller's advanced audio/haptic path and native PlayStation behavior should not be expected through a generic Bluetooth or controller-emulation route.
+SAD communicates directly with a real DualSense over **USB or Bluetooth**. A controller wrapper is not required.
 
 SAD does **not** require:
 
@@ -105,9 +151,33 @@ SAD does **not** require:
 - an Xbox-controller wrapper
 - a virtual-controller layer
 
-Software that masks, remaps, or virtualizes the DualSense can interfere with native device detection, PlayStation glyphs, adaptive triggers, haptics, controller audio, or reconnect behavior. If you are troubleshooting SAD, test first with the DualSense connected directly by USB and without a controller-emulation layer in between.
+Software that masks, remaps, or virtualizes the DualSense should normally be **disabled while using SAD**, because it can interfere with physical-controller detection, PlayStation identity, input, adaptive triggers, lightbar output, controller audio, or reconnect handling.
 
----
+### USB vs Bluetooth
+
+| Capability | USB | Bluetooth |
+| --- | --- | --- |
+| **Physical DualSense input** | Native | Native SAD HID bridge |
+| **Adaptive triggers** | Supported | Supported |
+| **Touchpad shortcuts** | Supported | Supported |
+| **Colored lightbar** | Supported | Supported |
+| **Battery player LEDs** | Supported | Supported |
+| **Gameplay haptic feedback** | DualSense 4-channel audio-haptics path | Native Bluetooth vibration feedback for supported effects |
+| **Controller speaker** | USB WASAPI / internal speaker | Real-time Opus audio over DualSense HID |
+| **Speaker transport selection** | Automatic | Automatic |
+
+SAD automatically chooses the correct controller-speaker transport:
+
+    USB       -> WASAPI
+    Bluetooth -> Opus / HID
+
+Bluetooth also has its own haptic-strength setting:
+
+    BluetoothHapticStrength = 1.0
+
+This allows Bluetooth vibration strength to be tuned independently without changing the established USB haptic level.
+
+USB remains the reference path for the DualSense's native 4-channel audio-haptics capability, while Bluetooth uses SAD's native wireless feedback implementation.
 
 ## Important: Disable Starfield's Accessibility Adaptive Triggers
 
@@ -166,8 +236,14 @@ directly.
 
 ### 5. Connect the DualSense
 
-Connect the controller by USB or Bluetooth before launching the game.
+Connect the controller before launching Starfield.
 
+You can use either:
+
+- **USB**
+- **Bluetooth**
+
+For Bluetooth, pair the DualSense normally through Windows. No DSX, DualSenseX, reWASD, or virtual Xbox controller is required.
 ### 6. Disable Starfield's own Adaptive Triggers accessibility option
 
 Set **Settings → Accessibility → Adaptive Triggers** to **OFF** as shown above.
@@ -196,7 +272,7 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | --- | --- |
 | Runtime | `OperatingMode`, `DualSenseReconnectFix` |
 | Adaptive Triggers | `AdaptiveTriggers`, `TriggerStrength` |
-| Haptics | `AdvancedHaptics`, `HapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
+| Haptics | `AdvancedHaptics`, `HapticStrength`, `BluetoothHapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
 | Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
 | Controller Features | `Lightbar`, `Touchpad` |
 | Diagnostics | `DebugLogging` |
@@ -223,23 +299,41 @@ See [`config/StarfieldDualSense.toml`](config/StarfieldDualSense.toml) for the c
 
 ## Controller Speaker Output Modes
 
-SAD supports a master controller-speaker path plus feature-specific routing.
+SAD supports the DualSense controller speaker over both USB and Bluetooth.
 
-For supported remote/radio communication audio:
+The transport is selected automatically:
 
-```toml
-SpeakerOutputMode = "Both"
-```
+    USB       -> WASAPI
+    Bluetooth -> Opus / HID
+
+The normal controller-speaker categories and volume settings apply regardless of the active transport.
+
+For supported remote/radio communication and dataslate voice:
+
+    SpeakerOutputMode = "Both"
 
 plays qualifying audio through Starfield's normal output and the controller speaker.
 
-```toml
-SpeakerOutputMode = "ControllerOnly"
-```
+    SpeakerOutputMode = "ControllerOnly"
 
-allows qualifying remote/radio audio to move to the controller speaker after controller playback has been accepted.
+routes qualifying controller voice to the DualSense while preventing duplicate normal-output playback after controller playback has been accepted.
+
+For spoken dataslates, SAD preserves Starfield's native audio-event lifecycle rather than simply stopping the original event. This keeps native **STOP**, **PLAY**, and post-menu-exit continuation behavior working while `ControllerOnly` is active.
 
 Weapon, Digipick, crafting, boostpack, and other supported speaker categories have their own settings and remain tied to their intended game behavior.
+
+### Live Controller-Speaker Settings
+
+The following settings apply live without requiring a game restart:
+
+- `ControllerSpeaker`
+- `SpeakerVolume`
+- `SpeakerOutputMode`
+- `SpeakerComms`
+- `SpeakerVoiceLanguage`
+- supported speaker-category toggles
+
+Changing the output mode, communications setting, or voice language clears stale controller voice before the new policy takes effect.
 
 ### Radio / Comms Language
 
@@ -247,30 +341,24 @@ SAD can use Starfield's localized voice archives for supported radio and remote 
 
 The default is:
 
-```toml
-SpeakerVoiceLanguage = "Auto"
-```
+    SpeakerVoiceLanguage = "Auto"
 
 `Auto` follows Starfield's supported voice-language settings. If localized voices are disabled, the language cannot be resolved, or Starfield reports an unsupported voice language, SAD falls back to English.
 
 Supported values are:
 
-```text
-Auto
-English
-French
-German
-Spanish
-Japanese
-```
+    Auto
+    English
+    French
+    German
+    Spanish
+    Japanese
 
 Choosing a language explicitly overrides `Auto`. The corresponding Starfield localized voice archives must be installed for that language; SAD does not silently substitute English dialogue when an explicitly selected localized archive is unavailable.
 
 Ship radio/intercom static and other non-voice communication effects are language-independent and use Starfield's normal sound-effect archives, so they work with every supported voice language.
 
 `SpeakerComms = false` disables supported radio/comms voice and ship radio/intercom static from the controller speaker.
-
----
 
 ## Building From Source
 
@@ -350,7 +438,7 @@ The project favors:
 - feature-specific haptics instead of one-size-fits-all vibration
 - finite, contextual adaptive-trigger effects
 - hard menu/loading/lifecycle boundaries so stale feedback does not leak between game states
-- direct USB DualSense behavior instead of virtual Xbox-controller emulation
+- direct physical DualSense behavior over USB and Bluetooth instead of virtual Xbox-controller emulation
 
 The result is intended to feel **integrated with Starfield**, not merely connected to it.
 
@@ -360,15 +448,25 @@ The result is intended to feel **integrated with Starfield**, not merely connect
 
 If SAD is not behaving as expected, start with these checks:
 
-1. Connect the DualSense directly by **USB**.
+1. Confirm the DualSense is connected directly by **USB or Bluetooth**.
 2. Confirm **SFSE** is installed and compatible with your Starfield runtime.
 3. Confirm **Address Library for SFSE Plugins** is installed and compatible with your Starfield runtime.
 4. Confirm `StarfieldDualSense.dll` and `StarfieldDualSense.toml` are under `Data\SFSE\Plugins`.
-5. Set Starfield's **Accessibility → Adaptive Triggers** option to **OFF**.
-6. Temporarily disable DSX, DualSenseX, reWASD, or other controller virtualization/remapping software.
+5. Set Starfield's **Accessibility -> Adaptive Triggers** option to **OFF**.
+6. Disable DSX, DualSenseX, reWASD, virtual Xbox controllers, and other controller-remapping/wrapper software while testing SAD.
 7. Check your TOML settings and enable `DebugLogging` only when diagnostic logs are actually needed.
+8. If a problem appears only on Bluetooth, compare the same action once over USB to determine whether the issue is transport-specific.
 
----
+### Bluetooth-Specific Checks
+
+If Bluetooth input works but a specific feedback feature does not:
+
+- confirm Windows still reports the physical DualSense as connected
+- make sure another controller utility has not taken ownership of the device
+- check `BluetoothHapticStrength` if Bluetooth vibration is too weak or too strong
+- remember that USB uses the DualSense 4-channel audio-haptics path while Bluetooth uses SAD's native wireless vibration implementation
+
+Controller-speaker audio automatically switches between USB WASAPI and Bluetooth Opus/HID when the active transport changes.
 
 ## License
 

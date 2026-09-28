@@ -1,13 +1,65 @@
-## 0.5.0 - 2026-09-27
+## 0.5.1.0 - 2026-09-28
 
-- Added native Bluetooth support for DualSense gameplay features without requiring DSX, DualSenseX, reWASD, or another controller wrapper.
-- Added Bluetooth gameplay haptics using the native DualSense Bluetooth output path, with a dedicated `BluetoothHapticStrength` setting.
+- Improved Main Menu return safety so gameplay-world polling and player animation-graph access are suspended while the real Main Menu is active and restored cleanly when returning to gameplay.
+- Added lifecycle-preserving `ControllerOnly` routing for spoken dataslates. Controller-only voice now uses a dedicated zero-listener Wwise emitter so Starfield's native voice event remains alive without duplicating spoken audio through normal PC output.
+- Preserved native dataslate **STOP**, **PLAY**, and post-menu-exit continuation behavior while controller-only voice routing is active.
+- `Radio / Comms Voice`, `Speaker Output Mode`, and `Radio / Comms Language` changes now apply live to dataslate playback.
+- Active controller voice and queued stale audio are cleared before routing or language-policy changes.
+- Added ship lightbar feedback for launch and landing sequences: blue/cyan during takeoff, amber during landing, and a white touchdown flash.
+- Confirmed `Lightbar = false` acts as the master switch for all colored SAD lightbar effects.
+- Added focused regression coverage for Main Menu world-lifecycle safety, dataslate silent-emitter routing, and live controller-speaker policy.
+- ProductVersion/FileVersion: `0.5.1.0`.
+- Release tag: `v0.5.1.0`.
+
+## 0.5.0.0 - 2026-09-27
+
+- Added production native Bluetooth support for DualSense without requiring DSX, DualSenseX, reWASD, an Xbox-controller wrapper, or another virtual-controller layer.
+- Added native Bluetooth gameplay input bridging with DualSense identity and presentation parity for Starfield.
+- Added Bluetooth adaptive-trigger, lightbar, touchpad, and supported gameplay-feedback handling through SAD's physical HID path.
+- Added Bluetooth gameplay haptics using the native DualSense Bluetooth vibration path.
+- Added the dedicated `BluetoothHapticStrength` setting.
 - Added DualSense controller-speaker audio over Bluetooth using real-time Opus audio carried through the controller HID transport.
-- Controller-speaker playback now automatically selects USB WASAPI or Bluetooth Opus/HID based on the active DualSense connection.
-- Controller-speaker settings, category controls, and master `SpeakerVolume` now work live over both USB and Bluetooth.
-- Restored full background preparation for real Starfield weapon, boostpack, UI/scanner, crafting, Digipick, and other supported controller-speaker audio.
-- Raised the maximum `BoostpackHapticsStrength` from `2.0` to `3.0` for players who want substantially stronger boostpack feedback. The default remains `1.0`.
-- Preserved native USB behavior while adding the Bluetooth transport.
+- Controller-speaker playback automatically selects USB WASAPI or Bluetooth Opus/HID based on the active DualSense connection.
+- Controller-speaker settings, category controls, and master `SpeakerVolume` apply live over both USB and Bluetooth.
+- Added the five-step USB/Bluetooth battery gauge using the DualSense player-indicator LEDs.
+- Added the Main Menu white -> blue -> white breathing lightbar animation.
+- Added USB player-LED arbitration so Starfield's native output cannot fight SAD's battery-indicator state.
+- Restored full background preparation for real Starfield weapon, boostpack, UI/scanner, crafting, Digipick, and supported controller-speaker audio.
+- Preserved existing USB gameplay behavior while adding the Bluetooth transport.
+- ProductVersion/FileVersion: `0.5.0.0`.
+
+> The 0.4.x entries below document internal development milestones that led to the 0.5.0.0 Bluetooth release. They were not separate public release tags.
+
+## 0.4.3.0 - 2026-09-27 - Development milestone
+
+- Added transport-aware haptic settings so Bluetooth vibration can use its own strength without changing the established USB haptic level.
+- Added `BluetoothHapticStrength`.
+- Expanded in-game settings coverage for the new transport-aware controller options.
+- Renamed the user-facing `Advanced Haptics` menu label to `Haptic Feedback` while retaining the stable `AdvancedHaptics` configuration key.
+- Continued Bluetooth parity and production hardening in preparation for 0.5.0.0.
+
+## 0.4.2.0 - 2026-09-26 - Development milestone
+
+- Added production Bluetooth gameplay-haptic translation and expanded physical input parity.
+- Added the five-step battery player-LED gauge for USB and Bluetooth.
+- Added the smooth Main Menu white -> blue -> white lightbar cycle.
+- Added USB native player-LED arbitration so the battery gauge remains stable.
+- Preserved the established REV-8 scanner/input timing while expanding controller-output regression coverage.
+
+## 0.4.1.0 - 2026-09-25 - Development milestone
+
+- Finalized the native Bluetooth DualSense input path and merged the Bluetooth implementation back into the main development line.
+- Added the production Bluetooth shadow mapping/delegate used to present the physical DualSense cleanly to Starfield.
+- Kept SAD as the HID owner for Bluetooth while preventing Starfield from independently polling the same wireless controller.
+- Preserved PlayStation/DualSense controller identity instead of presenting a virtual Xbox controller.
+
+## 0.4.0.0 - 2026-09-24 - Development milestone
+
+- Added the first proven native DualSense Bluetooth backend.
+- Established direct Bluetooth HID connection, report parsing, controller state mirroring, and physical-input forwarding without a third-party wrapper.
+- Added the production foundation for Bluetooth lightbar, trigger, touchpad, and vibration output.
+- Replaced temporary Bluetooth diagnostic experiments with bounded production helpers as the wireless path stabilized.
+
 ## 0.3.91 - 2026-09-20
 
 - Added a live `Radio / Comms Voice` controller-speaker toggle; disabling it immediately clears active controller-speaker communications.

@@ -189,7 +189,12 @@ namespace sds
         LandVehicleTouchdown,
         LandVehicleGunFired,
         LandVehicleAimStarted,
-        LandVehicleAimStopped
+        LandVehicleAimStopped,
+        ShipHealthChanged,
+        ShipLaunchLandingLightbarStarted,
+        ShipLaunchLandingLightbarStopped,
+        ShipLightbarSeatEntered,
+        ShipLightbarSeatExited
     };
 
     struct GameEvent

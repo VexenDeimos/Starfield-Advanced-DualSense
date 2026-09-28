@@ -64,10 +64,26 @@ namespace sds
         void clearOnFootPersistentState() noexcept;
         void clearLandVehicleProductionState() noexcept;
 
+        enum class ShipLightbarPhase : std::uint8_t
+        {
+            None,
+            Takeoff,
+            Landing
+        };
+
         Config _config{};
         EffectState _state{};
         bool _weaponEquipped{ false };
         bool _shipPilotActive{ false };
+        bool _shipLightbarSeatActive{ false };
+        bool _playerHealthValid{ false };
+        float _playerHealthRatio{ 1.0F };
+        bool _shipHealthValid{ false };
+        float _shipHealthRatio{ 1.0F };
+        ShipLightbarPhase _shipLightbarPhase{ ShipLightbarPhase::None };
+        std::chrono::steady_clock::time_point _shipLightbarPhaseStartedAt{};
+        std::chrono::steady_clock::time_point _shipTouchdownFlashStartedAt{};
+        std::chrono::steady_clock::time_point _shipTouchdownFlashUntil{};
         bool _landVehicleContextActive{ false };
         bool _landVehicleProductionActive{ false };
         bool _landVehicleAimActive{ false };

@@ -123,15 +123,28 @@ check(
     and decode_work_pos > comms_gate_pos,
 )
 
-check(
-    "remote VO output mode is read live at submission decision",
-    "speakerOutputMode = config.speakerOutputMode" not in plugin
-    and "config.speakerOutputMode" not in plugin
-    and "g_speakerManager->outputMode()" in plugin,
+decision_pos = plugin.find(
+    "const auto originalAction = sds::decideRemoteVoOriginalOutput(",
+    source_pos,
+)
+dynamic_mode_pos = plugin.rfind(
+    "const auto speakerOutputMode =",
+    source_pos,
+    decision_pos,
 )
 
-decision_pos = plugin.find("const auto originalAction = sds::decideRemoteVoOriginalOutput(", source_pos)
-dynamic_mode_pos = plugin.rfind("const auto speakerOutputMode =", source_pos, decision_pos)
+mode_window = (
+    plugin[dynamic_mode_pos:decision_pos]
+    if dynamic_mode_pos >= 0 and decision_pos > dynamic_mode_pos
+    else ""
+)
+
+check(
+    "remote VO output mode is read live at submission decision",
+    dynamic_mode_pos > source_pos
+    and "g_speakerManager->outputMode()" in mode_window
+    and "config.speakerOutputMode" not in mode_window,
+)
 
 check(
     "dynamic remote VO output mode is sampled immediately before original-output policy",
