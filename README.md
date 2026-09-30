@@ -10,7 +10,7 @@
 
 SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It uses Starfield's own gameplay state, input, audio, and Wwise events to drive adaptive triggers, haptics, controller-speaker audio, touchpad/lightbar behavior, and reconnect handling in ways that are tied to what is actually happening in the game.
 
-> **Native-first design:** connect a real DualSense over USB or Bluetooth and use it directly. SAD does **not** require DSX, DualSenseX, reWASD, an Xbox-controller wrapper, or another virtual-controller layer.
+> **Native-first design:** connect a DualSense over USB or Bluetooth and use it directly. SAD does **not** require DSX, DualSenseX, reWASD, an Xbox-controller wrapper, or another virtual-controller layer.
 
 ---
 
