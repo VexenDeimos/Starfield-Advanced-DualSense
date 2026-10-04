@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 27>
+    inline constexpr std::array<SettingDescriptor, 54>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -34,6 +34,34 @@ namespace sds
             { "AdvancedHaptics", "Haptic Feedback", "Enable gameplay haptic feedback. USB uses advanced DualSense audio haptics; Bluetooth uses SAD compatible-rumble translation.", SettingApplyMode::Live },
             { "HapticStrength", "Haptic Strength", "Overall haptic strength. 1.0 preserves standard SAD tuning; 2.0 keeps the first overdrive level; values up to 3.0 enter the extreme overdrive range.", SettingApplyMode::Live },
             { "BluetoothHapticStrength", "Bluetooth Haptic Strength", "Additional Bluetooth-only haptic multiplier. USB haptics are unchanged.", SettingApplyMode::Live },
+
+            { "WeaponHaptics", "Weapon Haptics", "Master switch for on-foot weapon vibration only. Damage, boostpack, ship, vehicle, Digipick, adaptive triggers, and controller-speaker audio are unaffected.", SettingApplyMode::Live },
+            { "WeaponHapticsBallisticHandguns", "Ballistic Handguns", "Enable vibration for the ballistic handguns weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsBallisticHandgunsStrength", "Ballistic Handguns Strength", "Multiplier for ballistic handguns vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsRapidBallistics", "Rapid Ballistics", "Enable vibration for the rapid ballistics weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsRapidBallisticsStrength", "Rapid Ballistics Strength", "Multiplier for rapid ballistics vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsBallisticRifles", "Ballistic Rifles", "Enable vibration for the ballistic rifles weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsBallisticRiflesStrength", "Ballistic Rifles Strength", "Multiplier for ballistic rifles vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsPrecisionBallistics", "Precision Ballistics", "Enable vibration for the precision ballistics weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsPrecisionBallisticsStrength", "Precision Ballistics Strength", "Multiplier for precision ballistics vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsShotguns", "Shotguns", "Enable vibration for the shotguns weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsShotgunsStrength", "Shotguns Strength", "Multiplier for shotguns vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsHeavyBallistics", "Heavy Ballistics", "Enable vibration for the heavy ballistics weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsHeavyBallisticsStrength", "Heavy Ballistics Strength", "Multiplier for heavy ballistics vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsLaunchers", "Launchers", "Enable vibration for the launchers weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsLaunchersStrength", "Launchers Strength", "Multiplier for launchers vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsMagnetic", "Magnetic Weapons", "Enable vibration for the magnetic weapons weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsMagneticStrength", "Magnetic Weapons Strength", "Multiplier for magnetic weapons vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsLaser", "Laser Weapons", "Enable vibration for the laser weapons weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsLaserStrength", "Laser Weapons Strength", "Multiplier for laser weapons vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsParticle", "Particle Weapons", "Enable vibration for the particle weapons weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsParticleStrength", "Particle Weapons Strength", "Multiplier for particle weapons vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsSustainedEnergy", "Sustained Energy", "Enable vibration for the sustained energy weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsSustainedEnergyStrength", "Sustained Energy Strength", "Multiplier for sustained energy vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsEM", "EM Weapons", "Enable vibration for the em weapons weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsEMStrength", "EM Weapons Strength", "Multiplier for em weapons vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
+            { "WeaponHapticsMelee", "Melee Weapons", "Enable vibration for the melee weapons weapon group.", SettingApplyMode::Live },
+            { "WeaponHapticsMeleeStrength", "Melee Weapons Strength", "Multiplier for melee weapons vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
 
             { "MusicHapticsEnabled", "Music Haptics", "Enable haptic feedback generated from Starfield's soundtrack.", SettingApplyMode::Live },
             { "MusicHapticsStrength", "Music Haptics Strength", "Controls soundtrack-only vibration strength. Gameplay haptics retain priority.", SettingApplyMode::Live },

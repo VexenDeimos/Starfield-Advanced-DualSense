@@ -143,6 +143,60 @@ sds::Config sds::loadConfig(std::string_view text)
             parseFloat(value, config.hapticStrength, sds::kHapticStrengthSettingMax);
         } else if (key == "BluetoothHapticStrength") {
             parseFloat(value, config.bluetoothHapticStrength);
+        } else if (key == "WeaponHaptics") {
+            parseBool(value, config.weaponHaptics);
+        } else if (key == "WeaponHapticsBallisticHandguns") {
+            parseBool(value, config.weaponHapticsBallisticHandguns);
+        } else if (key == "WeaponHapticsBallisticHandgunsStrength") {
+            parseFloat(value, config.weaponHapticsBallisticHandgunsStrength, 3.0F);
+        } else if (key == "WeaponHapticsRapidBallistics") {
+            parseBool(value, config.weaponHapticsRapidBallistics);
+        } else if (key == "WeaponHapticsRapidBallisticsStrength") {
+            parseFloat(value, config.weaponHapticsRapidBallisticsStrength, 3.0F);
+        } else if (key == "WeaponHapticsBallisticRifles") {
+            parseBool(value, config.weaponHapticsBallisticRifles);
+        } else if (key == "WeaponHapticsBallisticRiflesStrength") {
+            parseFloat(value, config.weaponHapticsBallisticRiflesStrength, 3.0F);
+        } else if (key == "WeaponHapticsPrecisionBallistics") {
+            parseBool(value, config.weaponHapticsPrecisionBallistics);
+        } else if (key == "WeaponHapticsPrecisionBallisticsStrength") {
+            parseFloat(value, config.weaponHapticsPrecisionBallisticsStrength, 3.0F);
+        } else if (key == "WeaponHapticsShotguns") {
+            parseBool(value, config.weaponHapticsShotguns);
+        } else if (key == "WeaponHapticsShotgunsStrength") {
+            parseFloat(value, config.weaponHapticsShotgunsStrength, 3.0F);
+        } else if (key == "WeaponHapticsHeavyBallistics") {
+            parseBool(value, config.weaponHapticsHeavyBallistics);
+        } else if (key == "WeaponHapticsHeavyBallisticsStrength") {
+            parseFloat(value, config.weaponHapticsHeavyBallisticsStrength, 3.0F);
+        } else if (key == "WeaponHapticsLaunchers") {
+            parseBool(value, config.weaponHapticsLaunchers);
+        } else if (key == "WeaponHapticsLaunchersStrength") {
+            parseFloat(value, config.weaponHapticsLaunchersStrength, 3.0F);
+        } else if (key == "WeaponHapticsMagnetic") {
+            parseBool(value, config.weaponHapticsMagnetic);
+        } else if (key == "WeaponHapticsMagneticStrength") {
+            parseFloat(value, config.weaponHapticsMagneticStrength, 3.0F);
+        } else if (key == "WeaponHapticsLaser") {
+            parseBool(value, config.weaponHapticsLaser);
+        } else if (key == "WeaponHapticsLaserStrength") {
+            parseFloat(value, config.weaponHapticsLaserStrength, 3.0F);
+        } else if (key == "WeaponHapticsParticle") {
+            parseBool(value, config.weaponHapticsParticle);
+        } else if (key == "WeaponHapticsParticleStrength") {
+            parseFloat(value, config.weaponHapticsParticleStrength, 3.0F);
+        } else if (key == "WeaponHapticsSustainedEnergy") {
+            parseBool(value, config.weaponHapticsSustainedEnergy);
+        } else if (key == "WeaponHapticsSustainedEnergyStrength") {
+            parseFloat(value, config.weaponHapticsSustainedEnergyStrength, 3.0F);
+        } else if (key == "WeaponHapticsEM") {
+            parseBool(value, config.weaponHapticsEM);
+        } else if (key == "WeaponHapticsEMStrength") {
+            parseFloat(value, config.weaponHapticsEMStrength, 3.0F);
+        } else if (key == "WeaponHapticsMelee") {
+            parseBool(value, config.weaponHapticsMelee);
+        } else if (key == "WeaponHapticsMeleeStrength") {
+            parseFloat(value, config.weaponHapticsMeleeStrength, 3.0F);
         } else if (key == "MusicHapticsEnabled") {
             parseBool(value, config.musicHapticsEnabled);
         } else if (key == "MusicHapticsStrength") {

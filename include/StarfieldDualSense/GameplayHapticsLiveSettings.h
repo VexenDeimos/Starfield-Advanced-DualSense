@@ -13,6 +13,7 @@ namespace sds
         float hapticStrength{ 1.0F };
         bool boostpackHaptics{ true };
         float boostpackHapticsStrength{ 1.0F };
+        Config weaponHapticsConfig{};
 
         friend bool operator==(
             const GameplayHapticsLiveSettings&,
@@ -28,6 +29,7 @@ namespace sds
             .hapticStrength = clampHapticStrengthSetting(config.hapticStrength),
             .boostpackHaptics = config.boostpackHaptics,
             .boostpackHapticsStrength = std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F),
+            .weaponHapticsConfig = config,
         };
     }
 }

@@ -85,7 +85,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.5.2";
+    constexpr std::string_view kVersion = "0.6.0";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -461,6 +461,23 @@ namespace
     void* g_bluetoothShadowDelegate = nullptr;
     std::array<std::uintptr_t, 19> g_bluetoothShadowVtable{};
     bool g_bluetoothShadowDelegateLogged = false;
+    bool g_bluetoothNativeHandoffRefreshPending = false;
+    std::uint32_t g_bluetoothNativeHandoffRefreshAttempts = 0;
+    bool g_bluetoothNativeHandoffExhaustedLogged = false;
+    std::chrono::steady_clock::time_point
+        g_bluetoothNativeHandoffRefreshDue{};
+
+    // USB -> Bluetooth recovery:
+    // Starfield can retain its native USB DualSense delegate after the USB
+    // transport disappears. When one guarded selector refresh still leaves
+    // that known native object installed, temporarily park the pointer and
+    // install SAD's already-proven Bluetooth shadow. Never free or modify the
+    // parked native object's vtable. Restore it when SAD leaves Bluetooth.
+    std::uintptr_t g_bluetoothParkedNativeDelegate = 0;
+    std::uint8_t g_bluetoothParkedNativeActive = 0;
+    std::uint8_t g_bluetoothParkedHandlerPresent = 0;
+    std::int32_t g_bluetoothParkedHandlerStatus = -1;
+
     std::atomic_bool g_startupWeaponBootstrapComplete{ false };
     bool g_weaponAudioPipelineEnabled = false;
     std::filesystem::path g_weaponAudioPipelineDataPath{};
@@ -556,6 +573,8 @@ namespace
     constexpr std::uintptr_t kNativeGamepadSelectorRva = 0x22FE670u;
     constexpr std::uint32_t kNativeDualSenseReselectionSettleMs = 250;
     constexpr std::uint32_t kNativeDualSenseDiscoveryRetryMs = 1000;
+    constexpr std::uint32_t kBluetoothNativeHandoffMaxAttempts = 1;
+    constexpr std::uint32_t kBluetoothNativeHandoffRetryMs = 250;
 
     bool nativeGamepadSelectorSignatureMatches(
         std::uintptr_t selectorAddress) noexcept
@@ -3048,6 +3067,7 @@ if (connected && g_controller->bluetoothTransport()) {
     void removeBluetoothShadowDelegate() noexcept
     {
         if (!g_bluetoothShadowDelegate) {
+            sds::setInputPresentationObserver(nullptr);
             return;
         }
 
@@ -3069,14 +3089,43 @@ if (connected && g_controller->bluetoothTransport()) {
 
                 // Detach before destruction so Starfield can never
                 // call back through an object being torn down.
-                *reinterpret_cast<std::uintptr_t*>(
-                    handler + 0xC0u) = 0;
+                //
+                // If this was a USB -> Bluetooth shadow rebind, restore the
+                // parked Starfield-owned native delegate first. We never
+                // destroy or vtable-modify that native object.
+                if (g_bluetoothParkedNativeDelegate != 0) {
+                    *reinterpret_cast<std::uintptr_t*>(
+                        handler + 0xC0u) =
+                        g_bluetoothParkedNativeDelegate;
 
-                *reinterpret_cast<std::uint8_t*>(
-                    handler + 0xB8u) = 0;
+                    *reinterpret_cast<std::uint8_t*>(
+                        handler + 0xB8u) =
+                        g_bluetoothParkedHandlerPresent;
 
-                *reinterpret_cast<std::int32_t*>(
-                    handler + 0x0Cu) = -1;
+                    *reinterpret_cast<std::int32_t*>(
+                        handler + 0x0Cu) =
+                        g_bluetoothParkedHandlerStatus;
+
+                    *reinterpret_cast<std::uint8_t*>(
+                        g_bluetoothParkedNativeDelegate +
+                        0x08u) =
+                        g_bluetoothParkedNativeActive;
+
+                    pluginLog(
+                        "Bluetooth transport handoff: "
+                        "native-delegate-restored "
+                        "behavior=parked-object-preserved");
+                }
+                else {
+                    *reinterpret_cast<std::uintptr_t*>(
+                        handler + 0xC0u) = 0;
+
+                    *reinterpret_cast<std::uint8_t*>(
+                        handler + 0xB8u) = 0;
+
+                    *reinterpret_cast<std::int32_t*>(
+                        handler + 0x0Cu) = -1;
+                }
 
                 const auto vtable =
                     *reinterpret_cast<std::uintptr_t**>(
@@ -3108,6 +3157,13 @@ if (connected && g_controller->bluetoothTransport()) {
 
         g_bluetoothShadowDelegate = nullptr;
         g_bluetoothShadowDelegateLogged = false;
+
+        g_bluetoothParkedNativeDelegate = 0;
+        g_bluetoothParkedNativeActive = 0;
+        g_bluetoothParkedHandlerPresent = 0;
+        g_bluetoothParkedHandlerStatus = -1;
+
+        sds::setInputPresentationObserver(nullptr);
     }
 
     void applyBluetoothInputPresentationDevice(
@@ -3116,17 +3172,61 @@ if (connected && g_controller->bluetoothTransport()) {
         try {
             if (!g_controller ||
                 !g_controller->connected() ||
-                !g_controller->bluetoothTransport() ||
-                !g_bluetoothShadowDelegate) {
+                !g_controller->bluetoothTransport()) {
 
                 return;
             }
 
-            const auto shadow =
-                reinterpret_cast<std::uintptr_t>(
-                    g_bluetoothShadowDelegate);
+            std::uintptr_t target = 0;
+            const char* targetName = "none";
 
-            if (shadow < 0x10000u) {
+            if (g_bluetoothShadowDelegate) {
+                target =
+                    reinterpret_cast<std::uintptr_t>(
+                        g_bluetoothShadowDelegate);
+                targetName = "shadow";
+            }
+            else {
+                const auto handler =
+                    g_bluetoothPresentationHandlerAddress;
+
+                if (handler < 0x10000u) {
+                    return;
+                }
+
+                std::uintptr_t retainedDelegate = 0;
+                if (!readGamepadProbePointer(
+                        handler + 0xC0u,
+                        retainedDelegate) ||
+                    retainedDelegate < 0x10000u) {
+
+                    return;
+                }
+
+                std::uintptr_t retainedVtable = 0;
+                if (!readGamepadProbePointer(
+                        retainedDelegate,
+                        retainedVtable)) {
+
+                    return;
+                }
+
+                const auto retainedKind =
+                    classifyGamepadProbeVtable(
+                        retainedVtable,
+                        gamepadProbeVtables());
+
+                if (retainedKind != GamepadProbeKind::DualSense &&
+                    retainedKind != GamepadProbeKind::GenericGamepad) {
+
+                    return;
+                }
+
+                target = retainedDelegate;
+                targetName = "native-retained";
+            }
+
+            if (target < 0x10000u) {
                 return;
             }
 
@@ -3138,7 +3238,7 @@ if (connected && g_controller->bluetoothTransport()) {
 
             auto* activeFlag =
                 reinterpret_cast<std::uint8_t*>(
-                    shadow + 0x08u);
+                    target + 0x08u);
 
             if (*activeFlag == desired) {
                 return;
@@ -3146,10 +3246,15 @@ if (connected && g_controller->bluetoothTransport()) {
 
             *activeFlag = desired;
 
-            pluginLog(
-                desired != 0 ?
-                    "Bluetooth input presentation: device=gamepad shadowActive=1" :
-                    "Bluetooth input presentation: device=keyboard-mouse shadowActive=0");
+            std::ostringstream line;
+            line
+                << "Bluetooth input presentation: device="
+                << (desired != 0 ? "gamepad" : "keyboard-mouse")
+                << " active="
+                << static_cast<unsigned>(desired)
+                << " target="
+                << targetName;
+            pluginLog(line.str());
         }
         catch (...) {
             pluginLog(
@@ -3209,15 +3314,289 @@ if (connected && g_controller->bluetoothTransport()) {
         }
 
         if (existingDelegate != 0) {
-            // Never replace a real Starfield delegate.
-            return false;
+            std::uintptr_t existingVtable = 0;
+            (void)readGamepadProbePointer(
+                existingDelegate,
+                existingVtable);
+
+            auto existingKind =
+                classifyGamepadProbeVtable(
+                    existingVtable,
+                    known);
+
+            const bool staleNativeCandidate =
+                existingKind == GamepadProbeKind::DualSense ||
+                existingKind == GamepadProbeKind::GenericGamepad;
+
+            if (!staleNativeCandidate) {
+                // Never overwrite or destroy a real Starfield delegate.
+                return false;
+            }
+
+            const auto now =
+                std::chrono::steady_clock::now();
+
+            if (g_bluetoothNativeHandoffRefreshAttempts >=
+                kBluetoothNativeHandoffMaxAttempts) {
+
+                if (g_bluetoothParkedNativeDelegate != 0) {
+                    return false;
+                }
+
+                std::uintptr_t currentDelegate = 0;
+                if (!readGamepadProbePointer(
+                        handler + 0xC0u,
+                        currentDelegate) ||
+                    currentDelegate != existingDelegate) {
+
+                    pluginLog(
+                        "Bluetooth transport handoff: "
+                        "native-delegate-park skipped "
+                        "reason=handler-changed behavior=fail-safe");
+                    return false;
+                }
+
+                g_bluetoothParkedNativeDelegate =
+                    existingDelegate;
+
+                g_bluetoothParkedNativeActive =
+                    *reinterpret_cast<std::uint8_t*>(
+                        existingDelegate + 0x08u);
+
+                g_bluetoothParkedHandlerPresent =
+                    *reinterpret_cast<std::uint8_t*>(
+                        handler + 0xB8u);
+
+                g_bluetoothParkedHandlerStatus =
+                    *reinterpret_cast<std::int32_t*>(
+                        handler + 0x0Cu);
+
+                // Detach only the handler pointer. The native Starfield
+                // delegate stays alive and untouched while SAD's Bluetooth
+                // shadow is installed.
+                *reinterpret_cast<std::uintptr_t*>(
+                    handler + 0xC0u) = 0;
+
+                *reinterpret_cast<std::uint8_t*>(
+                    handler + 0xB8u) = 0;
+
+                *reinterpret_cast<std::int32_t*>(
+                    handler + 0x0Cu) = -1;
+
+                existingDelegate = 0;
+
+                pluginLog(
+                    "Bluetooth transport handoff: "
+                    "native-delegate-parked "
+                    "kind=DualSense "
+                    "behavior=temporary-shadow-rebind");
+            }
+
+            if (!g_bluetoothNativeHandoffRefreshPending) {
+                g_bluetoothNativeHandoffRefreshPending = true;
+                g_bluetoothNativeHandoffRefreshDue =
+                    now + std::chrono::milliseconds(
+                        kBluetoothNativeHandoffRetryMs);
+
+                if (g_bluetoothNativeHandoffRefreshAttempts == 0) {
+                    std::ostringstream line;
+                    line
+                        << "Bluetooth transport handoff:"
+                        << " state=scheduled"
+                        << " before="
+                        << gamepadProbeKindName(existingKind)
+                        << " settleMs="
+                        << kBluetoothNativeHandoffRetryMs
+                        << " attempts=0/"
+                        << kBluetoothNativeHandoffMaxAttempts;
+                    pluginLog(line.str());
+                }
+
+                return false;
+            }
+
+            if (now <
+                g_bluetoothNativeHandoffRefreshDue) {
+                return false;
+            }
+
+            g_bluetoothNativeHandoffRefreshPending = false;
+
+            const auto starfieldBase =
+                reinterpret_cast<std::uintptr_t>(
+                    GetModuleHandleW(nullptr));
+
+            if (starfieldBase == 0) {
+                pluginLog(
+                    "Bluetooth transport handoff: "
+                    "native-selector-refresh=skipped "
+                    "reason=no-starfield-base "
+                    "behavior=fail-safe");
+                g_bluetoothNativeHandoffRefreshAttempts =
+                    kBluetoothNativeHandoffMaxAttempts;
+                return false;
+            }
+
+            const auto selectorAddress =
+                starfieldBase +
+                kNativeGamepadSelectorRva;
+
+            if (!nativeGamepadSelectorSignatureMatches(
+                    selectorAddress)) {
+
+                pluginLog(
+                    "Bluetooth transport handoff: "
+                    "native-selector-refresh=skipped "
+                    "reason=selector-signature-mismatch "
+                    "behavior=fail-safe");
+                g_bluetoothNativeHandoffRefreshAttempts =
+                    kBluetoothNativeHandoffMaxAttempts;
+                return false;
+            }
+
+            using NativeGamepadSelector =
+                void (*)(void*);
+
+            const auto selector =
+                reinterpret_cast<
+                    NativeGamepadSelector>(
+                        selectorAddress);
+
+            selector(
+                reinterpret_cast<void*>(
+                    handler));
+
+            ++g_bluetoothNativeHandoffRefreshAttempts;
+
+            existingDelegate = 0;
+            existingVtable = 0;
+
+            (void)readGamepadProbePointer(
+                handler + 0xC0u,
+                existingDelegate);
+
+            if (existingDelegate != 0) {
+                (void)readGamepadProbePointer(
+                    existingDelegate,
+                    existingVtable);
+            }
+
+            existingKind =
+                classifyGamepadProbeVtable(
+                    existingVtable,
+                    known);
+
+            if (existingDelegate == 0) {
+                std::ostringstream line;
+                line
+                    << "Bluetooth transport handoff:"
+                    << " native-selector-refresh=done"
+                    << " after=None"
+                    << " attempts="
+                    << g_bluetoothNativeHandoffRefreshAttempts
+                    << "/"
+                    << kBluetoothNativeHandoffMaxAttempts
+                    << " result=handler-free";
+                pluginLog(line.str());
+            }
+            else if (
+                g_bluetoothNativeHandoffRefreshAttempts <
+                    kBluetoothNativeHandoffMaxAttempts &&
+                (existingKind == GamepadProbeKind::DualSense ||
+                 existingKind == GamepadProbeKind::GenericGamepad)) {
+
+                g_bluetoothNativeHandoffRefreshPending = true;
+                g_bluetoothNativeHandoffRefreshDue =
+                    now + std::chrono::milliseconds(
+                        kBluetoothNativeHandoffRetryMs);
+
+                std::ostringstream line;
+                line
+                    << "Bluetooth transport handoff:"
+                    << " native-selector-refresh=done"
+                    << " after="
+                    << gamepadProbeKindName(existingKind)
+                    << " attempts="
+                    << g_bluetoothNativeHandoffRefreshAttempts
+                    << "/"
+                    << kBluetoothNativeHandoffMaxAttempts
+                    << " result=retry-scheduled";
+                pluginLog(line.str());
+
+                return false;
+            }
+            else {
+                std::ostringstream line;
+                line
+                    << "Bluetooth transport handoff:"
+                    << " native-selector-refresh=done"
+                    << " after="
+                    << gamepadProbeKindName(existingKind)
+                    << " attempts="
+                    << g_bluetoothNativeHandoffRefreshAttempts
+                    << "/"
+                    << kBluetoothNativeHandoffMaxAttempts
+                    << " result=";
+
+                if (g_bluetoothNativeHandoffRefreshAttempts >=
+                    kBluetoothNativeHandoffMaxAttempts) {
+                    line << "exhausted-fail-safe";
+                    g_bluetoothNativeHandoffExhaustedLogged = true;
+                }
+                else {
+                    line << "delegate-changed-fail-safe";
+                }
+
+                pluginLog(line.str());
+
+                // Never overwrite or destroy a real Starfield delegate.
+                return false;
+            }
         }
+
+        auto restoreParkedNativeOnInstallFailure =
+            [&]() noexcept
+        {
+            if (g_bluetoothParkedNativeDelegate == 0) {
+                return;
+            }
+
+            std::uintptr_t currentDelegate = 0;
+            (void)readGamepadProbePointer(
+                handler + 0xC0u,
+                currentDelegate);
+
+            if (currentDelegate == 0) {
+                *reinterpret_cast<std::uintptr_t*>(
+                    handler + 0xC0u) =
+                    g_bluetoothParkedNativeDelegate;
+
+                *reinterpret_cast<std::uint8_t*>(
+                    handler + 0xB8u) =
+                    g_bluetoothParkedHandlerPresent;
+
+                *reinterpret_cast<std::int32_t*>(
+                    handler + 0x0Cu) =
+                    g_bluetoothParkedHandlerStatus;
+
+                *reinterpret_cast<std::uint8_t*>(
+                    g_bluetoothParkedNativeDelegate +
+                    0x08u) =
+                    g_bluetoothParkedNativeActive;
+            }
+
+            g_bluetoothParkedNativeDelegate = 0;
+            g_bluetoothParkedNativeActive = 0;
+            g_bluetoothParkedHandlerPresent = 0;
+            g_bluetoothParkedHandlerStatus = -1;
+        };
 
         const auto module =
             reinterpret_cast<std::uintptr_t>(
                 GetModuleHandleW(nullptr));
 
         if (module == 0) {
+            restoreParkedNativeOnInstallFailure();
             return false;
         }
 
@@ -3253,6 +3632,7 @@ if (connected && g_controller->bluetoothTransport()) {
             pluginLog(
                 "Bluetooth shadow delegate: SKIPPED "
                 "reason=allocation-failed");
+            restoreParkedNativeOnInstallFailure();
             return false;
         }
 
@@ -3265,6 +3645,7 @@ if (connected && g_controller->bluetoothTransport()) {
             pluginLog(
                 "Bluetooth shadow delegate: SKIPPED "
                 "reason=constructor-failed");
+            restoreParkedNativeOnInstallFailure();
             return false;
         }
 
@@ -3402,6 +3783,11 @@ if (connected && g_controller->bluetoothTransport()) {
                 "parser=Starfield+0x22FB890");
         }
 
+        g_bluetoothNativeHandoffRefreshPending = false;
+        g_bluetoothNativeHandoffRefreshAttempts = 0;
+        g_bluetoothNativeHandoffExhaustedLogged = false;
+        g_bluetoothNativeHandoffRefreshDue = {};
+
         g_bluetoothShadowDelegate =
             shadow;
 
@@ -3425,9 +3811,20 @@ if (connected && g_controller->bluetoothTransport()) {
                 !g_controller->connected() ||
                 !g_controller->bluetoothTransport()) {
 
+                g_bluetoothNativeHandoffRefreshPending = false;
+                g_bluetoothNativeHandoffRefreshAttempts = 0;
+                g_bluetoothNativeHandoffExhaustedLogged = false;
+                g_bluetoothNativeHandoffRefreshDue = {};
+
                 removeBluetoothShadowDelegate();
                 return;
             }
+
+            // Presentation switching must remain available even when
+            // Starfield retains its native USB DualSense delegate and the SAD
+            // shadow cannot be reinstalled.
+            sds::setInputPresentationObserver(
+                &applyBluetoothInputPresentationDevice);
 
             if (!installBluetoothShadowDelegate()) {
                 return;
@@ -3457,6 +3854,8 @@ if (connected && g_controller->bluetoothTransport()) {
                     "reason=handler-delegate-changed");
 
                 g_bluetoothShadowDelegate = nullptr;
+                g_bluetoothShadowDelegateLogged = false;
+                sds::setInputPresentationObserver(nullptr);
                 return;
             }
 
@@ -3700,6 +4099,7 @@ if (connected && g_controller->bluetoothTransport()) {
     {
         static bool active = false;
         static bool activationLogged = false;
+        static bool shadowlessFallbackLogged = false;
         static std::uint64_t lastGeneration = 0;
         static auto lastDispatch =
             std::chrono::steady_clock::time_point{};
@@ -3718,6 +4118,7 @@ if (connected && g_controller->bluetoothTransport()) {
             }
 
             active = false;
+            shadowlessFallbackLogged = false;
             lastGeneration = 0;
             lastDispatch = {};
             return;
@@ -3740,25 +4141,38 @@ if (connected && g_controller->bluetoothTransport()) {
                     now - lastDispatch).count();
         }
 
-        // L3 and Circle are intentionally excluded from runtime-tick
-        // publication in this experiment. Their native transition helper
-        // now runs from Starfield's slot2 gamepad-poll timing instead.
-        //
-        // All analog input and every other button remain on the proven
-        // runtime-tick replay cadence.
+        // When the SAD shadow owns Starfield slot 2, L3 and Circle keep
+        // their native-poll transition timing. If Starfield retains a stale
+        // native USB delegate after a USB -> Bluetooth handoff, do not lose
+        // those buttons: fall back to the proven runtime physical-event path.
+        const bool shadowTimingAvailable =
+            g_bluetoothShadowDelegate != nullptr;
+
         auto replayState =
             snapshot->state;
 
-        replayState.l3 =
-            false;
+        if (shadowTimingAvailable) {
+            replayState.l3 =
+                false;
 
-        replayState.circle =
-            false;
+            replayState.circle =
+                false;
+        }
+        else if (!shadowlessFallbackLogged) {
+            pluginLog(
+                "Bluetooth gameplay input bridge: SHADOWLESS-FALLBACK "
+                "reason=native-delegate-retained "
+                "buttons=all-runtime sticks=runtime "
+                "scanner=native-slot2-unavailable");
+            shadowlessFallbackLogged = true;
+        }
 
         g_gameState->dispatchBluetoothPhysicalInput(
             replayState,
             deltaSeconds,
-            g_bluetoothShadowDelegate);
+            shadowTimingAvailable ?
+                g_bluetoothShadowDelegate :
+                nullptr);
 
         lastGeneration = snapshot->generation;
         lastDispatch = now;
@@ -3784,8 +4198,8 @@ if (connected && g_controller->bluetoothTransport()) {
             return;
         }
 
-        updateNativeDualSenseReselection(std::chrono::steady_clock::now());
         updateBluetoothShadowDelegate();
+        updateNativeDualSenseReselection(std::chrono::steady_clock::now());
         updateBluetoothGameplayInputBridge(std::chrono::steady_clock::now());
 
         if (g_controller) {

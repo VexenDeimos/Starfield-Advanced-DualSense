@@ -35,6 +35,8 @@ namespace sds
         bool setTriggers(const TriggerEffect& left, const TriggerEffect& right) override;
         bool setOutputState(const OutputState& state) override;
         bool setControllerSpeakerRoutingEnabled(bool enabled) override;
+        void prepareTransportHandoff(
+            ConnectionType previous) noexcept override;
         void resetOutputs() noexcept override;
 
     private:

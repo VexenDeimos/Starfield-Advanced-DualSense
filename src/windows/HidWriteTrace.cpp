@@ -346,6 +346,7 @@ namespace
         if (state.active.load(std::memory_order_acquire) && buffer && bytesToWrite == 48) {
             auto* mutableBuffer = const_cast<std::uint8_t*>(
                 static_cast<const std::uint8_t*>(buffer));
+
             const auto ownership = sds::filterCompetingNativeDualSenseWriteInPlace(
                 std::span<std::uint8_t>(mutableBuffer, bytesToWrite),
                 isTargetHandle(file),
@@ -860,6 +861,45 @@ void sds::HidWriteTrace::start(void* nativeHandle, LogCallback log) noexcept
     } catch (...) {
         emit("HID trace: startup threw; competing-write capture disabled");
         stop();
+    }
+}
+
+
+void sds::HidWriteTrace::refresh(void* nativeHandle) noexcept
+{
+    try {
+        auto& state = traceState();
+        if (!state.active.load(std::memory_order_acquire)) {
+            return;
+        }
+
+        HANDLE ownHandle = static_cast<HANDLE>(nativeHandle);
+        if (!ownHandle || ownHandle == INVALID_HANDLE_VALUE) {
+            return;
+        }
+
+        std::array<std::uintptr_t, kMaxTargetHandles> previousTargets{};
+        for (std::size_t i = 0; i < previousTargets.size(); ++i) {
+            previousTargets[i] =
+                state.targetHandles[i].load(std::memory_order_acquire);
+        }
+        const auto previousOwnHandle =
+            state.ownHandle.load(std::memory_order_acquire);
+
+        if (!refreshTargetHandles(ownHandle)) {
+            for (std::size_t i = 0; i < previousTargets.size(); ++i) {
+                state.targetHandles[i].store(
+                    previousTargets[i],
+                    std::memory_order_release);
+            }
+            state.ownHandle.store(previousOwnHandle, std::memory_order_release);
+            emit("HID arbitration: target-handle refresh failed; previous ownership set preserved");
+            return;
+        }
+
+        emit("HID arbitration: target-handle refresh complete without IAT rehook");
+    } catch (...) {
+        emit("HID arbitration: target-handle refresh threw; existing ownership set retained where possible");
     }
 }
 

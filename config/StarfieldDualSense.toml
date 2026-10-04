@@ -1,4 +1,4 @@
-# Starfield DualSense v0.5.2
+# Starfield DualSense v0.6.0
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -45,6 +45,79 @@ HapticStrength = 1.0
 # Effective Bluetooth feedback = normal SAD haptics * this value.
 # USB haptics are unaffected. Valid range: 0.0-1.0
 BluetoothHapticStrength = 1.0
+
+# =============================================================================
+# WEAPON HAPTICS
+# =============================================================================
+# Master switch for on-foot weapon vibration only.
+# This does not disable damage, boostpack, ship, vehicle, Digipick,
+# adaptive-trigger effects, or controller-speaker audio.
+WeaponHaptics = true
+
+# Ballistic Handguns
+WeaponHapticsBallisticHandguns = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsBallisticHandgunsStrength = 1.0
+
+# Rapid Ballistics
+WeaponHapticsRapidBallistics = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsRapidBallisticsStrength = 1.0
+
+# Ballistic Rifles
+WeaponHapticsBallisticRifles = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsBallisticRiflesStrength = 1.0
+
+# Precision Ballistics
+WeaponHapticsPrecisionBallistics = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsPrecisionBallisticsStrength = 1.0
+
+# Shotguns
+WeaponHapticsShotguns = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsShotgunsStrength = 1.0
+
+# Heavy Ballistics
+WeaponHapticsHeavyBallistics = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsHeavyBallisticsStrength = 1.0
+
+# Launchers
+WeaponHapticsLaunchers = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsLaunchersStrength = 1.0
+
+# Magnetic Weapons
+WeaponHapticsMagnetic = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsMagneticStrength = 1.0
+
+# Laser Weapons
+WeaponHapticsLaser = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsLaserStrength = 1.0
+
+# Particle Weapons
+WeaponHapticsParticle = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsParticleStrength = 1.0
+
+# Sustained Energy
+WeaponHapticsSustainedEnergy = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsSustainedEnergyStrength = 1.0
+
+# EM Weapons
+WeaponHapticsEM = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsEMStrength = 1.0
+
+# Melee Weapons
+WeaponHapticsMelee = true
+# Group multiplier on top of HapticStrength. Valid range: 0.0-3.0
+WeaponHapticsMeleeStrength = 1.0
 
 # Boostpack-only haptics. The boostpack strength is multiplied by the global
 # HapticStrength setting above. Valid boostpack range: 0.0-3.0

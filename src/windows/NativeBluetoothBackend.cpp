@@ -53,6 +53,7 @@ struct sds::NativeBluetoothBackend::Impl
     bool lightbarInitialized{ false };
     bool lightbarStartupReady{ false };
     bool lightbarReleasePending{ false };
+    bool transportHandoffLedReleasePending{ false };
     std::chrono::steady_clock::time_point connectionEstablishedAt{};
     std::uint16_t outputReportLength{ 0 };
     std::uint16_t featureReportLength{ 0 };
@@ -100,6 +101,7 @@ struct sds::NativeBluetoothBackend::Impl
         lightbarInitialized = false;
         lightbarStartupReady = false;
         lightbarReleasePending = false;
+        transportHandoffLedReleasePending = false;
         connectionEstablishedAt = {};
         outputReportLength = 0;
         featureReportLength = 0;
@@ -214,6 +216,31 @@ struct sds::NativeBluetoothBackend::Impl
 
     bool writeCurrentOutput(bool includeLightbar = true, bool forceCompatibleRumble = false)
     {
+        if (includeLightbar &&
+            lightbarStartupReady &&
+            lightbarInitialized &&
+            transportHandoffLedReleasePending) {
+
+            const auto release =
+                buildBluetoothLightbarReleaseReport(
+                    nextSequence());
+
+            if (!writeReport(
+                    release,
+                    "release-leds")) {
+                return false;
+            }
+
+            transportHandoffLedReleasePending =
+                false;
+
+            // Do not duplicate RELEASE_LEDS on the following RGB packet.
+            lightbarReleasePending = false;
+
+            writeLog(
+                "Bluetooth LED takeover: transport handoff standalone RELEASE_LEDS");
+        }
+
         auto report =
             buildBluetoothOutputReport(
                 output,
@@ -766,6 +793,24 @@ bool sds::NativeBluetoothBackend::setCompatibleRumble(
         includeLightbar,
         true);
 }
+void sds::NativeBluetoothBackend::prepareTransportHandoff(
+    ConnectionType previous) noexcept
+{
+    if (!_impl ||
+        _impl->presenceOnly ||
+        !connected() ||
+        previous != ConnectionType::Usb) {
+
+        return;
+    }
+
+    _impl->transportHandoffLedReleasePending =
+        true;
+
+    _impl->writeLog(
+        "Native Bluetooth: transport handoff LED re-prime armed previous=USB");
+}
+
 void sds::NativeBluetoothBackend::resetOutputs() noexcept
 {
     if (!connected() || _impl->presenceOnly) {

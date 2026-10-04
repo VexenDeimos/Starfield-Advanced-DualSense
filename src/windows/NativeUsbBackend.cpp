@@ -17,6 +17,7 @@
 #include <setupapi.h>
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -57,9 +58,14 @@ struct sds::NativeUsbBackend::Impl
     bool lightbarInitialized{ false };
     std::uint16_t outputReportLength{ 0 };
     std::uint64_t txSequence{ 0 };
+    bool hidOwnershipRefreshFirstPending{ false };
+    bool hidOwnershipRefreshSecondPending{ false };
+    std::chrono::steady_clock::time_point hidOwnershipRefreshFirstDue{};
+    std::chrono::steady_clock::time_point hidOwnershipRefreshSecondDue{};
     bool speakerRoutingRequested{ false };
     bool speakerRoutingActive{ false };
     bool presenceOnly{ false };
+    bool transportHandoffLedReleasePending{ false };
 
     void writeLog(std::string_view message) const
     {
@@ -74,6 +80,10 @@ struct sds::NativeUsbBackend::Impl
 
     void markDisconnected() noexcept
     {
+        if (!presenceOnly) {
+            HidWriteTrace::stop();
+        }
+
         if (handle != INVALID_HANDLE_VALUE) {
             if (readPending) {
                 CancelIoEx(handle, &overlapped);
@@ -92,7 +102,12 @@ struct sds::NativeUsbBackend::Impl
         lightbarInitialized = false;
         outputReportLength = 0;
         txSequence = 0;
+        hidOwnershipRefreshFirstPending = false;
+        hidOwnershipRefreshSecondPending = false;
+        hidOwnershipRefreshFirstDue = {};
+        hidOwnershipRefreshSecondDue = {};
         speakerRoutingActive = false;
+        transportHandoffLedReleasePending = false;
     }
 
     bool writeReport(
@@ -116,18 +131,48 @@ struct sds::NativeUsbBackend::Impl
         writeOverlapped.hEvent = event;
 
         const auto sequence = ++txSequence;
+
+        // Standard DualSense USB uses the 48-byte payload below. DualSense
+        // Edge reports a larger USB output length (64 bytes on field-tested
+        // hardware), and Windows requires WriteFile to submit that full size.
+        // Preserve the proven 48-byte payload exactly and zero-pad only the
+        // unused tail when HID caps advertise a larger report.
+        const auto sendLength =
+            outputReportLength > report.size() ?
+                static_cast<std::size_t>(outputReportLength) :
+                report.size();
+
+        const bool padded =
+            sendLength > report.size();
+
+        std::vector<std::uint8_t> paddedReport;
+        const void* sendBuffer =
+            report.data();
+
+        if (padded) {
+            paddedReport.assign(sendLength, 0U);
+            std::memcpy(
+                paddedReport.data(),
+                report.data(),
+                report.size());
+            sendBuffer =
+                paddedReport.data();
+        }
+
         writeLog(
             std::string("Native USB TX #") + std::to_string(sequence) +
             " kind=" + std::string(kind) + " requested=" +
+            std::to_string(sendLength) + " baseReport=" +
             std::to_string(report.size()) + " capsOut=" +
-            std::to_string(outputReportLength) + " " +
+            std::to_string(outputReportLength) + " padded=" +
+            (padded ? "yes" : "no") + " " +
             describeUsbOutputReport(report));
 
         DWORD bytesWritten = 0;
         BOOL ok = WriteFile(
             handle,
-            report.data(),
-            static_cast<DWORD>(report.size()),
+            sendBuffer,
+            static_cast<DWORD>(sendLength),
             &bytesWritten,
             &writeOverlapped);
 
@@ -143,7 +188,7 @@ struct sds::NativeUsbBackend::Impl
 
         CloseHandle(event);
 
-        if (!ok || bytesWritten != report.size()) {
+        if (!ok || bytesWritten != sendLength) {
             writeLog(
                 std::string("Native USB TX #") + std::to_string(sequence) +
                 " result=FAIL bytesWritten=" + std::to_string(bytesWritten) +
@@ -172,6 +217,30 @@ struct sds::NativeUsbBackend::Impl
             return false;
         }
         lightbarInitialized = true;
+
+        if (transportHandoffLedReleasePending) {
+            std::array<
+                std::uint8_t,
+                kDualSenseUsbOutputReportSize> release{};
+
+            release[0] = 0x02U;
+            // report[2] is common valid_flag_1.
+            // RELEASE_LEDS is bit 3 and is intentionally sent alone.
+            release[2] = 0x08U;
+
+            if (!writeReport(
+                    release,
+                    "release-leds")) {
+                return false;
+            }
+
+            transportHandoffLedReleasePending =
+                false;
+
+            writeLog(
+                "Native USB: transport handoff LED ownership RELEASE_LEDS");
+        }
+
         return true;
     }
 
@@ -213,8 +282,52 @@ struct sds::NativeUsbBackend::Impl
         return ok;
     }
 
+    void armHidOwnershipRefresh()
+    {
+        const auto now = std::chrono::steady_clock::now();
+        hidOwnershipRefreshFirstDue =
+            now + std::chrono::milliseconds(500);
+        hidOwnershipRefreshSecondDue =
+            now + std::chrono::milliseconds(1500);
+        hidOwnershipRefreshFirstPending = true;
+        hidOwnershipRefreshSecondPending = true;
+        writeLog(
+            "Native USB: transport handoff HID ownership refresh armed "
+            "previous=Bluetooth delaysMs=500,1500 rehook=no");
+    }
+
+    void serviceHidOwnershipRefresh()
+    {
+        if (handle == INVALID_HANDLE_VALUE ||
+            (!hidOwnershipRefreshFirstPending &&
+             !hidOwnershipRefreshSecondPending)) {
+            return;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+
+        if (hidOwnershipRefreshFirstPending &&
+            now >= hidOwnershipRefreshFirstDue) {
+            HidWriteTrace::refresh(handle);
+            hidOwnershipRefreshFirstPending = false;
+            writeLog(
+                "Native USB: HID ownership refresh pass=1/2 "
+                "reason=post-Bluetooth-USB-late-handle");
+        }
+
+        if (hidOwnershipRefreshSecondPending &&
+            now >= hidOwnershipRefreshSecondDue) {
+            HidWriteTrace::refresh(handle);
+            hidOwnershipRefreshSecondPending = false;
+            writeLog(
+                "Native USB: HID ownership refresh pass=2/2 "
+                "reason=post-Bluetooth-USB-final");
+        }
+    }
+
     bool writeCurrentOutput()
     {
+        serviceHidOwnershipRefresh();
         auto report = buildUsbOutputReport(output);
         if (speakerRoutingActive) {
             applyUsbInternalSpeakerRouting(report);
@@ -622,6 +735,36 @@ bool sds::NativeUsbBackend::setControllerSpeakerRoutingEnabled(bool enabled)
     return enabled ?
         _impl->establishSpeakerRouting() :
         _impl->clearSpeakerRouting();
+}
+
+void sds::NativeUsbBackend::prepareTransportHandoff(
+    ConnectionType previous) noexcept
+{
+    if (!_impl ||
+        _impl->presenceOnly ||
+        !connected() ||
+        previous != ConnectionType::Bluetooth) {
+
+        return;
+    }
+
+    // The controller already carries a valid LED state across the physical
+    // Bluetooth -> USB transition. Hardware testing showed that forcing the
+    // USB LIGHTBAR_SETUP/LIGHT_OFF + RELEASE_LEDS sequence at this point is
+    // exactly when the previously-correct LEDs disappear.
+    //
+    // Preserve that controller-owned state for the handoff and let the first
+    // ordinary steady packet update RGB/player indicators directly.
+    _impl->transportHandoffLedReleasePending =
+        false;
+
+    _impl->lightbarInitialized =
+        true;
+
+    _impl->writeLog(
+        "Native USB: transport handoff LED preserve mode "
+        "previous=Bluetooth setup=skip release=skip behavior=steady-only");
+    _impl->armHidOwnershipRefresh();
 }
 
 void sds::NativeUsbBackend::resetOutputs() noexcept

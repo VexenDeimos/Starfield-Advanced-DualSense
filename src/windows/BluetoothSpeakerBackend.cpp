@@ -76,6 +76,9 @@ namespace
     constexpr int kPostrollPackets =
         8;
 
+    constexpr auto kStreamIdleGrace =
+        std::chrono::milliseconds(500);
+
     constexpr auto kAudioTick =
         std::chrono::nanoseconds(
             10'666'667);
@@ -1398,6 +1401,62 @@ struct sds::BluetoothSpeakerBackend::Impl
                         next);
 
                     if (emptyAfterRender) {
+                        std::array<
+                            std::uint8_t,
+                            kOpusBytes>
+                            silence{};
+
+                        if (!encodeSilence(
+                                silence)) {
+
+                            writeFailure = true;
+                            break;
+                        }
+
+                        const auto idleDeadline =
+                            std::chrono::steady_clock::now() +
+                            kStreamIdleGrace;
+
+                        bool resumedDuringIdleGrace =
+                            false;
+
+                        while (running.load(
+                                   std::memory_order_acquire) &&
+                               std::chrono::steady_clock::now() <
+                                   idleDeadline) {
+
+                            if (mixerHasWork()) {
+                                resumedDuringIdleGrace =
+                                    true;
+                                break;
+                            }
+
+                            if (!writeReport(
+                                    buildAudioReport(
+                                        audioSequence,
+                                        packetCounter,
+                                        silence),
+                                    "audio-idle-grace")) {
+
+                                writeFailure = true;
+                                break;
+                            }
+
+                            next +=
+                                kAudioTick;
+
+                            waitUntil(
+                                next);
+                        }
+
+                        if (writeFailure) {
+                            break;
+                        }
+
+                        if (resumedDuringIdleGrace) {
+                            continue;
+                        }
+
                         break;
                     }
                 }

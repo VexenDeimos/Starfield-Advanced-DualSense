@@ -63,7 +63,9 @@ sds::HapticsManager::HapticsManager(Config config, BackendFactory backendFactory
     _backendFactory(std::move(backendFactory)),
     _log(std::move(log)),
     _engine(config.hapticStrength)
-{}
+{
+    (void)_engine.setWeaponHapticsConfig(config);
+}
 
 sds::HapticsManager::~HapticsManager()
 {
@@ -128,9 +130,13 @@ void sds::HapticsManager::applyLiveSettings(
             _hapticStrength.exchange(effectiveStrength, std::memory_order_acq_rel);
         const bool strengthChanged = previousStrength != effectiveStrength;
 
+        bool weaponSettingsChanged = false;
         {
             std::scoped_lock lock(_engineMutex);
             _engine.setHapticStrength(settings.hapticStrength);
+            weaponSettingsChanged =
+                _engine.setWeaponHapticsConfig(
+                    settings.weaponHapticsConfig);
         }
 
         if (!settings.advancedHaptics) {
@@ -155,7 +161,8 @@ void sds::HapticsManager::applyLiveSettings(
         _advancedHapticsEnabled.store(true, std::memory_order_release);
 
         if (wasEnabled && !strengthChanged && !boostpackEnabledChanged &&
-            !boostpackStrengthChanged && !backendStartedNow) {
+            !boostpackStrengthChanged && !weaponSettingsChanged &&
+            !backendStartedNow) {
             return;
         }
 

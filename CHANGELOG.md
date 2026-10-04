@@ -1,3 +1,36 @@
+## 0.6.0 - 2026-10-04
+
+### Controller transport, reconnect, and input
+
+- Hardened the full DualSense USB <-> Bluetooth lifecycle so SAD can move between transports without losing PlayStation glyphs, controller input, right-stick camera behavior, or the active DualSense presentation.
+- Added reversible Bluetooth shadow rebind/restore handling for Starfield's retained native controller delegate instead of destroying or replacing Starfield-owned state.
+- Fixed USB -> Bluetooth -> USB lightbar and battery-player-LED ownership loss by refreshing Starfield's matching HID handles at 500 ms and 1500 ms after the return to USB.
+- Preserved controller LED state during Bluetooth -> USB handoff without replaying the old LIGHTBAR_SETUP / LIGHT_OFF / RELEASE_LEDS sequence that could blank the lights and briefly stall the game.
+- Fixed land-vehicle acceleration pulsing, over-sensitive/stuttering vehicle camera input, and map/cursor speed while a vehicle is active.
+- Kept menu/scanner cadence behavior isolated from the normal land-vehicle fast path.
+
+### DualSense Edge
+
+- Added DualSense Edge USB output-report size negotiation and zero-padding. Edge controllers that report a 64-byte USB output report now receive the full HID-reported size while the standard DualSense remains on its normal 48-byte path.
+- Preserved the same SAD feature set and output payload semantics across standard DualSense and DualSense Edge hardware. Edge rear paddles and Fn controls are not separately mapped by SAD.
+- **Special thanks to Nexus user [CUZZINCHIZZY](https://next.nexusmods.com/profile/CUZZINCHIZZY)**, who identified the DualSense Edge USB output-size fix by confirming that padding SAD's normal 48-byte USB report to the Edge's HID-reported 64-byte output size restored full controller functionality.
+
+### Weapon haptics
+
+- Added a dedicated **Weapon Haptics** SFSE menu tab plus matching TOML settings.
+- Added `WeaponHaptics` as a master switch for on-foot weapon vibration without disabling damage, boostpack, ship, vehicle, Digipick, adaptive-trigger, or controller-speaker feedback.
+- Added independent enable/disable controls for 13 weapon families: Ballistic Handguns, Rapid Ballistics, Ballistic Rifles, Precision Ballistics, Shotguns, Heavy Ballistics, Launchers, Magnetic, Laser, Particle, Sustained Energy, EM, and Melee.
+- Added a `0.0-3.0` strength multiplier for every weapon family. Family strength applies to both USB and Bluetooth weapon haptics while preserving the global haptic controls.
+- Retuned the Eon and the rest of the ballistic-handgun USB family from a short tap into a 70 ms sustained buzz-style pulse for much closer feel to the Bluetooth handgun vibration.
+
+### Bluetooth audio and stability
+
+- Added a bounded 500 ms Bluetooth controller-speaker idle grace so short weapon/audio gaps can resume without repeatedly tearing down and restarting the stream.
+- Preserved the production speaker, lightbar, touchpad, reconnect, vehicle, Edge, and HID-ownership paths under focused regression coverage.
+
+- ProductVersion/FileVersion: `0.6.0.0`.
+- Release tag: `v0.6.0`.
+
 ## 0.5.2 - 2026-09-28
 
 - Extended the v0.5.2 `HapticStrength` overdrive range to `3.0`. `2.0` remains exactly at the previously tested 2.5x effective pre-limit gain, while `3.0` reaches 5.0x before final actuator-output clamping.

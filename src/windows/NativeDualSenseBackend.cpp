@@ -180,6 +180,15 @@ bool sds::NativeDualSenseBackend::setControllerSpeakerRoutingEnabled(
     return _impl->active->setControllerSpeakerRoutingEnabled(enabled);
 }
 
+void sds::NativeDualSenseBackend::prepareTransportHandoff(
+    ConnectionType previous) noexcept
+{
+    if (_impl && _impl->active) {
+        _impl->active->prepareTransportHandoff(
+            previous);
+    }
+}
+
 void sds::NativeDualSenseBackend::resetOutputs() noexcept
 {
     if (_impl && _impl->active && _impl->active->connected()) {

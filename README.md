@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.5.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -18,9 +18,11 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 
 | Feature | What SAD adds |
 | --- | --- |
-| **Native USB + Bluetooth** | Direct DualSense support over USB and Bluetooth without requiring DSX, DualSenseX, reWASD, an Xbox wrapper, or another virtual controller. |
+| **Native USB + Bluetooth** | Direct DualSense and DualSense Edge support over USB and Bluetooth without requiring DSX, DualSenseX, reWASD, an Xbox wrapper, or another virtual controller. |
 | **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and the REV-8. |
 | **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
+| **Weapon Haptics Controls** | A master weapon-vibration switch plus per-family enable and `0.0-3.0` strength controls for 13 on-foot weapon groups, applied live to USB and Bluetooth haptics. |
+| **DualSense Edge** | Standard SAD DualSense features are supported on Edge hardware, including USB output-report sizing for the Edge's larger HID report. Rear paddles and Fn controls are not separately mapped. |
 | **Music Haptics** | Optional score-driven tactile feedback mixed underneath gameplay haptics so combat and other gameplay effects keep priority. |
 | **Controller Speaker** | Real Starfield audio through the DualSense speaker over USB or Bluetooth, including supported communications, UI/scanner sounds, weapons, Digipicks, crafting/research, and boostpack audio. |
 | **Dataslate / Comms Voice** | Supported spoken dataslates and communications can use `Both` or `ControllerOnly` output while preserving Starfield's native STOP/PLAY and continuation behavior. |
@@ -30,10 +32,36 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Touchpad** | Native DualSense touchpad shortcuts using Starfield's own input actions. |
 | **Dynamic Lightbar** | Player-health colors, a Main Menu white-to-blue breathing effect, and ship takeoff/landing/touchdown lighting. |
 | **Battery Indicator** | The five DualSense player-indicator LEDs act as a battery gauge on both USB and Bluetooth. |
-| **Reconnect Repair** | Repairs the Starfield timing problem that can cause a reconnected DualSense to fall back to a generic/Xbox-style controller path. |
+| **Reconnect Repair** | Repairs Starfield's reconnect timing and preserves DualSense identity/input across USB <-> Bluetooth handoffs, including the late USB HID ownership refresh needed for stable SAD lightbar/player-LED control. |
 | **ReconnectFixOnly Mode** | Runs only the passive reconnect repair if you want Starfield's native DualSense handling without the rest of SAD's feedback stack. |
 
 Where controller-speaker audio is supported, SAD prefers **real Starfield audio** rather than invented replacement beeps. The same evidence-first approach is used throughout the project: feedback is tied to proven game state or native events instead of guessed timers whenever possible.
+
+## Weapon Haptics Controls
+
+SAD lets weapon vibration be tuned separately from the rest of the gameplay-haptic system.
+
+The master setting:
+
+```text
+WeaponHaptics = true
+```
+
+controls **on-foot weapon vibration only**. Turning it off does not disable adaptive triggers, controller-speaker weapon audio, damage feedback, boostpack feedback, ship/vehicle feedback, or Digipick haptics.
+
+Each weapon family has its own enable switch and `0.0-3.0` strength multiplier. For example:
+
+```text
+WeaponHapticsBallisticHandguns = true
+WeaponHapticsBallisticHandgunsStrength = 1.0
+
+WeaponHapticsSustainedEnergy = true
+WeaponHapticsSustainedEnergyStrength = 1.0
+```
+
+`1.0` preserves SAD's authored tuning, values below `1.0` reduce that family, and values above `1.0` strengthen it. The family multiplier applies to both USB and Bluetooth weapon haptics and is combined with the normal global haptic settings.
+
+The available groups are **Ballistic Handguns, Rapid Ballistics, Ballistic Rifles, Precision Ballistics, Shotguns, Heavy Ballistics, Launchers, Magnetic, Laser, Particle, Sustained Energy, EM, and Melee**. The **Cutter** and **Arc Welder** are in **Sustained Energy**.
 
 ## Touchpad Controls
 
@@ -125,8 +153,10 @@ Because these are the DualSense player-indicator LEDs rather than the colored li
 - **Starfield for PC**
 - **Windows**
 - **Sony DualSense or DualSense Edge controller**  
-  DualSense Edge is supported as a standard DualSense controller.  
+  DualSense Edge is supported for SAD's standard DualSense feature set. On USB, SAD follows the HID-reported output size, including the Edge's larger 64-byte output report.
   Edge-specific features such as rear paddles and Fn controls are not currently used by SAD.
+
+  **DualSense Edge fix credit:** Special thanks to Nexus user [CUZZINCHIZZY](https://next.nexusmods.com/profile/CUZZINCHIZZY), who identified the USB output-size fix by testing and confirming that padding SAD's normal 48-byte USB report to the Edge's HID-reported 64-byte output size restored functionality.
 - **USB or Bluetooth controller connection**
 - **SFSE (Starfield Script Extender)** - required to load the SAD plugin DLL
 - **Address Library for SFSE Plugins** - required by SAD/CommonLibSF for runtime address relocation
@@ -273,6 +303,7 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Runtime | `OperatingMode`, `DualSenseReconnectFix` |
 | Adaptive Triggers | `AdaptiveTriggers`, `TriggerStrength` |
 | Haptics | `AdvancedHaptics`, `HapticStrength`, `BluetoothHapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
+| Weapon Haptics | `WeaponHaptics` plus per-family enable and `0.0-3.0` strength controls for ballistic handguns, rapid ballistics, ballistic rifles, precision ballistics, shotguns, heavy ballistics, launchers, magnetic, laser, particle, sustained-energy, EM, and melee weapons |
 | Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
 | Controller Features | `Lightbar`, `Touchpad` |
 | Diagnostics | `DebugLogging` |

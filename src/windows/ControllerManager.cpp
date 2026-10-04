@@ -12,6 +12,15 @@
 
 namespace
 {
+    constexpr auto kTransportHandoffRetryInterval =
+        std::chrono::milliseconds(250);
+    constexpr auto kTransportHandoffRapidWindow =
+        std::chrono::milliseconds(5000);
+    constexpr auto kTransportOutputReassertInterval =
+        std::chrono::milliseconds(250);
+    constexpr auto kTransportOutputReassertWindow =
+        std::chrono::milliseconds(3000);
+
     std::string gestureName(sds::TouchGesture gesture)
     {
         switch (gesture) {
@@ -304,6 +313,12 @@ void sds::ControllerManager::stop() noexcept
     } catch (...) {
     }
 
+    try {
+        std::scoped_lock inputLock(_latestInputMutex);
+        _latestInputState.reset();
+    } catch (...) {
+    }
+
     _connected = false;
     _bluetoothTransport.store(
         false,
@@ -430,6 +445,16 @@ void sds::ControllerManager::run() noexcept
         std::uint8_t appliedBluetoothRight = 0;
         std::chrono::steady_clock::time_point lastBluetoothRumbleSubmit{};
 
+        auto rapidReconnectUntil =
+            std::chrono::steady_clock::time_point{};
+        auto handoffOutputReassertUntil =
+            std::chrono::steady_clock::time_point{};
+        auto nextHandoffOutputReassert =
+            std::chrono::steady_clock::time_point{};
+        ConnectionType previousConnection =
+            ConnectionType::Unknown;
+        bool havePreviousConnection = false;
+
         // Starfield starts with MainMenu already open, so default to
         // active until the first MainMenu close event arrives.
         bool mainMenuActive = true;
@@ -503,6 +528,14 @@ void sds::ControllerManager::run() noexcept
             lastObservedAboveReleaseThreshold = false;
         };
 
+        auto clearLatestBluetoothInput = [this]() noexcept {
+            try {
+                std::scoped_lock inputLock(_latestInputMutex);
+                _latestInputState.reset();
+            } catch (...) {
+            }
+        };
+
         while (!_stopRequested.load()) {
             bool stateChanged = false;
             while (auto event = _events.tryPop()) {
@@ -532,6 +565,7 @@ void sds::ControllerManager::run() noexcept
             if (!backend->connected()) {
                 clearObservedR2();
                 clearBluetoothRumbleState();
+                clearLatestBluetoothInput();
                 _connected = false;
                 _bluetoothTransport.store(false, std::memory_order_release);
                 haveAppliedOutput = false;
@@ -543,17 +577,74 @@ void sds::ControllerManager::run() noexcept
                 batteryFull = false;
                 bluetoothRumbleActive = false;
                 bluetoothRumbleUntil = {};
+                handoffOutputReassertUntil = {};
+                nextHandoffOutputReassert = {};
+
                 if (now >= nextConnectAttempt) {
                     if (backend->connect()) {
+                        const auto caps =
+                            backend->capabilities();
+                        const bool bluetoothTransport =
+                            caps.bluetoothTransport;
+                        const auto connection =
+                            backend->identity().connection;
+
                         _bluetoothTransport.store(
-                            backend->capabilities().bluetoothTransport,
+                            bluetoothTransport,
                             std::memory_order_release);
+
+                        if (!bluetoothTransport) {
+                            clearLatestBluetoothInput();
+                        }
+
+                        gestureTracker =
+                            TouchGestureTracker{};
+
                         _connected = true;
+
+                        if (havePreviousConnection) {
+                            if (previousConnection != connection) {
+                                backend->prepareTransportHandoff(
+                                    previousConnection);
+                            }
+
+                            handoffOutputReassertUntil =
+                                now +
+                                kTransportOutputReassertWindow;
+                            nextHandoffOutputReassert =
+                                now;
+
+                            log(
+                                std::string(
+                                    "Controller transport lifecycle: "
+                                    "reconnected previous=") +
+                                connectionName(previousConnection) +
+                                " current=" +
+                                connectionName(connection) +
+                                " rapidRetryMs=250 "
+                                "outputReassertMs=3000");
+                        }
+
+                        previousConnection =
+                            connection;
+                        havePreviousConnection =
+                            true;
+                        rapidReconnectUntil = {};
+
                         applySpeakerRouting();
                         log(connectionDiagnostic(*backend));
                         stateChanged = true;
                     } else {
-                        nextConnectAttempt = now + _reconnectInterval;
+                        const bool rapidRetry =
+                            rapidReconnectUntil !=
+                                std::chrono::steady_clock::time_point{} &&
+                            now < rapidReconnectUntil;
+
+                        nextConnectAttempt =
+                            now +
+                            (rapidRetry ?
+                                kTransportHandoffRetryInterval :
+                                _reconnectInterval);
                     }
                 }
             }
@@ -605,9 +696,18 @@ void sds::ControllerManager::run() noexcept
                 // state, after a one-time lightbar initialization packet. This
                 // avoids the old pair of back-to-back full reports and never
                 // repeats the one-shot LED setup command as a pseudo-keepalive.
+                const bool handoffOutputReassert =
+                    handoffOutputReassertUntil !=
+                        std::chrono::steady_clock::time_point{} &&
+                    now < handoffOutputReassertUntil &&
+                    (nextHandoffOutputReassert ==
+                         std::chrono::steady_clock::time_point{} ||
+                     now >= nextHandoffOutputReassert);
+
                 if (stateChanged ||
                     !haveAppliedOutput ||
-                    !sameOutput(desired, lastApplied)) {
+                    !sameOutput(desired, lastApplied) ||
+                    handoffOutputReassert) {
                     const bool applyLightbar = caps.lightbar;
                     const bool applyTriggers = caps.adaptiveTriggers;
                     bool outputOk = true;
@@ -626,6 +726,12 @@ void sds::ControllerManager::run() noexcept
                     if (outputOk && backend->connected()) {
                         lastApplied = desired;
                         haveAppliedOutput = true;
+
+                        if (handoffOutputReassert) {
+                            nextHandoffOutputReassert =
+                                now +
+                                kTransportOutputReassertInterval;
+                        }
                     } else {
                         _connected = backend->connected();
                         haveAppliedOutput = false;
@@ -898,9 +1004,21 @@ void sds::ControllerManager::run() noexcept
                 if (!backend->connected()) {
                     clearObservedR2();
                     clearBluetoothRumbleState();
+                    clearLatestBluetoothInput();
                     _connected = false;
                     _bluetoothTransport.store(false, std::memory_order_release);
-                    nextConnectAttempt = now + _reconnectInterval;
+
+                    rapidReconnectUntil =
+                        now +
+                        kTransportHandoffRapidWindow;
+                    nextConnectAttempt = now;
+                    handoffOutputReassertUntil = {};
+                    nextHandoffOutputReassert = {};
+
+                    log(
+                        "Controller transport lifecycle: "
+                        "transport-lost rapidRediscoveryMs=5000 "
+                        "retryMs=250");
                 }
             }
 
@@ -916,6 +1034,7 @@ void sds::ControllerManager::run() noexcept
             // Keep lifecycle deterministic for test/future backends.
             backend->disconnect();
         }
+        clearLatestBluetoothInput();
         _connected = false;
         _bluetoothTransport.store(false, std::memory_order_release);
     } catch (...) {

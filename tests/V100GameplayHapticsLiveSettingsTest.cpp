@@ -138,6 +138,29 @@ int main()
 
     const float fullGain = backendState->commands.back().gain;
 
+    live.weaponHapticsConfig.weaponHapticsBallisticHandgunsStrength = 2.0F;
+    manager.applyLiveSettings(live);
+    const auto commandCountBeforeGroupBoost = backendState->commands.size();
+    expect(manager.handle(fire), "weapon-group strength fire semantic accepted");
+    expect(
+        backendState->commands.size() == commandCountBeforeGroupBoost + 1,
+        "weapon-group strength still delivers command");
+    expect(
+        backendState->commands.back().gain > fullGain,
+        "live ballistic-handgun group strength increases Eon command gain");
+
+    live.weaponHapticsConfig.weaponHapticsBallisticHandguns = false;
+    manager.applyLiveSettings(live);
+    const auto commandCountBeforeGroupDisable = backendState->commands.size();
+    expect(manager.handle(fire), "disabled weapon-group fire semantic accepted");
+    expect(
+        backendState->commands.size() == commandCountBeforeGroupDisable,
+        "live ballistic-handgun disable suppresses Eon backend delivery");
+
+    live.weaponHapticsConfig.weaponHapticsBallisticHandguns = true;
+    live.weaponHapticsConfig.weaponHapticsBallisticHandgunsStrength = 1.0F;
+    manager.applyLiveSettings(live);
+
     live.hapticStrength = 2.0F;
     manager.applyLiveSettings(live);
     const auto commandCountBeforeOverdriveFire = backendState->commands.size();

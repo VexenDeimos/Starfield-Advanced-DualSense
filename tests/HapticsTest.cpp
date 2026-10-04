@@ -217,6 +217,29 @@ int main()
         "confirmed Eon WeaponFired maps to one EonSnap");
     expect(eonShot && std::fabs(eonShot->gain - 0.3F) < 0.0001F,
         "Eon hapticRating 3 maps to 0.3 gain at HapticStrength 1.0");
+
+    sds::Config eonGroupConfig{};
+    eonGroupConfig.weaponHapticsBallisticHandgunsStrength = 2.0F;
+    sds::HapticsEngine tunedEon(1.0F);
+    expect(tunedEon.setWeaponHapticsConfig(eonGroupConfig),
+        "weapon-group settings accept a ballistic-handgun strength change");
+    (void)tunedEon.handle(equip("Eon"));
+    const auto tunedEonShot = tunedEon.handle(fire(now));
+    expect(tunedEonShot && std::fabs(tunedEonShot->gain - 0.6F) < 0.0001F,
+        "ballistic-handgun group strength multiplies Eon on both transport backends");
+
+    eonGroupConfig.weaponHapticsBallisticHandguns = false;
+    expect(tunedEon.setWeaponHapticsConfig(eonGroupConfig),
+        "weapon-group settings accept disabling ballistic handguns");
+    expect(!tunedEon.handle(fire(now)),
+        "disabled ballistic-handgun group suppresses Eon weapon vibration");
+
+    eonGroupConfig.weaponHapticsBallisticHandguns = true;
+    eonGroupConfig.weaponHaptics = false;
+    expect(tunedEon.setWeaponHapticsConfig(eonGroupConfig),
+        "weapon-group settings accept master weapon-haptics disable");
+    expect(!tunedEon.handle(fire(now)),
+        "WeaponHaptics=false suppresses weapon vibration without muting non-weapon haptics");
     expect(eonShot && eonShot->when == now,
         "haptic command preserves originating WeaponFired timestamp");
 
@@ -789,8 +812,12 @@ int main()
     const auto rapidWave = sds::synthesizeHapticEffect(*rapidShot);
     const auto rifleWave = sds::synthesizeHapticEffect(*maelstromShot);
     const auto precisionWave = sds::synthesizeHapticEffect(*precisionShot);
-    expect(handgunWave.size() == 1344,
-        "BallisticHandgunKick waveform is exactly 28 ms at 48 kHz");
+    expect(handgunWave.size() == 3360,
+        "BallisticHandgunKick USB waveform is exactly 70 ms at 48 kHz");
+    expect(actuatorRmsWindow(handgunWave, 25.0F, 45.0F) > 0.07F,
+        "ballistic handgun USB waveform retains meaningful energy through the middle buzz window");
+    expect(actuatorRmsWindow(handgunWave, 45.0F, 60.0F) > 0.04F,
+        "ballistic handgun USB waveform remains tactile into the extended 70 ms buzz tail");
     expect(rapidWave.size() == 768,
         "BallisticRapidKick waveform is exactly 16 ms at 48 kHz");
     expect(rifleWave.size() == 1728,
@@ -868,10 +895,14 @@ int main()
     const auto eonWave = sds::synthesizeHapticEffect(*eonShot);
     const auto bridgerWave = sds::synthesizeHapticEffect(*bridgerShot);
 
-    expect(eonWave.size() == 1536, "Eon waveform is exactly 32 ms at 48 kHz");
+    expect(eonWave.size() == 3360, "Eon USB waveform is exactly 70 ms at 48 kHz");
     expect(bridgerWave.size() == 6720, "Bridger waveform is exactly 140 ms at 48 kHz");
-    expect(bridgerWave.size() > eonWave.size() * 3,
-        "Bridger concussion is substantially longer than Eon snap");
+    expect(bridgerWave.size() >= eonWave.size() * 2,
+        "Bridger concussion remains at least twice as long as the Eon buzz");
+    expect(actuatorRmsWindow(eonWave, 25.0F, 45.0F) > 0.07F,
+        "Eon USB waveform retains meaningful actuator energy through the middle buzz window");
+    expect(actuatorRmsWindow(eonWave, 45.0F, 60.0F) > 0.04F,
+        "Eon USB waveform remains tactile into the extended 70 ms buzz tail");
 
     bool eonActuatorOutput = false;
     bool bridgerTailOutput = false;

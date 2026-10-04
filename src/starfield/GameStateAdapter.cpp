@@ -2835,14 +2835,24 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
             // it is open in the REV-8, stick 11 and 12 are produced
             // from the native slot-2 gamepad poll instead of the
             // runtime-tick replay path.
-            const bool rev8ScannerNativePollSticks =
-                _monocleOpen &&
+            const bool vehicleNativePollRightStick =
+                gamepadDevice != nullptr &&
                 _landVehicleCorrelationArmed.load(
                     std::memory_order_acquire);
 
-            if (rev8ScannerNativePollSticks) {
-                // Keep runtime state synchronized so closing the
-                // scanner does not create a stale activation edge.
+            const bool rev8ScannerNativePollSticks =
+                vehicleNativePollRightStick &&
+                _monocleOpen;
+
+            const bool suppressRuntimeStick =
+                (idCode == 12 &&
+                 vehicleNativePollRightStick) ||
+                (idCode == 11 &&
+                 rev8ScannerNativePollSticks);
+
+            if (suppressRuntimeStick) {
+                // Keep runtime state synchronized so leaving vehicle/scanner
+                // context cannot create a stale activation edge.
                 previousX = x;
                 previousY = y;
                 previousDirection = currentDirection;
@@ -2875,11 +2885,33 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                         RE::BSFixedString("CursorMenu"));
             }
 
-            if (!cadenceLimitedContext) {
-                if (auto* camera = RE::PlayerCamera::GetSingleton()) {
-                    cadenceLimitedContext =
-                        camera->QCameraEquals(
-                            RE::CameraState::kVehicle);
+            // Ordinary land-vehicle driving must keep the unrestricted
+            // runtime stick cadence. The blanket kVehicle 60 Hz cap was an
+            // REV-8-era experiment and can pulse analog acceleration on newer
+            // vehicle implementations. Scanner and map/cursor contexts remain
+            // explicitly cadence-limited below.
+            bool vehicleCameraContext = false;
+
+            if (auto* camera = RE::PlayerCamera::GetSingleton()) {
+                vehicleCameraContext =
+                    camera->QCameraEquals(
+                        RE::CameraState::kVehicle);
+            }
+
+            if (vehicleCameraContext &&
+                !rev8ScannerContext) {
+
+                static std::atomic_bool
+                    splitVehicleCadenceLogged{ false };
+
+                if (!splitVehicleCadenceLogged.exchange(
+                        true,
+                        std::memory_order_acq_rel)) {
+
+                    log(
+                        "Bluetooth land-vehicle sticks: "
+                        "LEFT=unrestricted RIGHT=60Hz "
+                        "reason=acceleration-vs-camera-parity");
                 }
             }
 
@@ -2903,7 +2935,22 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                     rightStickCadenceSeconds :
                     leftStickCadenceSeconds;
 
-            if (!cadenceLimitedContext) {
+            const bool leftVehicleAcceleration =
+                vehicleCameraContext &&
+                    idCode == 11 &&
+                    !cadenceLimitedContext;
+
+            const bool rightVehicleCamera =
+                vehicleCameraContext &&
+                    idCode == 12;
+
+            const bool stickCadenceLimitedContext =
+                cadenceLimitedContext ||
+                rightVehicleCamera;
+
+            if (!stickCadenceLimitedContext ||
+                leftVehicleAcceleration) {
+
                 stickCadenceSeconds = 0.0F;
             }
             else {
@@ -2983,15 +3030,19 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
         static float rightPreviousY = 0.0F;
         static std::uint8_t rightPreviousDirection = 0;
 
+        static bool vehicleNativePollActive = false;
         static bool scannerNativePollActive = false;
 
-        const bool active =
-            _monocleOpen &&
+        const bool vehicleActive =
             _landVehicleCorrelationArmed.load(
                 std::memory_order_acquire);
 
-        if (!active) {
-            if (scannerNativePollActive) {
+        const bool scannerActive =
+            vehicleActive &&
+            _monocleOpen;
+
+        if (!vehicleActive) {
+            if (vehicleNativePollActive) {
                 leftPreviousX = 0.0F;
                 leftPreviousY = 0.0F;
                 leftPreviousDirection = 0;
@@ -3000,11 +3051,23 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
                 rightPreviousDirection = 0;
             }
 
+            vehicleNativePollActive = false;
             scannerNativePollActive = false;
             return;
         }
 
-        scannerNativePollActive = true;
+        vehicleNativePollActive = true;
+
+        if (!scannerActive &&
+            scannerNativePollActive) {
+
+            leftPreviousX = 0.0F;
+            leftPreviousY = 0.0F;
+            leftPreviousDirection = 0;
+        }
+
+        scannerNativePollActive =
+            scannerActive;
 
         const auto moduleBase =
             g_starfieldModuleBase.load(
@@ -3120,14 +3183,19 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             previousDirection = currentDirection;
         };
 
-        emitNativePollStick(
-            11,
-            left.x,
-            left.y,
-            leftPreviousX,
-            leftPreviousY,
-            leftPreviousDirection);
+        if (scannerNativePollActive) {
+            emitNativePollStick(
+                11,
+                left.x,
+                left.y,
+                leftPreviousX,
+                leftPreviousY,
+                leftPreviousDirection);
+        }
 
+        // Vehicle right-stick Look follows Starfield's own slot2 poll timing.
+        // This avoids both runtime-tick over-application (hyper-sensitive)
+        // and coarse fixed-cadence replay (visible camera stutter).
         emitNativePollStick(
             12,
             right.x,
@@ -3136,14 +3204,28 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             rightPreviousY,
             rightPreviousDirection);
 
-        static std::atomic_bool timingLogged{ false };
+        static std::atomic_bool vehicleRightTimingLogged{ false };
 
-        if (!timingLogged.exchange(
+        if (!vehicleRightTimingLogged.exchange(
                 true,
                 std::memory_order_acq_rel)) {
 
             log(
-                "Bluetooth REV-8 scanner sticks: NATIVE-SLOT2-TIMING ids=11/12 runtimeStickReplay=suppressed");
+                "Bluetooth land-vehicle right stick: NATIVE-SLOT2-TIMING "
+                "id=12 runtimeStickReplay=suppressed");
+        }
+
+        if (scannerNativePollActive) {
+            static std::atomic_bool scannerTimingLogged{ false };
+
+            if (!scannerTimingLogged.exchange(
+                    true,
+                    std::memory_order_acq_rel)) {
+
+                log(
+                    "Bluetooth REV-8 scanner sticks: NATIVE-SLOT2-TIMING "
+                    "ids=11/12 runtimeStickReplay=suppressed");
+            }
         }
     }
     catch (...) {

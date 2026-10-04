@@ -13,6 +13,7 @@ namespace sds
     {
         General,
         Haptics,
+        WeaponHaptics,
         Music,
         AdaptiveTriggers,
         ControllerSpeaker,
@@ -39,9 +40,10 @@ namespace sds
         float maxValue;
     };
 
-    inline constexpr std::array<std::string_view, 8> kSettingsMenuTabLabels{
+    inline constexpr std::array<std::string_view, 9> kSettingsMenuTabLabels{
         "General",
         "Haptics",
+        "Weapon Haptics",
         "Music",
         "Adaptive Triggers",
         "Controller Speaker",
@@ -50,7 +52,7 @@ namespace sds
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 27> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 54> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -59,6 +61,34 @@ namespace sds
         { "BluetoothHapticStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 1.0F },
         { "BoostpackHaptics", SettingsMenuTab::Haptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "BoostpackHapticsStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 3.0F },
+
+        { "WeaponHaptics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsBallisticHandguns", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsBallisticHandgunsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsRapidBallistics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsRapidBallisticsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsBallisticRifles", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsBallisticRiflesStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsPrecisionBallistics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsPrecisionBallisticsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsShotguns", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsShotgunsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsHeavyBallistics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsHeavyBallisticsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsLaunchers", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsLaunchersStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsMagnetic", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsMagneticStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsLaser", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsLaserStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsParticle", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsParticleStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsSustainedEnergy", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsSustainedEnergyStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsEM", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsEMStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
+        { "WeaponHapticsMelee", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "WeaponHapticsMeleeStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
 
         { "MusicHapticsEnabled", SettingsMenuTab::Music, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "MusicHapticsStrength", SettingsMenuTab::Music, SettingsControlKind::Float, 0.0F, 2.0F },

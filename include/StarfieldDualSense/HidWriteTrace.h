@@ -12,6 +12,7 @@ namespace sds
 
         // Diagnostic-only in-process HID tracing. nativeHandle is the plugin-owned DualSense HANDLE.
         static void start(void* nativeHandle, LogCallback log) noexcept;
+        static void refresh(void* nativeHandle) noexcept;
         static void stop() noexcept;
     };
 }

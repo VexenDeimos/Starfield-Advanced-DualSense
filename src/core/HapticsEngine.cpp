@@ -60,6 +60,28 @@ void sds::HapticsEngine::setHapticStrength(float strength) noexcept
 {
     _hapticStrength = sds::effectiveHapticStrength(strength);
 }
+
+bool sds::HapticsEngine::setWeaponHapticsConfig(const Config& config) noexcept
+{
+    const bool changed =
+        !sds::weaponHapticsSettingsEqual(_weaponHapticsConfig, config);
+
+    _weaponHapticsConfig = config;
+
+    if (_equipped &&
+        !sds::weaponHapticsFamilyEnabled(
+            _weaponHapticsConfig,
+            _equipped->triggerFamily)) {
+        _cutterBeamAuthorized = false;
+        _arcWelderAuthorized = false;
+        _penumbraStressActive = false;
+        _magsniperChargeActive = false;
+        _novablastChargeAuthorized = false;
+        _autoRivetChargeAuthorized = false;
+    }
+
+    return changed;
+}
 std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& event) noexcept
 {
     if (event.type == GameEventType::WeaponEquipped) {
@@ -129,6 +151,17 @@ std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& ev
         return std::nullopt;
     }
 
+    if (!sds::weaponHapticsFamilyEnabled(
+            _weaponHapticsConfig,
+            _equipped->triggerFamily)) {
+        return std::nullopt;
+    }
+
+    const float weaponStrength =
+        sds::weaponHapticsFamilyStrength(
+            _weaponHapticsConfig,
+            _equipped->triggerFamily);
+
     if (event.type == GameEventType::MeleeSwing ||
         event.type == GameEventType::MeleeImpact) {
         if (_equipped->triggerFamily != WeaponTriggerFamily::Melee) {
@@ -157,7 +190,7 @@ std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& ev
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return HapticCommand{
             .kind = meleeKind,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .when = event.when,
         };
     }
@@ -262,7 +295,7 @@ std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& ev
     const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
     return HapticCommand{
         .kind = kind,
-        .gain = sds::clampHapticGain(rating * _hapticStrength),
+        .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
         .when = event.when,
     };
 }
@@ -274,6 +307,27 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         return {};
     }
 
+    if (!_equipped) {
+        return {};
+    }
+
+    if (!sds::weaponHapticsFamilyEnabled(
+            _weaponHapticsConfig,
+            _equipped->triggerFamily)) {
+        _cutterBeamAuthorized = false;
+        _arcWelderAuthorized = false;
+        _penumbraStressActive = false;
+        _magsniperChargeActive = false;
+        _novablastChargeAuthorized = false;
+        _autoRivetChargeAuthorized = false;
+        return {};
+    }
+
+    const float weaponStrength =
+        sds::weaponHapticsFamilyStrength(
+            _weaponHapticsConfig,
+            _equipped->triggerFamily);
+
     if (_equipped && _equipped->name == "Auto-Rivet") {
         if (_blockingMenuMask != 0 || !_autoRivetChargeAuthorized || r2 < 24) {
             return {};
@@ -282,7 +336,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return {
             .kind = HapticContinuousKind::AutoRivetTension,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .level = std::clamp(
                 (static_cast<float>(r2) - 24.0F) / 231.0F,
                 0.0F,
@@ -305,7 +359,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return {
             .kind = HapticContinuousKind::PenumbraStress,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .level = 1.0F,
         };
     }
@@ -327,7 +381,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return {
             .kind = HapticContinuousKind::MagsniperCharge,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .level = 1.0F,
         };
     }
@@ -346,7 +400,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return {
             .kind = HapticContinuousKind::CutterBeam,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .level = std::clamp(
                 (static_cast<float>(r2) - 24.0F) / 231.0F,
                 0.0F,
@@ -366,7 +420,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
         return {
             .kind = HapticContinuousKind::ArcWelderArc,
-            .gain = sds::clampHapticGain(rating * _hapticStrength),
+            .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
             .level = 1.0F,
         };
     }
@@ -379,7 +433,7 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
     const float rating = static_cast<float>(_equipped->hapticRating) / 10.0F;
     return {
         .kind = HapticContinuousKind::NovablastCharge,
-        .gain = sds::clampHapticGain(rating * _hapticStrength),
+        .gain = sds::clampHapticGain(rating * _hapticStrength * weaponStrength),
         .level = std::clamp(
             (static_cast<float>(r2) - 24.0F) / 231.0F,
             0.0F,

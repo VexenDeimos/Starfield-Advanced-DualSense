@@ -60,6 +60,16 @@ namespace sds
             return ok;
         }
 
+        // Called only after a real transport change in the same runtime.
+        // Backends may use this to release transport-specific controller state
+        // before the next ordinary output application. Clean-start behavior
+        // remains unchanged.
+        virtual void prepareTransportHandoff(
+            ConnectionType previous) noexcept
+        {
+            (void)previous;
+        }
+
         virtual void resetOutputs() noexcept = 0;
     };
 }

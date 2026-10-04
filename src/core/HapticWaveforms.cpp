@@ -16,6 +16,7 @@ namespace
     {
         return std::sin(2.0F * std::numbers::pi_v<float> * hz * t);
     }
+
 }
 
 sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, std::uint32_t sampleRate)
@@ -29,7 +30,7 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
     float duration = 0.0F;
     switch (command.kind) {
     case HapticEffectKind::EonSnap:
-        duration = 0.032F;
+        duration = 0.070F;
         break;
     case HapticEffectKind::BridgerConcussion:
         duration = 0.140F;
@@ -38,7 +39,7 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
         duration = 0.014F;
         break;
     case HapticEffectKind::BallisticHandgunKick:
-        duration = 0.028F;
+        duration = 0.070F;
         break;
     case HapticEffectKind::BallisticRapidKick:
         duration = 0.016F;
@@ -147,8 +148,16 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
         const float t = static_cast<float>(i) / static_cast<float>(sampleRate);
         float sample = 0.0F;
         if (command.kind == HapticEffectKind::EonSnap) {
-            const float envelope = attack(t, 0.0015F) * std::exp(-t / 0.0080F);
-            sample = 0.95F * oscillator(190.0F, t) * envelope;
+            // USB parity tune: Bluetooth presents Eon as a short 55 ms rumble
+            // pulse. Keep a small firing edge, but carry most of the energy in
+            // a sustained low-frequency body so USB feels like a buzz rather
+            // than one tiny impact.
+            const float buzz = 0.92F * oscillator(112.0F, t) *
+                attack(t, 0.0010F) * std::exp(-t / 0.065F);
+            const float edge = 0.28F * oscillator(190.0F, t) *
+                attack(t, 0.0007F) * std::exp(-t / 0.018F);
+            const float finalFade = std::clamp((duration - t) / 0.010F, 0.0F, 1.0F);
+            sample = (buzz + edge) * finalFade;
         } else if (command.kind == HapticEffectKind::BridgerConcussion) {
             const float transient = 0.35F * oscillator(190.0F, t) *
                 attack(t, 0.0015F) * std::exp(-t / 0.010F);
@@ -163,12 +172,14 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
                 attack(t, 0.0008F) * std::exp(-t / 0.0035F);
             sample = body + transient;
         } else if (command.kind == HapticEffectKind::BallisticHandgunKick) {
-            const float crack = 0.75F * oscillator(210.0F, t) *
-                attack(t, 0.0008F) * std::exp(-t / 0.0055F);
-            const float body = 0.45F * oscillator(110.0F, t) *
-                attack(t, 0.0012F) * std::exp(-t / 0.012F);
-            const float finalFade = std::clamp((duration - t) / 0.004F, 0.0F, 1.0F);
-            sample = (crack + body) * finalFade;
+            // Match the character of the 55 ms Bluetooth handgun rumble while
+            // retaining a little ballistic snap at the front of the pulse.
+            const float buzz = 0.84F * oscillator(108.0F, t) *
+                attack(t, 0.0010F) * std::exp(-t / 0.065F);
+            const float crack = 0.34F * oscillator(210.0F, t) *
+                attack(t, 0.0007F) * std::exp(-t / 0.016F);
+            const float finalFade = std::clamp((duration - t) / 0.010F, 0.0F, 1.0F);
+            sample = (buzz + crack) * finalFade;
         } else if (command.kind == HapticEffectKind::BallisticRapidKick) {
             const float crack = 0.60F * oscillator(220.0F, t) *
                 attack(t, 0.0006F) * std::exp(-t / 0.0035F);

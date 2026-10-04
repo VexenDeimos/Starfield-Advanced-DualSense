@@ -372,6 +372,128 @@ namespace sds
                 },
 
                 {
+                    "WeaponHaptics",
+                    boolText(config.weaponHaptics)
+                },
+
+                {
+                    "WeaponHapticsBallisticHandguns",
+                    boolText(config.weaponHapticsBallisticHandguns)
+                },
+                {
+                    "WeaponHapticsBallisticHandgunsStrength",
+                    formatFloat(config.weaponHapticsBallisticHandgunsStrength)
+                },
+
+                {
+                    "WeaponHapticsRapidBallistics",
+                    boolText(config.weaponHapticsRapidBallistics)
+                },
+                {
+                    "WeaponHapticsRapidBallisticsStrength",
+                    formatFloat(config.weaponHapticsRapidBallisticsStrength)
+                },
+
+                {
+                    "WeaponHapticsBallisticRifles",
+                    boolText(config.weaponHapticsBallisticRifles)
+                },
+                {
+                    "WeaponHapticsBallisticRiflesStrength",
+                    formatFloat(config.weaponHapticsBallisticRiflesStrength)
+                },
+
+                {
+                    "WeaponHapticsPrecisionBallistics",
+                    boolText(config.weaponHapticsPrecisionBallistics)
+                },
+                {
+                    "WeaponHapticsPrecisionBallisticsStrength",
+                    formatFloat(config.weaponHapticsPrecisionBallisticsStrength)
+                },
+
+                {
+                    "WeaponHapticsShotguns",
+                    boolText(config.weaponHapticsShotguns)
+                },
+                {
+                    "WeaponHapticsShotgunsStrength",
+                    formatFloat(config.weaponHapticsShotgunsStrength)
+                },
+
+                {
+                    "WeaponHapticsHeavyBallistics",
+                    boolText(config.weaponHapticsHeavyBallistics)
+                },
+                {
+                    "WeaponHapticsHeavyBallisticsStrength",
+                    formatFloat(config.weaponHapticsHeavyBallisticsStrength)
+                },
+
+                {
+                    "WeaponHapticsLaunchers",
+                    boolText(config.weaponHapticsLaunchers)
+                },
+                {
+                    "WeaponHapticsLaunchersStrength",
+                    formatFloat(config.weaponHapticsLaunchersStrength)
+                },
+
+                {
+                    "WeaponHapticsMagnetic",
+                    boolText(config.weaponHapticsMagnetic)
+                },
+                {
+                    "WeaponHapticsMagneticStrength",
+                    formatFloat(config.weaponHapticsMagneticStrength)
+                },
+
+                {
+                    "WeaponHapticsLaser",
+                    boolText(config.weaponHapticsLaser)
+                },
+                {
+                    "WeaponHapticsLaserStrength",
+                    formatFloat(config.weaponHapticsLaserStrength)
+                },
+
+                {
+                    "WeaponHapticsParticle",
+                    boolText(config.weaponHapticsParticle)
+                },
+                {
+                    "WeaponHapticsParticleStrength",
+                    formatFloat(config.weaponHapticsParticleStrength)
+                },
+
+                {
+                    "WeaponHapticsSustainedEnergy",
+                    boolText(config.weaponHapticsSustainedEnergy)
+                },
+                {
+                    "WeaponHapticsSustainedEnergyStrength",
+                    formatFloat(config.weaponHapticsSustainedEnergyStrength)
+                },
+
+                {
+                    "WeaponHapticsEM",
+                    boolText(config.weaponHapticsEM)
+                },
+                {
+                    "WeaponHapticsEMStrength",
+                    formatFloat(config.weaponHapticsEMStrength)
+                },
+
+                {
+                    "WeaponHapticsMelee",
+                    boolText(config.weaponHapticsMelee)
+                },
+                {
+                    "WeaponHapticsMeleeStrength",
+                    formatFloat(config.weaponHapticsMeleeStrength)
+                },
+
+                {
                     "MusicHapticsEnabled",
                     boolText(
                         config.musicHapticsEnabled)
@@ -611,6 +733,75 @@ namespace sds
             return true;
         }
 
+        if (key == "WeaponHaptics") {
+            current_.weaponHaptics = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsBallisticHandguns") {
+            current_.weaponHapticsBallisticHandguns = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsRapidBallistics") {
+            current_.weaponHapticsRapidBallistics = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsBallisticRifles") {
+            current_.weaponHapticsBallisticRifles = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsPrecisionBallistics") {
+            current_.weaponHapticsPrecisionBallistics = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsShotguns") {
+            current_.weaponHapticsShotguns = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsHeavyBallistics") {
+            current_.weaponHapticsHeavyBallistics = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsLaunchers") {
+            current_.weaponHapticsLaunchers = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsMagnetic") {
+            current_.weaponHapticsMagnetic = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsLaser") {
+            current_.weaponHapticsLaser = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsParticle") {
+            current_.weaponHapticsParticle = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsSustainedEnergy") {
+            current_.weaponHapticsSustainedEnergy = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsEM") {
+            current_.weaponHapticsEM = value;
+            return true;
+        }
+
+        if (key == "WeaponHapticsMelee") {
+            current_.weaponHapticsMelee = value;
+            return true;
+        }
         if (key == "MusicHapticsEnabled") {
             current_.musicHapticsEnabled = value;
             return true;
@@ -698,6 +889,84 @@ namespace sds
         if (key == "BluetoothHapticStrength") {
             current_.bluetoothHapticStrength =
                 std::clamp(value, 0.0F, 1.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsBallisticHandgunsStrength") {
+            current_.weaponHapticsBallisticHandgunsStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsRapidBallisticsStrength") {
+            current_.weaponHapticsRapidBallisticsStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsBallisticRiflesStrength") {
+            current_.weaponHapticsBallisticRiflesStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsPrecisionBallisticsStrength") {
+            current_.weaponHapticsPrecisionBallisticsStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsShotgunsStrength") {
+            current_.weaponHapticsShotgunsStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsHeavyBallisticsStrength") {
+            current_.weaponHapticsHeavyBallisticsStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsLaunchersStrength") {
+            current_.weaponHapticsLaunchersStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsMagneticStrength") {
+            current_.weaponHapticsMagneticStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsLaserStrength") {
+            current_.weaponHapticsLaserStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsParticleStrength") {
+            current_.weaponHapticsParticleStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsSustainedEnergyStrength") {
+            current_.weaponHapticsSustainedEnergyStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsEMStrength") {
+            current_.weaponHapticsEMStrength =
+                std::clamp(value, 0.0F, 3.0F);
+            return true;
+        }
+
+        if (key == "WeaponHapticsMeleeStrength") {
+            current_.weaponHapticsMeleeStrength =
+                std::clamp(value, 0.0F, 3.0F);
             return true;
         }
 

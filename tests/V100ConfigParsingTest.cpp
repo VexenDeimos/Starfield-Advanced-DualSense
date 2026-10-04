@@ -127,6 +127,23 @@ int main()
         near(bluetoothLow.bluetoothHapticStrength, 0.0F),
         "BluetoothHapticStrength clamps low");
 
+    const auto weaponGroup =
+        sds::loadConfig(
+            "WeaponHaptics = true\n"
+            "WeaponHapticsBallisticHandguns = false\n"
+            "WeaponHapticsBallisticHandgunsStrength = 9.0\n");
+
+    expect(
+        weaponGroup.weaponHaptics &&
+            !weaponGroup.weaponHapticsBallisticHandguns,
+        "weapon haptics master/group booleans parse");
+
+    expect(
+        near(
+            weaponGroup.weaponHapticsBallisticHandgunsStrength,
+            3.0F),
+        "weapon group strength clamps high to 3.0");
+
     const auto reconnectOnly =
         sds::loadConfig("OperatingMode = \"ReconnectFixOnly\"");
 
