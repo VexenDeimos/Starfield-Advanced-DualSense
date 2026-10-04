@@ -10,12 +10,12 @@ changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
 
 checks = [
     (
-        "Eon USB haptic lasts 55 ms",
-        "case HapticEffectKind::EonSnap:\n        duration = 0.055F;" in wave,
+        "Eon USB haptic lasts 70 ms",
+        "case HapticEffectKind::EonSnap:\n        duration = 0.070F;" in wave,
     ),
     (
-        "generic ballistic handgun USB haptic lasts 55 ms",
-        "case HapticEffectKind::BallisticHandgunKick:\n        duration = 0.055F;" in wave,
+        "generic ballistic handgun USB haptic lasts 70 ms",
+        "case HapticEffectKind::BallisticHandgunKick:\n        duration = 0.070F;" in wave,
     ),
     (
         "Eon uses sustained low-frequency buzz body",
@@ -39,14 +39,14 @@ checks = [
         'return { 155, 210, 55ms, "BallisticHandgunKick" };' in bt,
     ),
     (
-        "HapticsTest expects Eon 55 ms buzz",
-        'eonWave.size() == 2640' in tests
-        and "Eon USB waveform is exactly 55 ms at 48 kHz" in tests,
+        "HapticsTest expects Eon 70 ms buzz",
+        'eonWave.size() == 3360' in tests
+        and "Eon USB waveform is exactly 70 ms at 48 kHz" in tests,
     ),
     (
-        "HapticsTest expects generic handgun 55 ms buzz",
-        'handgunWave.size() == 2640' in tests
-        and "BallisticHandgunKick USB waveform is exactly 55 ms at 48 kHz" in tests,
+        "HapticsTest expects generic handgun 70 ms buzz",
+        'handgunWave.size() == 3360' in tests
+        and "BallisticHandgunKick USB waveform is exactly 70 ms at 48 kHz" in tests,
     ),
     (
         "HapticsTest requires sustained late-window Eon energy",
@@ -54,7 +54,7 @@ checks = [
     ),
     (
         "changelog describes final buzz retune",
-        "55 ms sustained buzz-style pulse" in changelog,
+        "70 ms sustained buzz-style pulse" in changelog,
     ),
 ]
 
@@ -66,10 +66,10 @@ for label, ok in checks:
 
 if failed:
     print()
-    print("FAILED v0.6.0 handgun USB buzz checks:")
+    print("FAILED v0.6.1 handgun USB buzz checks:")
     for label in failed:
         print(" -", label)
     sys.exit(1)
 
 print()
-print("PASS v0.6.0 USB handgun Bluetooth-parity buzz contract")
+print("PASS v0.6.1 USB handgun Bluetooth-parity buzz contract")

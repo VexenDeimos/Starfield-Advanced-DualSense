@@ -2774,7 +2774,28 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
 
         // Native physical trigger ids proven by the Starfield gamepad path.
         (void)emitButton(14, 9, leftTrigger);
-        (void)emitButton(15, 10, rightTrigger);
+
+        // Scanner and land-vehicle contexts are sensitive to when R2 enters
+        // Starfield's gamepad pipeline. When the SAD Bluetooth shadow exists,
+        // slot2 dispatch owns R2 for those contexts. Keep the runtime mirror
+        // synchronized here so context exit cannot fabricate a stale edge.
+        const bool nativePollR2Context =
+            gamepadDevice != nullptr &&
+            (_monocleOpen ||
+             _landVehicleCorrelationArmed.load(
+                 std::memory_order_acquire));
+
+        if (nativePollR2Context) {
+            constexpr float kTriggerActiveThreshold = 0.0001F;
+            auto& runtime =
+                g_bluetoothPhysicalBridgeRuntime.buttons[15];
+
+            runtime.down =
+                rightTrigger > kTriggerActiveThreshold;
+            runtime.heldSeconds = 0.0F;
+        } else {
+            (void)emitButton(15, 10, rightTrigger);
+        }
 
         using NativeThumbstickProducer = void (*)(
             void* manager,
@@ -3019,7 +3040,9 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
 }
 
 void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
-    const TouchState& state) noexcept
+    const TouchState& state,
+    float deltaSeconds,
+    void* gamepadDevice) noexcept
 {
     try {
         static float leftPreviousX = 0.0F;
@@ -3029,6 +3052,11 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
         static float rightPreviousX = 0.0F;
         static float rightPreviousY = 0.0F;
         static std::uint8_t rightPreviousDirection = 0;
+
+        static void* r2TransitionGamepad = nullptr;
+        static float previousNativePollR2 = 0.0F;
+        static bool r2NativePollActive = false;
+        static bool r2NativePollTimingLogged = false;
 
         static bool vehicleNativePollActive = false;
         static bool scannerNativePollActive = false;
@@ -3041,6 +3069,21 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             vehicleActive &&
             _monocleOpen;
 
+        // R2 needs native slot2 timing in BOTH scanner contexts:
+        //  - on-foot MonocleMenu (Cutter)
+        //  - land vehicles (vehicle weapons)
+        //
+        // REV-8 scanner stick timing remains vehicle+Monocle only.
+        const bool r2ContextActive =
+            _monocleOpen ||
+            vehicleActive;
+
+        if (r2TransitionGamepad != gamepadDevice) {
+            r2TransitionGamepad = gamepadDevice;
+            previousNativePollR2 = 0.0F;
+            r2NativePollActive = false;
+        }
+
         if (!vehicleActive) {
             if (vehicleNativePollActive) {
                 leftPreviousX = 0.0F;
@@ -3052,11 +3095,9 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             }
 
             vehicleNativePollActive = false;
-            scannerNativePollActive = false;
-            return;
+        } else {
+            vehicleNativePollActive = true;
         }
-
-        vehicleNativePollActive = true;
 
         if (!scannerActive &&
             scannerNativePollActive) {
@@ -3074,6 +3115,94 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
                 std::memory_order_acquire);
 
         if (!moduleBase) {
+            return;
+        }
+
+        // Starfield's native slot2 path uses the same transition helper for
+        // analog triggers. Feed R2 here only in Scanner/land-vehicle contexts
+        // and release native ownership cleanly when leaving those contexts.
+        if (gamepadDevice != nullptr) {
+            using NativeGamepadButtonTransition =
+                void (*)(
+                    void*,
+                    std::int32_t,
+                    float,
+                    float,
+                    float);
+
+            constexpr std::uintptr_t
+                kNativeGamepadButtonTransitionRva =
+                    0x22FC2A0u;
+
+            constexpr std::int32_t
+                kNativeR2ButtonId =
+                    10;
+
+            float nativeDeltaSeconds =
+                deltaSeconds;
+
+            if (nativeDeltaSeconds < 0.0F) {
+                nativeDeltaSeconds = 0.0F;
+            } else if (nativeDeltaSeconds > 0.100F) {
+                nativeDeltaSeconds = 0.100F;
+            }
+
+            const auto transition =
+                reinterpret_cast<
+                    NativeGamepadButtonTransition>(
+                        moduleBase +
+                        kNativeGamepadButtonTransitionRva);
+
+            const float currentR2 =
+                state.r2 <= 2 ?
+                    0.0F :
+                    static_cast<float>(state.r2) /
+                        255.0F;
+
+            if (r2ContextActive) {
+                if (currentR2 > 0.0001F ||
+                    previousNativePollR2 > 0.0001F) {
+
+                    notifyInputPresentationDevice(
+                        InputPresentationDevice::Gamepad);
+
+                    transition(
+                        gamepadDevice,
+                        kNativeR2ButtonId,
+                        nativeDeltaSeconds,
+                        previousNativePollR2,
+                        currentR2);
+                }
+
+                previousNativePollR2 =
+                    currentR2;
+                r2NativePollActive = true;
+
+                if (!r2NativePollTimingLogged) {
+                    log(
+                        "Bluetooth R2 context timing: NATIVE-SLOT2-TIMING "
+                        "id=10 contexts=MonocleMenu,land-vehicle "
+                        "runtimeReplay=suppressed");
+                    r2NativePollTimingLogged = true;
+                }
+            } else if (r2NativePollActive) {
+                if (previousNativePollR2 > 0.0001F) {
+                    transition(
+                        gamepadDevice,
+                        kNativeR2ButtonId,
+                        nativeDeltaSeconds,
+                        previousNativePollR2,
+                        0.0F);
+                }
+
+                previousNativePollR2 = 0.0F;
+                r2NativePollActive = false;
+            }
+        }
+
+        // Outside a land vehicle there are no native-slot2 stick events to
+        // reproduce. On-foot Scanner has already handled R2 above.
+        if (!vehicleActive) {
             return;
         }
 

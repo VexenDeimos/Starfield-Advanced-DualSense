@@ -112,7 +112,9 @@ namespace sds
             float deltaSeconds,
             void* gamepadDevice = nullptr) noexcept;
         void dispatchBluetoothScannerSticksAtNativePoll(
-            const TouchState& state) noexcept;
+            const TouchState& state,
+            float deltaSeconds,
+            void* gamepadDevice) noexcept;
         void resetBluetoothPhysicalInput() noexcept;
 
         RE::BSEventNotifyControl ProcessEvent(

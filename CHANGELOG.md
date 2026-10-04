@@ -1,3 +1,15 @@
+## 0.6.1 - 2026-10-04
+
+### Bluetooth input fixes
+
+- Fixed intermittent **R2 input over Bluetooth while the Scanner is active**, including unreliable Cutter activation.
+- Fixed intermittent **R2 land-vehicle weapon firing over Bluetooth**.
+- Moved Bluetooth R2 handling for Scanner and land-vehicle contexts onto Starfield's native slot-2 gamepad polling timing while preserving the normal on-foot R2 path outside those contexts.
+- Fixed Bluetooth input state occasionally remaining active during Starfield shutdown, which could cause Windows/File Explorer selection to continue moving after the game closed.
+- Added explicit Bluetooth input neutralization during shutdown before SAD removes its temporary Bluetooth shadow delegate.
+- ProductVersion/FileVersion: `0.6.1.0`.
+- Release tag: `v0.6.1`.
+
 ## 0.6.0 - 2026-10-04
 
 ### Controller transport, reconnect, and input

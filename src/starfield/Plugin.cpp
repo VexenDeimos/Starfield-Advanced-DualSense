@@ -85,7 +85,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.6.0";
+    constexpr std::string_view kVersion = "0.6.1";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -2388,6 +2388,35 @@ if (connected && g_controller->bluetoothTransport()) {
         }
         g_runtimeShutdown = true;
 
+        // Shutdown must release every synthetic Bluetooth physical input
+        // while Starfield's SAD shadow is still installed. The ordinary
+        // transport-inactive path does this during gameplay, but quit sets
+        // g_runtimeShutdown before another runtime tick can run.
+        //
+        // First neutralize the native-slot2 context path used by Scanner /
+        // land-vehicle R2 and vehicle/scanner sticks, then neutralize the
+        // runtime physical-event bridge. Only after both releases are sent
+        // do we detach the shadow delegate.
+        if (g_gameState) {
+            if (g_controller &&
+                g_controller->connected() &&
+                g_controller->bluetoothTransport() &&
+                g_bluetoothShadowDelegate) {
+
+                sds::TouchState neutral{};
+                g_gameState->dispatchBluetoothScannerSticksAtNativePoll(
+                    neutral,
+                    0.0F,
+                    g_bluetoothShadowDelegate);
+            }
+
+            g_gameState->resetBluetoothPhysicalInput();
+
+            pluginLog(
+                "Bluetooth gameplay input bridge: RESET "
+                "reason=runtime-shutdown");
+        }
+
         removeBluetoothShadowDelegate();
 
         if (g_boostpackSpeakerPlayback) {
@@ -3046,14 +3075,17 @@ if (connected && g_controller->bluetoothTransport()) {
                 &next,
                 sizeof(next));
 
-            // REV-8 scanner analog timing parity.
+            // Context-sensitive Bluetooth input timing parity.
             //
-            // Native USB stick events originate during Starfield's
-            // own gamepad polling stage. During REV-8 scanner mode,
-            // reproduce IDs 11/12 here instead of from runtimeTick.
+            // Native USB trigger/stick events originate during Starfield's
+            // own gamepad polling stage. Scanner R2 and land-vehicle R2 need
+            // that timing too; REV-8 vehicle/scanner sticks keep their proven
+            // native-slot2 path.
             if (g_gameState) {
                 g_gameState->dispatchBluetoothScannerSticksAtNativePoll(
-                    state);
+                    state,
+                    deltaSeconds,
+                    gamepad);
             }
 
             // Do NOT touch gamepad +0x08 here.
