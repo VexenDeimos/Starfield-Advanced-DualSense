@@ -66,10 +66,10 @@ for label, ok in checks:
 
 if failed:
     print()
-    print("FAILED v0.6.1 handgun USB buzz checks:")
+    print("FAILED v0.6.2 handgun USB buzz checks:")
     for label in failed:
         print(" -", label)
     sys.exit(1)
 
 print()
-print("PASS v0.6.1 USB handgun Bluetooth-parity buzz contract")
+print("PASS v0.6.2 USB handgun Bluetooth-parity buzz contract")

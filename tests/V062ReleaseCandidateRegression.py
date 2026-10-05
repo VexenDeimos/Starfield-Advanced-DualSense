@@ -9,7 +9,7 @@ usb=(root/"src/windows/NativeUsbBackend.cpp").read_text()
 hid=(root/"src/windows/HidWriteTrace.cpp").read_text()
 menu=(root/"include/StarfieldDualSense/SettingsMenu.h").read_text()
 checks=[
- ("version 0.6.1",'kVersion = "0.6.1"' in plugin and xmake.count('set_version("0.6.1")')==2),
+ ("version 0.6.2",'kVersion = "0.6.2"' in plugin and xmake.count('set_version("0.6.2")')==2),
  ("70ms handgun",'duration = 0.070F' in wave),
  ("weapon master","WeaponHaptics = true" in config),
  ("Weapon Haptics tab",'"Weapon Haptics"' in menu),
@@ -30,4 +30,4 @@ for label,ok in checks:
     if not ok: failed.append(label)
 if failed:
     print("FAILED:", ", ".join(failed)); sys.exit(1)
-print("PASS v0.6.1 release source contract")
+print("PASS v0.6.2 release source contract")

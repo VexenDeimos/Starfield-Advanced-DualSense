@@ -1,4 +1,4 @@
-# Starfield DualSense v0.6.1
+# Starfield DualSense v0.6.2
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -184,3 +184,12 @@ Touchpad = true
 # DIAGNOSTICS
 # =============================================================================
 DebugLogging = false
+
+# =============================================================================
+# POWER
+# =============================================================================
+# Turn off the DualSense when Starfield exits if the controller is using Bluetooth.
+# Has no effect on USB connections.
+BluetoothPowerOffOnExit = true
+BluetoothIdleTimeoutEnabled = true
+BluetoothIdleTimeoutMinutes = 15

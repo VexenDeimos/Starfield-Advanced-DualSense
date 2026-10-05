@@ -52,7 +52,7 @@ namespace sds
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 54> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 57> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -112,6 +112,10 @@ namespace sds
 
         { "Lightbar", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "Touchpad", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
+
+        { "BluetoothPowerOffOnExit", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "BluetoothIdleTimeoutEnabled", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "BluetoothIdleTimeoutMinutes", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Float, 1.0F, 60.0F },
 
         { "DebugLogging", SettingsMenuTab::DiagnosticsStatus, SettingsControlKind::Boolean, 0.0F, 0.0F },
     }};

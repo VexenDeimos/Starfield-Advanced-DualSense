@@ -163,6 +163,58 @@ namespace
         result += yesNo(caps.controllerSpeaker);
         return result;
     }
+
+    bool hasMeaningfulBluetoothActivity(
+        const sds::TouchState& state) noexcept
+    {
+        const auto stickMoved =
+            [](std::uint8_t value) noexcept {
+                constexpr int kCenter = 128;
+                constexpr int kDeadzone = 18;
+
+                const int position =
+                    static_cast<int>(value);
+
+                return
+                    position <= kCenter - kDeadzone ||
+                    position >= kCenter + kDeadzone;
+            };
+
+        constexpr std::uint8_t kTriggerThreshold = 12;
+
+        return
+            state.first.down ||
+            state.second.down ||
+
+            stickMoved(state.leftX) ||
+            stickMoved(state.leftY) ||
+            stickMoved(state.rightX) ||
+            stickMoved(state.rightY) ||
+
+            state.l2 > kTriggerThreshold ||
+            state.r2 > kTriggerThreshold ||
+
+            state.dpad != 8 ||
+
+            state.square ||
+            state.cross ||
+            state.circle ||
+            state.triangle ||
+
+            state.l1 ||
+            state.r1 ||
+            state.l2Button ||
+            state.r2Button ||
+
+            state.create ||
+            state.options ||
+            state.l3 ||
+            state.r3 ||
+
+            state.ps ||
+            state.click ||
+            state.mute;
+    }
 }
 
 sds::ControllerManager::ControllerManager(
@@ -182,7 +234,12 @@ sds::ControllerManager::ControllerManager(
     _outputRefreshInterval(outputRefreshInterval),
     _rightTriggerObserver(std::move(rightTriggerObserver)),
     _runtimeMode(runtimeMode)
-{}
+{
+    applyBluetoothPowerSettings(
+        config.bluetoothPowerOffOnExit,
+        config.bluetoothIdleTimeoutEnabled,
+        config.bluetoothIdleTimeoutMinutes);
+}
 
 sds::ControllerManager::~ControllerManager()
 {
@@ -198,6 +255,39 @@ void sds::ControllerManager::applyLiveSettings(
     } catch (...) {
         // A menu-thread settings update must never terminate controller processing.
     }
+}
+
+void sds::ControllerManager::applyBluetoothPowerSettings(
+    bool powerOffOnExit,
+    bool idleTimeoutEnabled,
+    float idleTimeoutMinutes) noexcept
+{
+    float minutes = idleTimeoutMinutes;
+
+    if (!(minutes >= 1.0F)) {
+        minutes = 1.0F;
+    } else if (minutes > 120.0F) {
+        minutes = 120.0F;
+    }
+
+    _bluetoothPowerOffOnExit.store(
+        powerOffOnExit,
+        std::memory_order_release);
+
+    _bluetoothIdleTimeoutEnabled.store(
+        idleTimeoutEnabled,
+        std::memory_order_release);
+
+    _bluetoothIdleTimeoutMinutes.store(
+        minutes,
+        std::memory_order_release);
+}
+
+void sds::ControllerManager::requestBluetoothPowerOffOnStop() noexcept
+{
+    _bluetoothPowerOffOnStopRequested.store(
+        true,
+        std::memory_order_release);
 }
 
 void sds::ControllerManager::setControllerSpeakerRoutingEnabled(bool enabled) noexcept
@@ -445,6 +535,13 @@ void sds::ControllerManager::run() noexcept
         std::uint8_t appliedBluetoothRight = 0;
         std::chrono::steady_clock::time_point lastBluetoothRumbleSubmit{};
 
+        // Idle power management observes parsed physical controller state,
+        // never the raw periodic Bluetooth report cadence.
+        auto lastBluetoothMeaningfulInput =
+            std::chrono::steady_clock::now();
+
+        bool intentionalBluetoothPowerOff = false;
+
         auto rapidReconnectUntil =
             std::chrono::steady_clock::time_point{};
         auto handoffOutputReassertUntil =
@@ -601,6 +698,11 @@ void sds::ControllerManager::run() noexcept
                             TouchGestureTracker{};
 
                         _connected = true;
+
+                        if (bluetoothTransport) {
+                            lastBluetoothMeaningfulInput = now;
+                            intentionalBluetoothPowerOff = false;
+                        }
 
                         if (havePreviousConnection) {
                             if (previousConnection != connection) {
@@ -910,7 +1012,9 @@ void sds::ControllerManager::run() noexcept
                 const bool needsInput =
                     live.touchpad || live.adaptiveTriggers ||
                     static_cast<bool>(_rightTriggerObserver) ||
-                    caps.lightbar;
+                    caps.lightbar ||
+                    _bluetoothIdleTimeoutEnabled.load(
+                        std::memory_order_acquire);
                 if (needsInput && caps.touchpadInput && backend->connected()) {
                     if (const auto input = backend->pollTouch()) {
                         batteryKnown = input->batteryKnown;
@@ -920,6 +1024,10 @@ void sds::ControllerManager::run() noexcept
                         batteryFull = input->batteryFull;
 
                         if (caps.bluetoothTransport) {
+                            if (hasMeaningfulBluetoothActivity(*input)) {
+                                lastBluetoothMeaningfulInput = now;
+                            }
+
                             std::scoped_lock inputLock(_latestInputMutex);
                             _latestInputState = *input;
                             ++_latestInputGeneration;
@@ -1001,6 +1109,68 @@ void sds::ControllerManager::run() noexcept
                     }
                 }
 
+                const bool bluetoothIdleEnabled =
+                    _bluetoothIdleTimeoutEnabled.load(
+                        std::memory_order_acquire);
+
+                if (!bluetoothIdleEnabled) {
+                    // Enabling the setting live starts a fresh idle period
+                    // rather than expiring against an old timestamp.
+                    lastBluetoothMeaningfulInput = now;
+                } else if (
+                    caps.bluetoothTransport &&
+                    backend->connected()) {
+
+                    float timeoutMinutes =
+                        _bluetoothIdleTimeoutMinutes.load(
+                            std::memory_order_acquire);
+
+                    if (!(timeoutMinutes >= 1.0F)) {
+                        timeoutMinutes = 1.0F;
+                    } else if (timeoutMinutes > 120.0F) {
+                        timeoutMinutes = 120.0F;
+                    }
+
+                    const auto timeout =
+                        std::chrono::duration_cast<
+                            std::chrono::steady_clock::duration>(
+                                std::chrono::duration<
+                                    float,
+                                    std::ratio<60>>(
+                                        timeoutMinutes));
+
+                    if (now - lastBluetoothMeaningfulInput >= timeout) {
+                        clearObservedR2();
+                        clearBluetoothRumbleState();
+
+                        // Neutral controller-owned output before asking the
+                        // physical DualSense to power itself off.
+                        backend->resetOutputs();
+
+                        if (backend->powerOffBluetooth()) {
+                            intentionalBluetoothPowerOff = true;
+                            clearLatestBluetoothInput();
+
+                            _connected = false;
+                            _bluetoothTransport.store(
+                                false,
+                                std::memory_order_release);
+
+                            log(
+                                "Bluetooth power management: "
+                                "idle timeout reached; controller power-off sent");
+                        } else {
+                            // Fail soft and start a fresh interval so a failed
+                            // feature report cannot hammer the HID stack.
+                            lastBluetoothMeaningfulInput = now;
+
+                            log(
+                                "Bluetooth power management: "
+                                "idle power-off failed; retry deferred");
+                        }
+                    }
+                }
+
                 if (!backend->connected()) {
                     clearObservedR2();
                     clearBluetoothRumbleState();
@@ -1008,17 +1178,33 @@ void sds::ControllerManager::run() noexcept
                     _connected = false;
                     _bluetoothTransport.store(false, std::memory_order_release);
 
-                    rapidReconnectUntil =
-                        now +
-                        kTransportHandoffRapidWindow;
-                    nextConnectAttempt = now;
-                    handoffOutputReassertUntil = {};
-                    nextHandoffOutputReassert = {};
+                    if (intentionalBluetoothPowerOff) {
+                        // Do not enter SAD's aggressive transport-handoff
+                        // rediscovery window after a deliberate idle shutdown.
+                        rapidReconnectUntil = {};
+                        nextConnectAttempt =
+                            now + _reconnectInterval;
+                        handoffOutputReassertUntil = {};
+                        nextHandoffOutputReassert = {};
+                        intentionalBluetoothPowerOff = false;
 
-                    log(
-                        "Controller transport lifecycle: "
-                        "transport-lost rapidRediscoveryMs=5000 "
-                        "retryMs=250");
+                        log(
+                            "Bluetooth power management: "
+                            "intentional idle shutdown complete; "
+                            "waiting for PS reconnect");
+                    } else {
+                        rapidReconnectUntil =
+                            now +
+                            kTransportHandoffRapidWindow;
+                        nextConnectAttempt = now;
+                        handoffOutputReassertUntil = {};
+                        nextHandoffOutputReassert = {};
+
+                        log(
+                            "Controller transport lifecycle: "
+                            "transport-lost rapidRediscoveryMs=5000 "
+                            "retryMs=250");
+                    }
                 }
             }
 
@@ -1027,13 +1213,38 @@ void sds::ControllerManager::run() noexcept
 
         clearObservedR2();
         clearBluetoothRumbleState();
+
+        const bool powerOffOnStop =
+            _bluetoothPowerOffOnStopRequested.exchange(
+                false,
+                std::memory_order_acq_rel) &&
+            _bluetoothPowerOffOnExit.load(
+                std::memory_order_acquire) &&
+            backend->connected() &&
+            backend->capabilities().bluetoothTransport;
+
         if (backend->connected()) {
             backend->resetOutputs();
-            backend->disconnect();
+
+            if (powerOffOnStop) {
+                if (backend->powerOffBluetooth()) {
+                    log(
+                        "Bluetooth power management: "
+                        "game-exit controller power-off sent");
+                } else {
+                    log(
+                        "Bluetooth power management: "
+                        "game-exit power-off failed; disconnecting normally");
+                    backend->disconnect();
+                }
+            } else {
+                backend->disconnect();
+            }
         } else {
             // Keep lifecycle deterministic for test/future backends.
             backend->disconnect();
         }
+
         clearLatestBluetoothInput();
         _connected = false;
         _bluetoothTransport.store(false, std::memory_order_release);

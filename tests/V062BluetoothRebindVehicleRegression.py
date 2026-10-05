@@ -7,8 +7,8 @@ game = (root / "src/starfield/GameStateAdapter.cpp").read_text(encoding="utf-8")
 
 checks = [
     (
-        "runtime stays v0.6.1 during hardware validation",
-        'kVersion = "0.6.1"' in plugin,
+        "runtime stays v0.6.2 during hardware validation",
+        'kVersion = "0.6.2"' in plugin,
     ),
     (
         "native handoff still gets only one guarded selector attempt",

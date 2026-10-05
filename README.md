@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.6.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.2-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -305,7 +305,7 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Haptics | `AdvancedHaptics`, `HapticStrength`, `BluetoothHapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
 | Weapon Haptics | `WeaponHaptics` plus per-family enable and `0.0-3.0` strength controls for ballistic handguns, rapid ballistics, ballistic rifles, precision ballistics, shotguns, heavy ballistics, launchers, magnetic, laser, particle, sustained-energy, EM, and melee weapons |
 | Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
-| Controller Features | `Lightbar`, `Touchpad` |
+| Controller Features | `Lightbar`, `Touchpad`, `BluetoothPowerOffOnExit`, `BluetoothIdleTimeoutEnabled`, `BluetoothIdleTimeoutMinutes` |
 | Diagnostics | `DebugLogging` |
 
 ### Haptic Strength

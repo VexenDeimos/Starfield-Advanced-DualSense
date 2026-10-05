@@ -40,6 +40,7 @@ namespace sds
         bool setCompatibleRumble(
             std::uint8_t left,
             std::uint8_t right) override;
+        bool powerOffBluetooth() noexcept override;
         void prepareTransportHandoff(
             ConnectionType previous) noexcept override;
         void resetOutputs() noexcept override;

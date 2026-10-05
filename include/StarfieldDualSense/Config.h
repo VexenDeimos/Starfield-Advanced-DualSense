@@ -80,6 +80,12 @@ namespace sds
         bool speakerShipSystems{ true };
         bool lightbar{ true };
         bool touchpad{ true };
+
+        // Bluetooth-only controller power management.
+        bool bluetoothPowerOffOnExit{ true };
+        bool bluetoothIdleTimeoutEnabled{ true };
+        float bluetoothIdleTimeoutMinutes{ 15.0F };
+
         bool debugLogging{ false };
 
         friend bool operator==(const Config&, const Config&) = default;

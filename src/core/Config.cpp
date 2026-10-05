@@ -243,6 +243,19 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.lightbar);
         } else if (key == "Touchpad") {
             parseBool(value, config.touchpad);
+        } else if (key == "BluetoothPowerOffOnExit") {
+            parseBool(value, config.bluetoothPowerOffOnExit);
+        } else if (key == "BluetoothIdleTimeoutEnabled") {
+            parseBool(value, config.bluetoothIdleTimeoutEnabled);
+        } else if (key == "BluetoothIdleTimeoutMinutes") {
+            if (parseFloat(
+                    value,
+                    config.bluetoothIdleTimeoutMinutes,
+                    120.0F) &&
+                config.bluetoothIdleTimeoutMinutes < 1.0F) {
+
+                config.bluetoothIdleTimeoutMinutes = 1.0F;
+            }
         } else if (key == "DebugLogging") {
             parseBool(value, config.debugLogging);
         }

@@ -71,6 +71,8 @@ namespace sds
             else if (key == "SpeakerBoostpack") value = c.speakerBoostpack;
             else if (key == "Lightbar") value = c.lightbar;
             else if (key == "Touchpad") value = c.touchpad;
+            else if (key == "BluetoothPowerOffOnExit") value = c.bluetoothPowerOffOnExit;
+            else if (key == "BluetoothIdleTimeoutEnabled") value = c.bluetoothIdleTimeoutEnabled;
             else if (key == "DebugLogging") value = c.debugLogging;
             else return false;
             return true;
@@ -99,6 +101,7 @@ namespace sds
             else if (key == "SpeakerVolume") value = c.speakerVolume;
             else if (key == "SpeakerWeaponsVolume") value = c.speakerWeaponsVolume;
             else if (key == "SpeakerBoostpackVolume") value = c.speakerBoostpackVolume;
+            else if (key == "BluetoothIdleTimeoutMinutes") value = c.bluetoothIdleTimeoutMinutes;
             else return false;
             return true;
         }

@@ -170,6 +170,13 @@ bool sds::NativeDualSenseBackend::setCompatibleRumble(
             left,
             right);
 }
+bool sds::NativeDualSenseBackend::powerOffBluetooth() noexcept
+{
+    return _impl &&
+        _impl->active &&
+        _impl->active->powerOffBluetooth();
+}
+
 bool sds::NativeDualSenseBackend::setControllerSpeakerRoutingEnabled(
     bool enabled)
 {

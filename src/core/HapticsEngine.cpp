@@ -11,6 +11,7 @@ namespace
     constexpr std::uint8_t kDataMenuBit = 1U << 0;
     constexpr std::uint8_t kPauseMenuBit = 1U << 1;
     constexpr std::uint8_t kLoadingMenuBit = 1U << 2;
+    constexpr std::uint8_t kGalaxyStarMapMenuBit = 1U << 3;
 
     std::string_view eventText(const sds::GameEvent& event) noexcept
     {
@@ -31,6 +32,9 @@ namespace
         }
         if (menu == "LoadingMenu") {
             return kLoadingMenuBit;
+        }
+        if (menu == "GalaxyStarMapMenu") {
+            return kGalaxyStarMapMenuBit;
         }
         return 0;
     }

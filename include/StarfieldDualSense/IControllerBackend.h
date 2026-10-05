@@ -70,6 +70,13 @@ namespace sds
             (void)previous;
         }
 
+        // Bluetooth backends may request that the physical controller
+        // powers itself off. Unsupported transports fail-soft.
+        virtual bool powerOffBluetooth() noexcept
+        {
+            return false;
+        }
+
         virtual void resetOutputs() noexcept = 0;
     };
 }

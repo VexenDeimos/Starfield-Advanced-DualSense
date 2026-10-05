@@ -85,7 +85,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.6.1";
+    constexpr std::string_view kVersion = "0.6.2";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -255,7 +255,13 @@ namespace
         }
 
         if (g_controller) {
-            g_controller->applyLiveSettings(sds::controllerLiveSettings(config));
+            g_controller->applyLiveSettings(
+                sds::controllerLiveSettings(config));
+
+            g_controller->applyBluetoothPowerSettings(
+                config.bluetoothPowerOffOnExit,
+                config.bluetoothIdleTimeoutEnabled,
+                config.bluetoothIdleTimeoutMinutes);
         }
 
         const bool previousCommsEnabled =
@@ -2525,6 +2531,10 @@ if (connected && g_controller->bluetoothTransport()) {
         }
 
         if (g_controller) {
+            // shutdownRuntime has already neutralized the Bluetooth shadow
+            // and physical-input bridge. Request physical power-off only
+            // after those release frames have been dispatched.
+            g_controller->requestBluetoothPowerOffOnStop();
             g_controller->stop();
         }
 

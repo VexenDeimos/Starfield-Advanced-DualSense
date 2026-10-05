@@ -8,6 +8,9 @@
 #include <hidsdi.h>
 #include <hidpi.h>
 #include <setupapi.h>
+#include <BluetoothAPIs.h>
+#include <winioctl.h>
+#include <bthioctl.h>
 
 #include <algorithm>
 #include <array>
@@ -15,11 +18,157 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 namespace
 {
+    int bluetoothHexNibble(wchar_t value) noexcept
+    {
+        if (value >= L'0' && value <= L'9') {
+            return static_cast<int>(value - L'0');
+        }
+
+        if (value >= L'a' && value <= L'f') {
+            return 10 + static_cast<int>(value - L'a');
+        }
+
+        if (value >= L'A' && value <= L'F') {
+            return 10 + static_cast<int>(value - L'A');
+        }
+
+        return -1;
+    }
+
+    bool parseBluetoothAddress(
+        std::wstring_view serial,
+        BTH_ADDR& address) noexcept
+    {
+        std::uint64_t value = 0;
+        std::size_t digits = 0;
+
+        for (const wchar_t ch : serial) {
+            if (ch == L':' ||
+                ch == L'-' ||
+                ch == L' ') {
+
+                continue;
+            }
+
+            const int nibble = bluetoothHexNibble(ch);
+
+            if (nibble < 0 || digits >= 12U) {
+                return false;
+            }
+
+            value =
+                (value << 4U) |
+                static_cast<std::uint64_t>(nibble);
+
+            ++digits;
+        }
+
+        if (digits != 12U) {
+            return false;
+        }
+
+        address = static_cast<BTH_ADDR>(value);
+        return true;
+    }
+
+    bool readBluetoothAddressFromHid(
+        HANDLE handle,
+        BTH_ADDR& address) noexcept
+    {
+        if (handle == INVALID_HANDLE_VALUE) {
+            return false;
+        }
+
+        std::array<wchar_t, 64> serial{};
+
+        if (!HidD_GetSerialNumberString(
+                handle,
+                serial.data(),
+                static_cast<ULONG>(
+                    serial.size() * sizeof(wchar_t)))) {
+
+            return false;
+        }
+
+        return parseBluetoothAddress(
+            std::wstring_view(serial.data()),
+            address);
+    }
+
+    bool disconnectBluetoothRemoteDevice(
+        BTH_ADDR address,
+        DWORD& lastError) noexcept
+    {
+        lastError = ERROR_SUCCESS;
+
+        BLUETOOTH_FIND_RADIO_PARAMS params{};
+        params.dwSize = sizeof(params);
+
+        HANDLE radio = nullptr;
+
+        HBLUETOOTH_RADIO_FIND find =
+            BluetoothFindFirstRadio(
+                &params,
+                &radio);
+
+        if (!find) {
+            lastError = GetLastError();
+            return false;
+        }
+
+        bool disconnected = false;
+
+        for (;;) {
+            DWORD bytesReturned = 0;
+
+            SetLastError(ERROR_SUCCESS);
+
+            const BOOL ok =
+                DeviceIoControl(
+                    radio,
+                    IOCTL_BTH_DISCONNECT_DEVICE,
+                    &address,
+                    static_cast<DWORD>(sizeof(address)),
+                    nullptr,
+                    0,
+                    &bytesReturned,
+                    nullptr);
+
+            if (ok) {
+                disconnected = true;
+            } else {
+                lastError = GetLastError();
+            }
+
+            CloseHandle(radio);
+            radio = nullptr;
+
+            if (disconnected) {
+                break;
+            }
+
+            if (!BluetoothFindNextRadio(
+                    find,
+                    &radio)) {
+
+                if (lastError == ERROR_SUCCESS) {
+                    lastError = GetLastError();
+                }
+
+                break;
+            }
+        }
+
+        BluetoothFindRadioClose(find);
+        return disconnected;
+    }
+
     std::string modelName(sds::ControllerType type)
     {
         switch (type) {
@@ -530,6 +679,61 @@ bool sds::NativeBluetoothBackend::connect()
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
     return connectedDevice;
+}
+
+bool sds::NativeBluetoothBackend::powerOffBluetooth() noexcept
+{
+    if (!_impl ||
+        _impl->presenceOnly ||
+        !connected()) {
+
+        return false;
+    }
+
+    try {
+        BTH_ADDR address = 0;
+
+        if (!readBluetoothAddressFromHid(
+                _impl->handle,
+                address)) {
+
+            _impl->writeLog(
+                "Native Bluetooth: OS link disconnect FAILED "
+                "reason=controller-address-unavailable");
+
+            return false;
+        }
+
+        DWORD error = ERROR_SUCCESS;
+
+        if (!disconnectBluetoothRemoteDevice(
+                address,
+                error)) {
+
+            _impl->writeLog(
+                std::string(
+                    "Native Bluetooth: OS link disconnect FAILED "
+                    "ioctl=IOCTL_BTH_DISCONNECT_DEVICE error=") +
+                std::to_string(error));
+
+            return false;
+        }
+
+        _impl->writeLog(
+            "Native Bluetooth: OS link disconnect SENT "
+            "ioctl=IOCTL_BTH_DISCONNECT_DEVICE");
+
+        // Windows has now torn down the physical Bluetooth link.
+        // Retire SAD's HID state immediately as an intentional
+        // disconnect rather than waiting for the next failed read.
+        _impl->markDisconnected();
+        return true;
+    } catch (...) {
+        _impl->writeLog(
+            "Native Bluetooth: OS link disconnect exception ignored");
+
+        return false;
+    }
 }
 
 void sds::NativeBluetoothBackend::disconnect() noexcept

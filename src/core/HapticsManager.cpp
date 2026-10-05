@@ -36,6 +36,9 @@ namespace
         if (menu == "PauseMenu") {
             return 0x2u;
         }
+        if (menu == "GalaxyStarMapMenu") {
+            return 0x8u;
+        }
         return 0u;
     }
 
@@ -49,6 +52,9 @@ namespace
         }
         if (menu == "LoadingMenu") {
             return 0x4u;
+        }
+        if (menu == "GalaxyStarMapMenu") {
+            return 0x8u;
         }
         return 0u;
     }

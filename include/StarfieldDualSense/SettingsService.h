@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 54>
+    inline constexpr std::array<SettingDescriptor, 57>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -86,6 +86,10 @@ namespace sds
 
             { "Lightbar", "Lightbar", "Enable SAD's DualSense lightbar behavior.", SettingApplyMode::Live },
             { "Touchpad", "Touchpad", "Enable SAD's DualSense touchpad integration.", SettingApplyMode::Live },
+
+            { "BluetoothPowerOffOnExit", "Bluetooth Power Off on Exit", "Power off a Bluetooth-connected DualSense when Starfield exits. USB connections are unaffected.", SettingApplyMode::Live },
+            { "BluetoothIdleTimeoutEnabled", "Bluetooth Idle Timeout", "Power off an idle Bluetooth-connected DualSense after the configured timeout. Meaningful controller input resets the timer; USB connections are unaffected.", SettingApplyMode::Live },
+            { "BluetoothIdleTimeoutMinutes", "Bluetooth Idle Timeout Minutes", "Minutes of Bluetooth controller inactivity before automatic power-off. Range: 1-60 minutes; default: 15.", SettingApplyMode::Live },
 
             { "DebugLogging", "Debug Logging", "Enable detailed diagnostic logging for troubleshooting and hardware validation.", SettingApplyMode::Live },
         }};

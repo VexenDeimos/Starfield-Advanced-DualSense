@@ -36,8 +36,8 @@ for match in manager_handoff_matches:
 
 checks = [
     (
-        "runtime is v0.6.1",
-        'kVersion = "0.6.1"' in plugin,
+        "runtime is v0.6.2",
+        'kVersion = "0.6.2"' in plugin,
     ),
     (
         "transport handoff hook remains interface safe",
@@ -110,10 +110,10 @@ for label, ok in checks:
 
 if failed:
     print()
-    print("FAILED v0.6.1 transport checks:")
+    print("FAILED v0.6.2 transport checks:")
     for label in failed:
         print(" -", label)
     sys.exit(1)
 
 print()
-print("PASS v0.6.1 transport lifecycle contract")
+print("PASS v0.6.2 transport lifecycle contract")

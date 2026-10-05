@@ -56,4 +56,4 @@ if failed:
     sys.exit(1)
 
 print()
-print("PASS v0.6.1 Bluetooth shutdown input neutralization contract")
+print("PASS v0.6.2 Bluetooth shutdown input neutralization contract")

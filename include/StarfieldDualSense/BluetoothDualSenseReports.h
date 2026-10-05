@@ -35,4 +35,5 @@ namespace sds
         BluetoothDualSenseOutputReport& report,
         std::uint8_t motorLeft,
         std::uint8_t motorRight) noexcept;
+
 }

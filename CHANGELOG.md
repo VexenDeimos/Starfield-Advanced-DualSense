@@ -1,3 +1,12 @@
+## 0.6.2 - 2026-10-05
+
+- Added Bluetooth controller power management with optional controller power-off when Starfield exits and a configurable idle timeout.
+- Added live SFSE Menu Framework controls and TOML persistence for Bluetooth power-off, idle-timeout enable/disable, and timeout minutes; the default idle timeout is 15 minutes.
+- Added intentional Bluetooth idle shutdown with PS-button reconnect support while Starfield remains running, with meaningful held controller input preventing idle shutdown.
+- Fixed intermittent Bluetooth input-presentation fighting that could immediately replace PlayStation glyphs with keyboard/mouse glyphs and cursor state after controller input.
+- Fixed sustained haptics and adaptive-trigger output leaking into `GalaxyStarMapMenu`.
+- Uses the Windows-native Bluetooth disconnect path for intentional controller shutdown and removes the abandoned HID feature-report power-off experiment.
+
 ## 0.6.1 - 2026-10-04
 
 ### Bluetooth input fixes

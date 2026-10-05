@@ -2046,24 +2046,93 @@ void sds::GameStateAdapter::observeSemanticButton(
     }
 
     try {
-        // Track Starfield native keyboard/mouse activity before the
-        // existing ButtonEvent-specific semantic filtering.
+        // Only validated native input events may change keyboard/mouse
+        // presentation. The semantic broadcaster also sees objects that are
+        // not native InputEvents; treating +0x08 alone as DeviceType can make
+        // unrelated data look like keyboard/mouse activity and immediately
+        // steal glyph/cursor presentation from an active Bluetooth DualSense.
         const auto presentationEventAddress =
             reinterpret_cast<std::uintptr_t>(event);
+
+        const auto presentationModuleBase =
+            g_starfieldModuleBase.load(
+                std::memory_order_acquire);
+
+        const auto presentationModuleSize =
+            g_starfieldModuleSize.load(
+                std::memory_order_acquire);
+
+        std::uintptr_t presentationVtable = 0;
 
         std::uint32_t presentationDevice =
             static_cast<std::uint32_t>(-1);
 
-        if (safeReadValue(
+        std::uint32_t presentationEventType =
+            static_cast<std::uint32_t>(-1);
+
+        const bool presentationHeaderReadable =
+            safeReadValue(
+                presentationEventAddress,
+                presentationVtable) &&
+            safeReadValue(
                 presentationEventAddress + 0x08u,
                 presentationDevice) &&
-            (presentationDevice ==
-                 static_cast<std::uint32_t>(
-                     RE::InputEvent::DeviceType::kKeyboard) ||
-             presentationDevice ==
-                 static_cast<std::uint32_t>(
-                     RE::InputEvent::DeviceType::kMouse))) {
+            safeReadValue(
+                presentationEventAddress + 0x10u,
+                presentationEventType);
 
+        const bool presentationVtableNative =
+            presentationModuleBase != 0 &&
+            presentationModuleSize != 0 &&
+            presentationVtable >= presentationModuleBase &&
+            presentationVtable <
+                presentationModuleBase +
+                    presentationModuleSize;
+
+        const bool presentationKeyboard =
+            presentationDevice ==
+                static_cast<std::uint32_t>(
+                    RE::InputEvent::DeviceType::kKeyboard);
+
+        const bool presentationMouse =
+            presentationDevice ==
+                static_cast<std::uint32_t>(
+                    RE::InputEvent::DeviceType::kMouse);
+
+        // Keyboard and mouse buttons use Starfield's known native
+        // ButtonEvent layout/vtable.
+        const bool presentationButton =
+            presentationModuleBase != 0 &&
+            presentationEventType ==
+                static_cast<std::uint32_t>(
+                    RE::InputEvent::EventType::kButton) &&
+            presentationVtable ==
+                presentationModuleBase +
+                    kButtonEventPrimaryVtableRva;
+
+        // Mouse movement is a separate native InputEvent type. It does not
+        // use ButtonEvent's vtable, so require a real Starfield-module
+        // vtable plus the exact MouseMove event type.
+        const bool presentationMouseMove =
+            presentationMouse &&
+            presentationVtableNative &&
+            presentationEventType ==
+                static_cast<std::uint32_t>(
+                    RE::InputEvent::EventType::kMouseMove);
+
+        const bool presentationKeyboardMouseInput =
+            presentationHeaderReadable &&
+            presentationVtableNative &&
+            (
+                (
+                    presentationButton &&
+                    (presentationKeyboard ||
+                     presentationMouse)
+                ) ||
+                presentationMouseMove
+            );
+
+        if (presentationKeyboardMouseInput) {
             notifyInputPresentationDevice(
                 InputPresentationDevice::KeyboardMouse);
         }

@@ -75,4 +75,4 @@ if failed:
     sys.exit(1)
 
 print()
-print("PASS v0.6.1 Bluetooth Scanner/land-vehicle R2 native-slot2 timing contract")
+print("PASS v0.6.2 Bluetooth Scanner/land-vehicle R2 native-slot2 timing contract")

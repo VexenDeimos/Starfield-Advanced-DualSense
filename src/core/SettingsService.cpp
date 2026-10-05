@@ -2,6 +2,7 @@
 #include "StarfieldDualSense/HapticStrength.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -586,6 +587,22 @@ namespace sds
                 },
 
                 {
+                    "BluetoothPowerOffOnExit",
+                    boolText(
+                        config.bluetoothPowerOffOnExit)
+                },
+                {
+                    "BluetoothIdleTimeoutEnabled",
+                    boolText(
+                        config.bluetoothIdleTimeoutEnabled)
+                },
+                {
+                    "BluetoothIdleTimeoutMinutes",
+                    formatFloat(
+                        config.bluetoothIdleTimeoutMinutes)
+                },
+
+                {
                     "DebugLogging",
                     boolText(config.debugLogging)
                 },
@@ -862,6 +879,16 @@ namespace sds
             return true;
         }
 
+        if (key == "BluetoothPowerOffOnExit") {
+            current_.bluetoothPowerOffOnExit = value;
+            return true;
+        }
+
+        if (key == "BluetoothIdleTimeoutEnabled") {
+            current_.bluetoothIdleTimeoutEnabled = value;
+            return true;
+        }
+
         if (key == "DebugLogging") {
             current_.debugLogging = value;
             return true;
@@ -997,6 +1024,15 @@ namespace sds
         if (key == "SpeakerBoostpackVolume") {
             current_.speakerBoostpackVolume =
                 std::clamp(value, 0.0F, 1.0F);
+            return true;
+        }
+
+        if (key == "BluetoothIdleTimeoutMinutes") {
+            current_.bluetoothIdleTimeoutMinutes =
+                std::clamp(
+                    std::round(value),
+                    1.0F,
+                    60.0F);
             return true;
         }
 

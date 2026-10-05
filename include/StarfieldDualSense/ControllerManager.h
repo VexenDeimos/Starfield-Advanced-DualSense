@@ -48,6 +48,11 @@ namespace sds
         void start();
         void stop() noexcept;
         void applyLiveSettings(ControllerLiveSettings settings) noexcept;
+        void applyBluetoothPowerSettings(
+            bool powerOffOnExit,
+            bool idleTimeoutEnabled,
+            float idleTimeoutMinutes) noexcept;
+        void requestBluetoothPowerOffOnStop() noexcept;
         void setControllerSpeakerRoutingEnabled(bool enabled) noexcept;
         [[nodiscard]] bool pulseBluetoothRumble(
             std::uint8_t left,
@@ -96,6 +101,12 @@ namespace sds
         std::atomic<bool> _stopRequested{ false };
         std::atomic<bool> _connected{ false };
         std::atomic<bool> _bluetoothTransport{ false };
+
+        std::atomic<bool> _bluetoothPowerOffOnExit{ true };
+        std::atomic<bool> _bluetoothIdleTimeoutEnabled{ true };
+        std::atomic<float> _bluetoothIdleTimeoutMinutes{ 15.0F };
+        std::atomic<bool> _bluetoothPowerOffOnStopRequested{ false };
+
         std::atomic<bool> _desiredSpeakerRouting{ true };
         std::atomic<std::uint64_t> _speakerRoutingGeneration{ 0 };
     };
