@@ -209,6 +209,59 @@ This allows Bluetooth vibration strength to be tuned independently without chang
 
 USB remains the reference path for the DualSense's native 4-channel audio-haptics capability, while Bluetooth uses SAD's native wireless feedback implementation.
 
+## Bluetooth Power Management
+
+SAD can automatically power off a **Bluetooth-connected DualSense** when the controller is no longer needed. These features apply only to Bluetooth connections; **USB-connected controllers are unaffected**.
+
+The default settings are:
+
+    BluetoothPowerOffOnExit = true
+    BluetoothIdleTimeoutEnabled = true
+    BluetoothIdleTimeoutMinutes = 15
+
+### Power off when Starfield exits
+
+With:
+
+    BluetoothPowerOffOnExit = true
+
+SAD intentionally disconnects and powers off the Bluetooth DualSense when Starfield closes.
+
+Set it to `false` if you want the controller to remain connected after exiting the game.
+
+### Bluetooth idle timeout
+
+With:
+
+    BluetoothIdleTimeoutEnabled = true
+    BluetoothIdleTimeoutMinutes = 15
+
+SAD powers off the Bluetooth DualSense after the configured period of controller inactivity.
+
+The default timeout is **15 minutes**. The in-game settings menu allows values from **1 to 60 minutes**.
+
+The idle timer is based on meaningful physical controller activity. Buttons, D-pad input, touchpad use, triggers, and stick movement reset the timer. Holding a meaningful control also keeps the controller awake, while normal stick drift, trigger noise, gyro data, haptics, lightbar output, and other controller output do not count as user activity.
+
+### Reconnecting after automatic power-off
+
+If SAD powers off the controller because of the idle timeout, Starfield does **not** need to be restarted.
+
+Press the **PS button** to reconnect the DualSense. SAD will detect the Bluetooth controller again and restore its normal runtime handling.
+
+### In-game settings
+
+When the optional SFSE Menu Framework integration is installed, these controls are available under **Controller Features**:
+
+- **Bluetooth Power Off on Exit**
+- **Bluetooth Idle Timeout**
+- **Bluetooth Idle Timeout Minutes**
+
+Changes apply live and are saved back to `StarfieldDualSense.toml`.
+
+> **Note:** The idle timeout is handled by the SAD plugin while Starfield is running. It is not a system-wide Windows controller sleep timer. `BluetoothPowerOffOnExit` separately handles powering off the controller when the game closes.
+
+---
+
 ## Important: Disable Starfield's Accessibility Adaptive Triggers
 
 Before using SAD's adaptive-trigger system, open Starfield's own settings and set:
