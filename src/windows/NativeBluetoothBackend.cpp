@@ -1008,11 +1008,15 @@ void sds::NativeBluetoothBackend::prepareTransportHandoff(
         return;
     }
 
+    // A freshly reopened Bluetooth HID connection already runs the normal
+    // Bluetooth LED startup sequence. Do not layer a second handoff-only
+    // RELEASE_LEDS phase on top of that sequence after USB.
     _impl->transportHandoffLedReleasePending =
-        true;
+        false;
 
     _impl->writeLog(
-        "Native Bluetooth: transport handoff LED re-prime armed previous=USB");
+        "Native Bluetooth: transport handoff LED uses standard startup takeover "
+        "previous=USB specialRelease=off");
 }
 
 void sds::NativeBluetoothBackend::resetOutputs() noexcept

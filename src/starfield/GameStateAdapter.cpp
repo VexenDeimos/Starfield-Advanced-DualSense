@@ -2959,6 +2959,8 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
             // context while REV-8 authority itself remains valid.
             bool cadenceLimitedContext = false;
             bool rev8ScannerContext = false;
+            bool galaxyMapContext = false;
+            bool cursorMenuContext = false;
 
             if (auto* ui = RE::UI::GetSingleton()) {
                 rev8ScannerContext =
@@ -2967,12 +2969,18 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                     ui->IsMenuOpen(
                         RE::BSFixedString("MonocleMenu"));
 
-                cadenceLimitedContext =
-                    rev8ScannerContext ||
+                galaxyMapContext =
                     ui->IsMenuOpen(
-                        RE::BSFixedString("GalaxyStarMapMenu")) ||
+                        RE::BSFixedString("GalaxyStarMapMenu"));
+
+                cursorMenuContext =
                     ui->IsMenuOpen(
                         RE::BSFixedString("CursorMenu"));
+
+                cadenceLimitedContext =
+                    rev8ScannerContext ||
+                    galaxyMapContext ||
+                    cursorMenuContext;
             }
 
             // Ordinary land-vehicle driving must keep the unrestricted
@@ -3030,6 +3038,20 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                     idCode == 11 &&
                     !cadenceLimitedContext;
 
+            // Galaxy-map Bluetooth parity:
+            // Native USB hardware measurement delivers both sticks at roughly
+            // 158 Hz in GalaxyStarMapMenu. A 160 Hz Bluetooth target closely
+            // matches native USB while protected 60 Hz contexts remain intact.
+            const bool leftGalaxyMapParityCadence =
+                galaxyMapContext &&
+                    idCode == 11 &&
+                    !rev8ScannerContext;
+
+            const bool rightGalaxyMapParityCadence =
+                galaxyMapContext &&
+                    idCode == 12 &&
+                    !rev8ScannerContext;
+
             const bool rightVehicleCamera =
                 vehicleCameraContext &&
                     idCode == 12;
@@ -3061,17 +3083,31 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                     !currentActive &&
                     previousActive;
 
-                constexpr float kStickPublishIntervalSeconds =
-                    1.0F / 60.0F;
+                const float kStickPublishIntervalSeconds =
+                    leftGalaxyMapParityCadence ?
+                        (1.0F / 160.0F) :
+                    rightGalaxyMapParityCadence ?
+                        (1.0F / 160.0F) :
+                        (1.0F / 60.0F);
 
-                if (!activationEdge &&
-                    !releaseEdge &&
-                    stickCadenceSeconds <
-                        kStickPublishIntervalSeconds) {
-                    return;
+                if (activationEdge || releaseEdge) {
+                    stickCadenceSeconds = 0.0F;
                 }
+                else {
+                    if (stickCadenceSeconds <
+                        kStickPublishIntervalSeconds) {
+                        return;
+                    }
 
-                stickCadenceSeconds = 0.0F;
+                    // Preserve the fractional cadence remainder so the
+                    // sustained event rate actually averages 60 Hz even when
+                    // Starfield's runtime tick does not divide evenly into
+                    // 60 Hz. Discarding the remainder undersamples the stick
+                    // at common frame rates such as 90 Hz and 144 Hz.
+                    stickCadenceSeconds = std::fmod(
+                        stickCadenceSeconds,
+                        kStickPublishIntervalSeconds);
+                }
             }
 
             produceThumbstick(

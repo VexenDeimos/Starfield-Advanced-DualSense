@@ -39,6 +39,11 @@ namespace
     constexpr DWORD kObjectNameTimeoutMs = 20;
     constexpr ULONGLONG kArbitrationLogIntervalMs = 5000;
 
+    // SAD owns fields inside the normal 48-byte DualSense USB payload.
+    // DualSense Edge can advertise a larger HID output report, but its
+    // additional tail bytes must remain completely untouched.
+    constexpr DWORD kDualSenseUsbOwnershipPayloadBytes = 48;
+
     using NtQuerySystemInformationFn = LONG(NTAPI*)(ULONG, PVOID, ULONG, PULONG);
     using NtQueryObjectFn = LONG(NTAPI*)(HANDLE, ULONG, PVOID, ULONG, PULONG);
     struct NativeUnicodeString
@@ -343,12 +348,17 @@ namespace
 
         auto& state = traceState();
         void* caller = _ReturnAddress();
-        if (state.active.load(std::memory_order_acquire) && buffer && bytesToWrite == 48) {
+        if (state.active.load(std::memory_order_acquire) &&
+            buffer &&
+            bytesToWrite >= kDualSenseUsbOwnershipPayloadBytes) {
             auto* mutableBuffer = const_cast<std::uint8_t*>(
                 static_cast<const std::uint8_t*>(buffer));
 
             const auto ownership = sds::filterCompetingNativeDualSenseWriteInPlace(
-                std::span<std::uint8_t>(mutableBuffer, bytesToWrite),
+                std::span<std::uint8_t>(
+                    mutableBuffer,
+                    static_cast<std::size_t>(
+                        kDualSenseUsbOwnershipPayloadBytes)),
                 isTargetHandle(file),
                 isOwnHandle(file),
                 starfieldCallerRva(caller));

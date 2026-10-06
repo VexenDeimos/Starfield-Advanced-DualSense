@@ -85,7 +85,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.6.2";
+    constexpr std::string_view kVersion = "0.6.3";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;

@@ -1,3 +1,11 @@
+## 0.6.3 - 2026-10-06
+
+- Fixed Bluetooth Galaxy Map stick timing so the left-stick cursor and right-stick planet rotation closely match native USB behavior.
+- Matched both Bluetooth Galaxy Map sticks to the hardware-measured native USB input cadence while retaining the protected lower-cadence paths used by other menu, scanner, and vehicle contexts.
+- Fixed intermittent lightbar and player/battery LED loss when returning from USB to Bluetooth by using the normal Bluetooth LED startup/takeover sequence instead of an additional handoff-only LED release sequence.
+- Improved DualSense Edge USB compatibility by applying SAD's native-output ownership arbitration to variable-length HID writes while limiting modifications to the standard 48-byte DualSense payload and leaving Edge-specific tail bytes untouched.
+- Preserved REV-8 acceleration, camera, Scanner/R2 timing, Bluetooth controller-speaker audio, Bluetooth power management, adaptive triggers, haptics, and existing USB behavior.
+
 ## 0.6.2 - 2026-10-05
 
 - Added Bluetooth controller power management with optional controller power-off when Starfield exits and a configurable idle timeout.

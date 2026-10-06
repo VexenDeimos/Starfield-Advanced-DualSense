@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.6.2-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.3-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -22,7 +22,7 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and the REV-8. |
 | **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
 | **Weapon Haptics Controls** | A master weapon-vibration switch plus per-family enable and `0.0-3.0` strength controls for 13 on-foot weapon groups, applied live to USB and Bluetooth haptics. |
-| **DualSense Edge** | Standard SAD DualSense features are supported on Edge hardware, including USB output-report sizing for the Edge's larger HID report. Rear paddles and Fn controls are not separately mapped. |
+| **DualSense Edge** | Standard SAD DualSense features are supported on Edge hardware, including USB output-report sizing and native-output ownership arbitration for the Edge's larger HID report. Rear paddles and Fn controls are not separately mapped. |
 | **Music Haptics** | Optional score-driven tactile feedback mixed underneath gameplay haptics so combat and other gameplay effects keep priority. |
 | **Controller Speaker** | Real Starfield audio through the DualSense speaker over USB or Bluetooth, including supported communications, UI/scanner sounds, weapons, Digipicks, crafting/research, and boostpack audio. |
 | **Dataslate / Comms Voice** | Supported spoken dataslates and communications can use `Both` or `ControllerOnly` output while preserving Starfield's native STOP/PLAY and continuation behavior. |
