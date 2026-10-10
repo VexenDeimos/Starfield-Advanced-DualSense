@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.6.3-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.1-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -22,6 +22,7 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and the REV-8. |
 | **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
 | **Weapon Haptics Controls** | A master weapon-vibration switch plus per-family enable and `0.0-3.0` strength controls for 13 on-foot weapon groups, applied live to USB and Bluetooth haptics. |
+| **Custom / Modded Weapons** | Map a modded weapon EditorID to any supported SAD weapon haptics/trigger profile and separate controller-speaker firing/handling profiles using repeatable `[[CustomWeapons]]` blocks. |
 | **DualSense Edge** | Standard SAD DualSense features are supported on Edge hardware, including USB output-report sizing and native-output ownership arbitration for the Edge's larger HID report. Rear paddles and Fn controls are not separately mapped. |
 | **Music Haptics** | Optional score-driven tactile feedback mixed underneath gameplay haptics so combat and other gameplay effects keep priority. |
 | **Controller Speaker** | Real Starfield audio through the DualSense speaker over USB or Bluetooth, including supported communications, UI/scanner sounds, weapons, Digipicks, crafting/research, and boostpack audio. |
@@ -29,7 +30,7 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Digipick Feedback** | Real Digipick sounds through the controller speaker plus tactile feedback for rotation, shape selection, successful insertion, and puzzle completion. |
 | **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research-station sounds through the controller speaker. |
 | **Boostpack Feedback** | Dedicated boostpack haptics and real boostpack audio through the controller speaker. |
-| **Touchpad** | Native DualSense touchpad shortcuts using Starfield's own input actions. |
+| **Touchpad** | Individually configurable swipes, right touchpad press, and Create button, including Disabled/Photo Mode and a reset-to-defaults button; the global `Touchpad` master switch remains. |
 | **Dynamic Lightbar** | Player-health colors, a Main Menu white-to-blue breathing effect, and ship takeoff/landing/touchdown lighting. |
 | **Battery Indicator** | The five DualSense player-indicator LEDs act as a battery gauge on both USB and Bluetooth. |
 | **Reconnect Repair** | Repairs Starfield's reconnect timing and preserves DualSense identity/input across USB <-> Bluetooth handoffs, including the late USB HID ownership refresh needed for stable SAD lightbar/player-LED control. |
@@ -78,11 +79,41 @@ When `Touchpad = true`, SAD adds native DualSense touchpad shortcuts:
 
 The **left side of the touchpad click remains native to Starfield** and keeps its normal POV behavior.
 
+All six SAD shortcuts (the four swipes, right touchpad press, and Create) can be set independently using the **SFSE Menu Framework** or the TOML fields `SwipeUpAction`, `SwipeDownAction`, `SwipeLeftAction`, `SwipeRightAction`, `RightTouchpadPressAction`, and `CreateButtonAction`.
+
+Available actions are **Disabled, Inventory, Missions, Data Menu, Skills, Map, Powers, Photo Mode, and Toggle POV**. All six also support `Disabled`. The in-game **Reset Touchpad Bindings to SAD Defaults** button restores their assignments without changing other settings.
+
+Setting `Touchpad = false` disables all six SAD shortcuts without erasing their individual choices. Re-enabling it restores those choices. Turning off Create within SAD does **not** make Create bindable through Starfield's native control settings.
+
 If **Powers have not been unlocked yet**, swiping left uses Starfield's native `QuickPowers` action and falls back to the **Data Menu** — the main character menu — instead of opening the Powers screen.
 
 These shortcuts use Starfield's native input actions rather than simulating keyboard presses.
 
 ---
+
+## Custom / Modded Weapon Profiles
+
+SAD v0.7.1 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
+
+Open `Data\SFSE\Plugins\StarfieldDualSense.toml` and add a separate array-of-tables entry for each weapon:
+
+```toml
+[[CustomWeapons]]
+EditorID = "MyModdedRifleEditorID"
+ControllerFeedbackProfile = "Microgun"
+SpeakerAudioProfile = "Maelstrom"
+HandlingSpeakerAudioProfile = "Maelstrom"
+
+[[CustomWeapons]]
+EditorID = "MyModdedPistolEditorID"
+ControllerFeedbackProfile = "Regulator"
+SpeakerAudioProfile = "Urban Eagle"
+HandlingSpeakerAudioProfile = "Urban Eagle"
+```
+
+`EditorID` is the weapon's internal editor ID (not its FormID, display name, or plugin filename). You can find it in the Starfield console using `help "part of weapon name" 4 WEAP`, or inspect the weapon's `EDID` in Creation Kit/xEdit. Any one of the three profile fields can be omitted when you don't need that output category. Handling audio requires compatible native weapon events.
+
+The corresponding global switches are `CustomWeaponsEnabled`, `CustomWeaponAdaptiveTriggersEnabled`, and `CustomWeaponSpeakerAudioEnabled`, alongside their parent haptics/trigger/speaker switches. For supported profile names and detailed examples, see the custom-weapons guide on the mod's Nexus article page.
 
 ## Lightbar and Battery Indicators
 
@@ -358,7 +389,8 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Haptics | `AdvancedHaptics`, `HapticStrength`, `BluetoothHapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
 | Weapon Haptics | `WeaponHaptics` plus per-family enable and `0.0-3.0` strength controls for ballistic handguns, rapid ballistics, ballistic rifles, precision ballistics, shotguns, heavy ballistics, launchers, magnetic, laser, particle, sustained-energy, EM, and melee weapons |
 | Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
-| Controller Features | `Lightbar`, `Touchpad`, `BluetoothPowerOffOnExit`, `BluetoothIdleTimeoutEnabled`, `BluetoothIdleTimeoutMinutes` |
+| Custom Weapons | `[[CustomWeapons]]`, `EditorID`, `ControllerFeedbackProfile`, `SpeakerAudioProfile`, `HandlingSpeakerAudioProfile`, `CustomWeaponsEnabled`, `CustomWeaponAdaptiveTriggersEnabled`, `CustomWeaponSpeakerAudioEnabled` |
+| Controller Features | `Lightbar`, `Touchpad`, `SwipeUpAction`, `SwipeDownAction`, `SwipeLeftAction`, `SwipeRightAction`, `RightTouchpadPressAction`, `CreateButtonAction`, `BluetoothPowerOffOnExit`, `BluetoothIdleTimeoutEnabled`, `BluetoothIdleTimeoutMinutes` |
 | Diagnostics | `DebugLogging` |
 
 ### Haptic Strength

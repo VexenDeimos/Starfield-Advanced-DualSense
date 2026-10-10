@@ -66,6 +66,20 @@ namespace
         .pulse = kQuickInventoryPulse,
     };
 
+    // Main-gameplay Data Menu: native Options/Start gamepad binding (0x0010).
+    // Unlike the Quick... actions, this was listed in the shortcut menu
+    // before a corresponding native injection definition existed.
+    constexpr sds::NativeInputActionDefinition kOpenDataMenuDefinition{
+        .action = sds::InputAction::OpenDataMenu,
+        .userEvent = "DataMenu",
+        .deviceType = 2,
+        .deviceId = 0,
+        .eventType = 0,
+        .idCode = 0x0010,
+        .disabled = false,
+        .pulse = kQuickInventoryPulse,
+    };
+
     constexpr sds::NativeInputActionDefinition kOpenMissionsDefinition{
         .action = sds::InputAction::OpenMissions,
         .userEvent = "QuickMission",
@@ -148,6 +162,7 @@ namespace
         const sds::NativeInputActionDefinition* definitions[]{
             &kOpenInventoryDefinition,
             &kOpenMissionsDefinition,
+            &kOpenDataMenuDefinition,
             &kOpenSkillsDefinition,
             &kOpenMapDefinition,
             &kOpenPowersDefinition,
@@ -172,6 +187,8 @@ const sds::NativeInputActionDefinition* sds::nativeInputDefinitionForAction(
         return &kOpenInventoryDefinition;
     case InputAction::OpenMissions:
         return &kOpenMissionsDefinition;
+    case InputAction::OpenDataMenu:
+        return &kOpenDataMenuDefinition;
     case InputAction::OpenSkills:
         return &kOpenSkillsDefinition;
     case InputAction::OpenMap:

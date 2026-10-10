@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -57,8 +58,32 @@ namespace sds
         std::uint8_t hapticRating{ 4 };
     };
 
+    struct CustomWeaponProfileConfigResult
+    {
+        std::size_t loaded{ 0 };
+        std::size_t ignored{ 0 };
+    };
+
     [[nodiscard]] std::span<const WeaponProfile> weaponProfiles() noexcept;
-    [[nodiscard]] const WeaponProfile* findWeaponProfile(std::string_view identity) noexcept;
+
+    // Parse TOML [[CustomWeapons]] blocks. ControllerFeedbackProfile maps
+    // an exact modded EditorID to one existing SAD weapon feedback profile.
+    [[nodiscard]]
+    CustomWeaponProfileConfigResult configureCustomWeaponProfiles(
+        bool enabled,
+        std::string_view tomlText) noexcept;
+
+    [[nodiscard]] bool customWeaponsEnabled() noexcept;
+    [[nodiscard]] std::size_t customWeaponProfileCount() noexcept;
+
+    // True only when the current identity matched an enabled TOML alias.
+    [[nodiscard]]
+    bool isCustomWeaponProfileMatch(
+        std::string_view identity) noexcept;
+
+    [[nodiscard]]
+    const WeaponProfile* findWeaponProfile(
+        std::string_view identity) noexcept;
     [[nodiscard]] std::string_view weaponIntensityName(WeaponIntensity intensity) noexcept;
     [[nodiscard]] std::string_view weaponTriggerFamilyName(WeaponTriggerFamily family) noexcept;
 }

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <utility>
 
@@ -20,6 +21,134 @@ namespace
             return 0x4u;
         }
         return 0u;
+    }
+
+    bool isReloadSpeakerCue(
+        const sds::WeaponSpeakerCue& cue) noexcept
+    {
+        if (
+            cue.trigger !=
+            sds::WeaponSpeakerTrigger::WwisePost) {
+
+            return false;
+        }
+
+        // These are authored Wwise weapon semantics, but they are not
+        // reload stages and must never participate in custom reload
+        // stage translation.
+        return
+            cue.action != "draw" &&
+            cue.action != "holster" &&
+            cue.action != "spin-up" &&
+            cue.action != "spin-down" &&
+            cue.action != "power-down";
+    }
+
+    bool isHandlingSpeakerCue(
+        const sds::WeaponSpeakerCue& cue) noexcept
+    {
+        if (
+            cue.trigger !=
+            sds::WeaponSpeakerTrigger::WwisePost) {
+
+            return false;
+        }
+
+        return
+            cue.action == "draw" ||
+            cue.action == "holster" ||
+            isReloadSpeakerCue(cue);
+    }
+
+    struct HandlingSourceCue
+    {
+        const sds::WeaponSpeakerCue* cue{ nullptr };
+        std::string_view sourceWeapon{};
+    };
+
+    std::optional<HandlingSourceCue>
+        findDrawOrHolsterSourceCue(
+            std::uint32_t eventId) noexcept
+    {
+        for (
+            const auto& profile :
+            sds::weaponSpeakerProfiles()) {
+
+            for (const auto& cue : profile.cues) {
+                if (
+                    cue.trigger !=
+                        sds::WeaponSpeakerTrigger::WwisePost ||
+                    (
+                        cue.action != "draw" &&
+                        cue.action != "holster"
+                    ) ||
+                    cue.liveWwiseEventId == 0u ||
+                    cue.liveWwiseEventId != eventId) {
+
+                    continue;
+                }
+
+                return HandlingSourceCue{
+                    &cue,
+                    profile.weaponIdentity
+                };
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    struct ReloadSourceStage
+    {
+        const sds::WeaponSpeakerCue* cue{ nullptr };
+        std::size_t index{ 0u };
+        std::size_t count{ 0u };
+        std::string_view sourceWeapon{};
+    };
+
+    std::optional<ReloadSourceStage>
+        findReloadSourceStage(
+            std::uint32_t eventId) noexcept
+    {
+        for (const auto& profile :
+             sds::weaponSpeakerProfiles()) {
+
+            std::size_t count = 0u;
+
+            for (const auto& cue : profile.cues) {
+                if (isReloadSpeakerCue(cue)) {
+                    ++count;
+                }
+            }
+
+            if (count == 0u) {
+                continue;
+            }
+
+            std::size_t index = 0u;
+
+            for (const auto& cue : profile.cues) {
+                if (!isReloadSpeakerCue(cue)) {
+                    continue;
+                }
+
+                if (
+                    cue.liveWwiseEventId != 0u &&
+                    cue.liveWwiseEventId == eventId) {
+
+                    return ReloadSourceStage{
+                        &cue,
+                        index,
+                        count,
+                        profile.weaponIdentity
+                    };
+                }
+
+                ++index;
+            }
+        }
+
+        return std::nullopt;
     }
 }
 
@@ -221,7 +350,10 @@ void sds::WeaponSpeakerPlayback::logLine(std::string_view line) const noexcept
 void sds::WeaponSpeakerPlayback::resetActiveRoundRobin() noexcept
 {
     for (auto& group : _groups) {
-        if (group.profile == _activeProfile) {
+        if (
+            group.profile == _activeProfile ||
+            group.profile == _activeHandlingProfile) {
+
             group.nextIndex = 0u;
         }
     }
@@ -230,6 +362,8 @@ void sds::WeaponSpeakerPlayback::resetActiveRoundRobin() noexcept
 void sds::WeaponSpeakerPlayback::clearActiveProfileForContextChange() noexcept
 {
     _activeProfile = nullptr;
+    _activeHandlingProfile = nullptr;
+    _customWeaponMappingActive = false;
     _nextSustainedStartIndex = 0u;
     _nextSustainedStopIndex = 0u;
     _gamePaused = false;
@@ -572,6 +706,8 @@ bool sds::WeaponSpeakerPlayback::observeGameEvent(const GameEvent& event) noexce
                 _shipPilotActive = false;
                 clearSustained("ship-pilot-exit", true, true);
                 _activeProfile = nullptr;
+                _activeHandlingProfile = nullptr;
+                _customWeaponMappingActive = false;
                 _nextSustainedStartIndex = 0u;
                 _nextSustainedStopIndex = 0u;
                 _gamePaused = false;
@@ -611,23 +747,116 @@ bool sds::WeaponSpeakerPlayback::observeGameEvent(const GameEvent& event) noexce
 
         if (event.type == GameEventType::WeaponEquipped) {
             clearSustained("weapon-swap", true, false);
-            _activeProfile = findWeaponSpeakerProfile(text);
+
+            _activeProfile =
+                findWeaponSpeakerProfile(text);
+
+            _activeHandlingProfile = nullptr;
+            _customWeaponMappingActive = false;
+
+            if (!_activeProfile) {
+                _activeProfile =
+                    findCustomWeaponSpeakerProfile(
+                        text);
+
+                _activeHandlingProfile =
+                    findCustomWeaponHandlingSpeakerProfile(
+                        text);
+
+                _customWeaponMappingActive =
+                    _activeProfile != nullptr ||
+                    _activeHandlingProfile != nullptr;
+            }
+
             _nextSustainedStartIndex = 0u;
             _nextSustainedStopIndex = 0u;
             resetActiveRoundRobin();
-            if (_activeProfile) {
+
+            if (
+                _activeProfile ||
+                _activeHandlingProfile) {
+
+                if (
+                    !_customWeaponMappingActive &&
+                    _activeProfile) {
+
+                    std::ostringstream line;
+
+                    line
+                        << "Weapon speaker: armed weapon="
+                        << _activeProfile->weaponIdentity
+                        << " family="
+                        << speakerAudioFamily(
+                            *_activeProfile)
+                        << " source=exact-profile";
+
+                    logLine(
+                        line.str());
+
+                    return true;
+                }
+
                 std::ostringstream line;
-                line << "Weapon speaker: armed weapon=" << _activeProfile->weaponIdentity
-                     << " family=" << speakerAudioFamily(*_activeProfile)
-                     << " source=exact-profile";
-                logLine(line.str());
+
+                line << "Weapon speaker: armed fire=";
+
+                if (_activeProfile) {
+                    line
+                        << _activeProfile->weaponIdentity
+                        << " family="
+                        << speakerAudioFamily(
+                            *_activeProfile);
+                } else {
+                    line << "<none>";
+                }
+
+                line << " handling=";
+
+                if (_activeHandlingProfile) {
+                    line
+                        << _activeHandlingProfile->weaponIdentity
+                        << " family="
+                        << speakerAudioFamily(
+                            *_activeHandlingProfile);
+                } else if (
+                    _activeProfile &&
+                    !_customWeaponMappingActive) {
+
+                    line
+                        << _activeProfile->weaponIdentity
+                        << " family="
+                        << speakerAudioFamily(
+                            *_activeProfile);
+                } else {
+                    line << "<none>";
+                }
+
+                line
+                    << " source="
+                    << (
+                        _customWeaponMappingActive ?
+                            "custom-profile" :
+                            "exact-profile"
+                    );
+
+                logLine(
+                    line.str());
+
                 return true;
             }
+
             if (_debugLogging) {
                 std::ostringstream line;
-                line << "Weapon speaker: disarmed weapon=" << text << " source=no-speaker-profile";
-                logLine(line.str());
+
+                line
+                    << "Weapon speaker: disarmed weapon="
+                    << text
+                    << " source=no-speaker-profile";
+
+                logLine(
+                    line.str());
             }
+
             return false;
         }
 
@@ -655,12 +884,34 @@ bool sds::WeaponSpeakerPlayback::observeGameEvent(const GameEvent& event) noexce
                 return true;
             }
         }
+        if (event.type == GameEventType::ReloadCompleted) {
+            if (
+                _activeHandlingProfile &&
+                _debugLogging) {
+
+                std::ostringstream line;
+
+                line
+                    << "Weapon speaker reload: complete profile="
+                    << _activeHandlingProfile->weaponIdentity
+                    << " source=ReloadComplete-boundary";
+
+                logLine(
+                    line.str());
+            }
+
+            return
+                _activeHandlingProfile != nullptr;
+        }
+
         if (event.type == GameEventType::Shutdown) {
             _shipPilotActive = false;
             _landVehicleContextActive = false;
             _shipContextSuppressed = false;
             clearSustained("shutdown", true, true);
             _activeProfile = nullptr;
+            _activeHandlingProfile = nullptr;
+            _customWeaponMappingActive = false;
             _nextSustainedStartIndex = 0u;
             _nextSustainedStopIndex = 0u;
             return true;
@@ -691,42 +942,341 @@ bool sds::WeaponSpeakerPlayback::observeWwise(const WeaponSfxWwiseObservation& o
 {
     try {
         std::scoped_lock lock(_mutex);
-        if (_shipContextSuppressed || !_activeProfile || !_preparedCache) {
+
+        if (
+            _shipContextSuppressed ||
+            !_preparedCache ||
+            (
+                !_activeProfile &&
+                !_activeHandlingProfile
+            )) {
+
             return false;
         }
-        const auto family = _preparedCache->find(_activeProfile->weaponIdentity);
+
+        if (_activeHandlingProfile) {
+            const auto handlingSource =
+                findDrawOrHolsterSourceCue(
+                    observation.eventId);
+
+            if (
+                handlingSource &&
+                handlingSource->cue) {
+
+                if (
+                    handlingSource->cue->
+                        requireZeroExternalSources &&
+                    (
+                        observation.externalCount != 0u ||
+                        observation.hasExternalSources
+                    )) {
+
+                    ++_stats.externalSourceIgnored;
+                    return false;
+                }
+
+                if (
+                    handlingSource->cue->
+                        requiredGameObjectId != 0u &&
+                    observation.gameObjectId !=
+                        handlingSource->cue->
+                            requiredGameObjectId) {
+
+                    ++_stats.wrongGameObjectIgnored;
+                    return false;
+                }
+
+                const auto handlingFamily =
+                    _preparedCache->find(
+                        _activeHandlingProfile->
+                            weaponIdentity);
+
+                if (!handlingFamily) {
+                    return false;
+                }
+
+                auto* targetGroup =
+                    findGroup(
+                        _activeHandlingProfile->
+                            weaponIdentity,
+                        handlingSource->cue->action);
+
+                if (
+                    !targetGroup ||
+                    !targetGroup->cue) {
+
+                    return false;
+                }
+
+                const auto route =
+                    handlingSource->cue->action ==
+                        "draw" ?
+                            "custom-handling-draw-map" :
+                            "custom-handling-holster-map";
+
+                const bool accepted =
+                    submitGroup(
+                        *targetGroup,
+                        *handlingFamily,
+                        route);
+
+                if (
+                    _debugLogging &&
+                    accepted) {
+
+                    std::ostringstream line;
+
+                    line
+                        << "Weapon speaker handling map: "
+                        << "sourceWeapon="
+                        << handlingSource->sourceWeapon
+                        << " sourceAction="
+                        << handlingSource->cue->action
+                        << " sourceEvent=0x"
+                        << std::hex
+                        << std::uppercase
+                        << observation.eventId
+                        << std::dec
+                        << " targetWeapon="
+                        << _activeHandlingProfile->
+                            weaponIdentity
+                        << " targetAction="
+                        << targetGroup->cue->action
+                        << " normalGameAudio=untouched";
+
+                    logLine(
+                        line.str());
+                }
+
+                return accepted;
+            }
+
+            const auto source =
+                findReloadSourceStage(
+                    observation.eventId);
+
+            if (
+                source &&
+                source->cue) {
+
+                if (
+                    source->cue->requireZeroExternalSources &&
+                    (
+                        observation.externalCount != 0u ||
+                        observation.hasExternalSources
+                    )) {
+
+                    ++_stats.externalSourceIgnored;
+                    return false;
+                }
+
+                if (
+                    source->cue->requiredGameObjectId != 0u &&
+                    observation.gameObjectId !=
+                        source->cue->requiredGameObjectId) {
+
+                    ++_stats.wrongGameObjectIgnored;
+                    return false;
+                }
+
+                std::size_t targetCount = 0u;
+
+                for (const auto& group : _groups) {
+                    if (
+                        group.profile ==
+                            _activeHandlingProfile &&
+                        group.cue &&
+                        isReloadSpeakerCue(
+                            *group.cue)) {
+
+                        ++targetCount;
+                    }
+                }
+
+                if (
+                    targetCount != 0u &&
+                    source->count != 0u) {
+
+                    std::size_t targetIndex = 0u;
+
+                    if (
+                        source->count > 1u &&
+                        targetCount > 1u) {
+
+                        const auto numerator =
+                            source->index *
+                                (targetCount - 1u) +
+                            (
+                                source->count - 1u
+                            ) /
+                                2u;
+
+                        targetIndex =
+                            numerator /
+                            (
+                                source->count - 1u
+                            );
+                    }
+
+                    std::size_t index = 0u;
+
+                    for (auto& group : _groups) {
+                        if (
+                            group.profile !=
+                                _activeHandlingProfile ||
+                            !group.cue ||
+                            !isReloadSpeakerCue(
+                                *group.cue)) {
+
+                            continue;
+                        }
+
+                        if (index != targetIndex) {
+                            ++index;
+                            continue;
+                        }
+
+                        const auto reloadFamily =
+                            _preparedCache->find(
+                                _activeHandlingProfile->
+                                    weaponIdentity);
+
+                        if (!reloadFamily) {
+                            return false;
+                        }
+
+                        const bool accepted =
+                            submitGroup(
+                                group,
+                                *reloadFamily,
+                                "custom-handling-reload-stage-map");
+
+                        if (
+                            _debugLogging &&
+                            accepted) {
+
+                            std::ostringstream line;
+
+                            line
+                                << "Weapon speaker handling reload map: "
+                                << "sourceWeapon="
+                                << source->sourceWeapon
+                                << " sourceStage="
+                                << (
+                                    source->index +
+                                    1u
+                                )
+                                << "/"
+                                << source->count
+                                << " sourceEvent=0x"
+                                << std::hex
+                                << std::uppercase
+                                << observation.eventId
+                                << std::dec
+                                << " targetWeapon="
+                                << _activeHandlingProfile->
+                                    weaponIdentity
+                                << " targetStage="
+                                << (
+                                    targetIndex +
+                                    1u
+                                )
+                                << "/"
+                                << targetCount
+                                << " targetAction="
+                                << group.cue->action
+                                << " normalGameAudio=untouched";
+
+                            logLine(
+                                line.str());
+                        }
+
+                        return accepted;
+                    }
+                }
+            }
+        }
+
+        if (!_activeProfile) {
+            return false;
+        }
+
+        const auto family =
+            _preparedCache->find(
+                _activeProfile->weaponIdentity);
+
         if (!family) {
             return false;
         }
 
         if (_activeProfile->sustained) {
-            if (observation.eventId == _activeProfile->sustained->startWwiseEventId) {
-                return startSustained(observation, family);
+            if (
+                observation.eventId ==
+                _activeProfile->sustained->
+                    startWwiseEventId) {
+
+                return
+                    startSustained(
+                        observation,
+                        family);
             }
-            if (observation.eventId == _activeProfile->sustained->stopWwiseEventId) {
-                return stopSustainedWwise(observation, family);
+
+            if (
+                observation.eventId ==
+                _activeProfile->sustained->
+                    stopWwiseEventId) {
+
+                return
+                    stopSustainedWwise(
+                        observation,
+                        family);
             }
         }
 
         for (auto& group : _groups) {
-            if (group.profile != _activeProfile || !group.cue ||
-                group.cue->trigger != WeaponSpeakerTrigger::WwisePost ||
-                group.cue->liveWwiseEventId != observation.eventId) {
+            if (
+                group.profile != _activeProfile ||
+                !group.cue ||
+                group.cue->trigger !=
+                    WeaponSpeakerTrigger::WwisePost ||
+                group.cue->liveWwiseEventId !=
+                    observation.eventId ||
+                (
+                    _customWeaponMappingActive &&
+                    isHandlingSpeakerCue(
+                        *group.cue)
+                )) {
+
                 continue;
             }
 
-            if (group.cue->requireZeroExternalSources &&
-                (observation.externalCount != 0u || observation.hasExternalSources)) {
+            if (
+                group.cue->requireZeroExternalSources &&
+                (
+                    observation.externalCount != 0u ||
+                    observation.hasExternalSources
+                )) {
+
                 ++_stats.externalSourceIgnored;
                 return false;
             }
-            if (group.cue->requiredGameObjectId != 0u &&
-                observation.gameObjectId != group.cue->requiredGameObjectId) {
+
+            if (
+                group.cue->requiredGameObjectId != 0u &&
+                observation.gameObjectId !=
+                    group.cue->requiredGameObjectId) {
+
                 ++_stats.wrongGameObjectIgnored;
                 return false;
             }
-            return submitGroup(group, *family, "live-Wwise-post");
+
+            return
+                submitGroup(
+                    group,
+                    *family,
+                    "live-Wwise-post");
         }
+
         return false;
     } catch (...) {
         return false;
@@ -777,8 +1327,23 @@ bool sds::WeaponSpeakerPlayback::readyForActiveProfile() const noexcept
 {
     try {
         std::scoped_lock lock(_mutex);
-        return _activeProfile != nullptr && _preparedCache &&
-            static_cast<bool>(_preparedCache->find(_activeProfile->weaponIdentity));
+        if (!_preparedCache) {
+            return false;
+        }
+
+        const bool fireReady =
+            _activeProfile &&
+            static_cast<bool>(
+                _preparedCache->find(
+                    _activeProfile->weaponIdentity));
+
+        const bool handlingReady =
+            _activeHandlingProfile &&
+            static_cast<bool>(
+                _preparedCache->find(
+                    _activeHandlingProfile->weaponIdentity));
+
+        return fireReady || handlingReady;
     } catch (...) {
         return false;
     }
@@ -788,7 +1353,9 @@ bool sds::WeaponSpeakerPlayback::armed() const noexcept
 {
     try {
         std::scoped_lock lock(_mutex);
-        return _activeProfile != nullptr;
+        return
+            _activeProfile != nullptr ||
+            _activeHandlingProfile != nullptr;
     } catch (...) {
         return false;
     }

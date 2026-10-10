@@ -22,6 +22,7 @@
 #include <StarfieldDualSense/WeaponSpeakerPlayback.h>
 #include <StarfieldDualSense/WeaponSpeakerPreparedCache.h>
 #include <StarfieldDualSense/WeaponAudioPipeline.h>
+#include <StarfieldDualSense/WeaponProfiles.h>
 #include <StarfieldDualSense/WeaponSpeakerProfile.h>
 #include <StarfieldDualSense/WeaponSfxDiscoveryProbe.h>
 #include <StarfieldDualSense/RemoteVoSpeakerPlayback.h>
@@ -85,7 +86,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.6.3";
+    constexpr std::string_view kVersion = "0.7.1";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -180,6 +181,15 @@ namespace
     std::atomic<float> g_musicHapticsUserScale{ 1.0F };
     void musicHapticsClearAuthority() noexcept;
 
+    std::string readTextFile(
+        const std::filesystem::path& path);
+
+    void pluginLog(
+        std::string_view message) noexcept;
+
+    bool refreshCurrentEquippedWeaponState(
+        std::uint32_t* refreshedFormId) noexcept;
+
     sds::SpeakerVoiceLanguage resolvedSpeakerVoiceLanguage() noexcept
     {
         const auto configured =
@@ -229,6 +239,53 @@ namespace
 
     void applyImmediateLiveSettings(const sds::Config& config) noexcept
     {
+        // Capture the old live enable states before configure*() applies the
+        // newly selected SFSE menu values. The custom registries themselves
+        // already support enable/disable correctly; the missing piece was
+        // re-arming the weapon that is currently equipped.
+        static std::atomic_bool lastCustomHapticsEnabled{ true };
+        static std::atomic_bool lastCustomTriggersEnabled{ true };
+        const bool customFeedbackChanged =
+            lastCustomHapticsEnabled.exchange(
+                config.customWeaponsEnabled,
+                std::memory_order_acq_rel) != config.customWeaponsEnabled;
+        const bool customTriggersChanged =
+            lastCustomTriggersEnabled.exchange(
+                config.customWeaponAdaptiveTriggersEnabled,
+                std::memory_order_acq_rel) != config.customWeaponAdaptiveTriggersEnabled;
+
+        const bool customSpeakerChanged =
+            sds::customWeaponSpeakerAudioEnabled() !=
+            config.customWeaponSpeakerAudioEnabled;
+
+        bool customMappingsReloaded = false;
+
+        // Custom mappings are TOML-authored. Re-read the mapping table when
+        // the SFSE menu applies or reloads settings so edits can go live
+        // without creating dynamic per-weapon menu controls.
+        try {
+            const auto customWeaponText =
+                readTextFile(
+                    std::filesystem::path(
+                        kConfigPath));
+
+            // Keep the shared profile mapping registered independently of
+            // either output switch; the haptics and trigger engines gate output.
+            (void)sds::configureCustomWeaponProfiles(
+                true,
+                customWeaponText);
+
+            (void)sds::configureCustomWeaponSpeakerProfiles(
+                config.customWeaponSpeakerAudioEnabled,
+                customWeaponText);
+
+            customMappingsReloaded = true;
+        } catch (...) {
+            // Leave the previously parsed mapping set intact on an unexpected
+            // file-read/allocation failure. The checkbox itself will apply on
+            // the next successful reload.
+        }
+
         g_nativeDualSenseReconnectFixEnabled.store(
             config.operatingMode == sds::OperatingMode::ReconnectFixOnly ||
                 config.dualSenseReconnectFix,
@@ -437,6 +494,48 @@ namespace
             g_autoRivetChargeCaptureEnabled.store(true, std::memory_order_release);
             g_haptics->applyLiveSettings(
                 sds::gameplayHapticsLiveSettings(config));
+        }
+
+        if (
+            customMappingsReloaded &&
+            (
+                customFeedbackChanged ||
+                customTriggersChanged ||
+                customSpeakerChanged
+            )) {
+
+            const bool refreshed =
+                g_gameState &&
+                g_fireMarkerBridge &&
+                refreshCurrentEquippedWeaponState(
+                    nullptr);
+
+            std::ostringstream line;
+            line
+                << "Custom weapons: live feedbackEnabled="
+                << (
+                    config.customWeaponsEnabled ?
+                        "yes" :
+                        "no"
+                )
+                << " triggersEnabled="
+                << (config.customWeaponAdaptiveTriggersEnabled ? "yes" : "no")
+                << " speakerEnabled="
+                << (
+                    config.customWeaponSpeakerAudioEnabled ?
+                        "yes" :
+                        "no"
+                )
+                << " currentWeaponRefresh="
+                << (
+                    refreshed ?
+                        "yes" :
+                        "no"
+                )
+                << " source=SFSE-live";
+
+            pluginLog(
+                line.str());
         }
     }
     std::array<std::atomic<std::uint32_t>, kMusicHapticsAuthoritySlots> g_musicHapticsPlayingIds{};
@@ -2072,14 +2171,70 @@ if (connected && g_controller->bluetoothTransport()) {
 
     sds::Config loadRuntimeConfig()
     {
-        const auto text = readTextFile(std::filesystem::path(kConfigPath));
+        const auto text =
+            readTextFile(
+                std::filesystem::path(
+                    kConfigPath));
+
         if (text.empty()) {
-            pluginLog("Config: using built-in defaults (file absent or empty)");
-            return sds::Config::defaults();
+            pluginLog(
+                "Config: using built-in defaults (file absent or empty)");
+
+            const auto config =
+                sds::Config::defaults();
+
+            (void)sds::configureCustomWeaponProfiles(
+                true,
+                {});
+
+            (void)sds::configureCustomWeaponSpeakerProfiles(
+                config.customWeaponSpeakerAudioEnabled,
+                {});
+
+            return config;
         }
 
-        pluginLog("Config: loaded Data/SFSE/Plugins/StarfieldDualSense.toml");
-        return sds::loadConfig(text);
+        pluginLog(
+            "Config: loaded Data/SFSE/Plugins/StarfieldDualSense.toml");
+
+        const auto config =
+            sds::loadConfig(text);
+
+        const auto customResult =
+            sds::configureCustomWeaponProfiles(
+                true,
+                text);
+
+        const auto customSpeakerResult =
+            sds::configureCustomWeaponSpeakerProfiles(
+                config.customWeaponSpeakerAudioEnabled,
+                text);
+
+        std::ostringstream customLine;
+        customLine
+            << "Custom weapons: feedbackEnabled="
+            << (config.customWeaponsEnabled ? "yes" : "no")
+            << " triggersEnabled="
+            << (config.customWeaponAdaptiveTriggersEnabled ? "yes" : "no")
+            << " feedbackMappings="
+            << customResult.loaded
+            << " feedbackIgnored="
+            << customResult.ignored
+            << " speakerEnabled="
+            << (config.customWeaponSpeakerAudioEnabled ? "yes" : "no")
+            << " speakerMappings="
+            << customSpeakerResult.loaded
+            << " speakerIgnored="
+            << customSpeakerResult.ignored
+            << " handlingMappings="
+            << customSpeakerResult.handlingLoaded
+            << " handlingIgnored="
+            << customSpeakerResult.handlingIgnored
+            << " source=TOML-array";
+
+        pluginLog(customLine.str());
+
+        return config;
     }
 
     void startEarlyMainMenuUiPreparation() noexcept

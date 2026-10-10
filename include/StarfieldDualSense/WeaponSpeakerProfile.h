@@ -71,7 +71,36 @@ namespace sds
         return profile.audioFamily.empty() ? profile.weaponIdentity : profile.audioFamily;
     }
 
+    struct CustomWeaponSpeakerConfigResult
+    {
+        std::size_t loaded{ 0 };
+        std::size_t ignored{ 0 };
+        std::size_t handlingLoaded{ 0 };
+        std::size_t handlingIgnored{ 0 };
+    };
+
     [[nodiscard]] std::span<const WeaponSpeakerProfile> weaponSpeakerProfiles() noexcept;
+
+    // Parse SpeakerAudioProfile and HandlingSpeakerAudioProfile values from
+    // TOML [[CustomWeapons]] blocks. Firing and handling mappings are independent
+    // and affect only controller-speaker weapon audio.
+    [[nodiscard]]
+    CustomWeaponSpeakerConfigResult configureCustomWeaponSpeakerProfiles(
+        bool enabled,
+        std::string_view tomlText) noexcept;
+
+    [[nodiscard]] bool customWeaponSpeakerAudioEnabled() noexcept;
+    [[nodiscard]] std::size_t customWeaponSpeakerProfileCount() noexcept;
+    [[nodiscard]] std::size_t customWeaponHandlingSpeakerProfileCount() noexcept;
+
+    [[nodiscard]]
+    const WeaponSpeakerProfile* findCustomWeaponSpeakerProfile(
+        std::string_view weaponIdentity) noexcept;
+
+    [[nodiscard]]
+    const WeaponSpeakerProfile* findCustomWeaponHandlingSpeakerProfile(
+        std::string_view weaponIdentity) noexcept;
+
     [[nodiscard]] const WeaponSpeakerProfile* findWeaponSpeakerProfile(std::string_view weaponIdentity) noexcept;
     [[nodiscard]] const WeaponSpeakerProfile* findWeaponSpeakerAudioFamilyProfile(
         std::string_view logicalWeapon) noexcept;

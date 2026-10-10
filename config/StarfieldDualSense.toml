@@ -1,4 +1,4 @@
-# Starfield DualSense v0.6.3
+# Starfield DualSense v0.7.1
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -27,6 +27,9 @@ DualSenseReconnectFix = true
 # ADAPTIVE TRIGGERS
 # =============================================================================
 AdaptiveTriggers = true
+# Custom weapons use ControllerFeedbackProfile for trigger effects.
+# Independent of CustomWeaponsEnabled (custom weapon vibration).
+CustomWeaponAdaptiveTriggersEnabled = true
 # Overall adaptive-trigger strength. Valid range: 0.0-1.0
 TriggerStrength = 1.0
 
@@ -53,6 +56,11 @@ BluetoothHapticStrength = 1.0
 # This does not disable damage, boostpack, ship, vehicle, Digipick,
 # adaptive-trigger effects, or controller-speaker audio.
 WeaponHaptics = true
+
+# Enable custom/modded weapon vibration only (USB and Bluetooth).
+# Adaptive triggers use CustomWeaponAdaptiveTriggersEnabled above.
+# Both share the same ControllerFeedbackProfile in [[CustomWeapons]].
+CustomWeaponsEnabled = true
 
 # Ballistic Handguns
 WeaponHapticsBallisticHandguns = true
@@ -160,6 +168,9 @@ SpeakerScannerUI = true
 
 # Weapon sounds remain additive to Starfield's normal weapon mix.
 SpeakerWeapons = true
+# Allow custom weapons to borrow existing SAD controller-speaker profiles
+# through SpeakerAudioProfile and HandlingSpeakerAudioProfile in [[CustomWeapons]].
+CustomWeaponSpeakerAudioEnabled = true
 # Weapon-only controller-speaker volume. Valid range: 0.0-1.0
 SpeakerWeaponsVolume = 1.0
 
@@ -180,6 +191,21 @@ SpeakerBoostpackVolume = 1.0
 Lightbar = true
 Touchpad = true
 
+# Optional touchpad shortcuts. Changing these does not change normal button mappings.
+# Values: "Disabled", "OpenInventory", "OpenMissions", "OpenDataMenu",
+# "OpenSkills", "OpenMap", "OpenPowers", "OpenPhotoMode", "TogglePOV".
+SwipeUpAction = "OpenInventory"
+SwipeDownAction = "OpenMissions"
+SwipeLeftAction = "OpenPowers"
+SwipeRightAction = "OpenSkills"
+RightTouchpadPressAction = "OpenMap"
+CreateButtonAction = "OpenPhotoMode"
+
+# Each of the six selectors also supports "Disabled". Touchpad=false overrides
+# them all without losing individual action selections. The left touchpad
+# press is not customizable by SAD; Starfield retains its native POV behavior.
+# Disabling Create here does not make it bindable in Starfield's controls.
+
 # =============================================================================
 # DIAGNOSTICS
 # =============================================================================
@@ -193,3 +219,41 @@ DebugLogging = false
 BluetoothPowerOffOnExit = true
 BluetoothIdleTimeoutEnabled = true
 BluetoothIdleTimeoutMinutes = 15
+
+# =============================================================================
+# CUSTOM WEAPONS
+# =============================================================================
+# Optional support for modded weapons.
+#
+# Add one [[CustomWeapons]] block for each modded weapon.
+#
+# EditorID
+#   The modded weapon's EditorID.
+#
+# ControllerFeedbackProfile
+#   Existing SAD weapon profile used for adaptive triggers and weapon haptics.
+#
+# SpeakerAudioProfile
+#   Existing SAD weapon whose controller-speaker FIRING audio should be used.
+#
+# HandlingSpeakerAudioProfile
+#   Existing SAD weapon whose controller-speaker HANDLING audio should be used.
+#   This includes draw/equip, holster/unequip, and reload mechanical sounds.
+#   Timing comes from the custom weapon's own live Wwise handling events.
+#
+# These mappings do NOT replace or alter the weapon's normal in-game audio.
+#
+# ControllerFeedbackProfile, SpeakerAudioProfile, and
+# HandlingSpeakerAudioProfile are independent. Any may be omitted.
+# HandlingSpeakerAudioProfile does not automatically inherit SpeakerAudioProfile.
+#
+# Most modded firearms must still emit Starfield's normal WeaponFire animation
+# marker for per-shot haptics and mapped firing audio.
+#
+# Example:
+#
+# [[CustomWeapons]]
+# EditorID = "MyModdedRifleEditorID"
+# ControllerFeedbackProfile = "Microgun"
+# SpeakerAudioProfile = "Maelstrom"
+# HandlingSpeakerAudioProfile = "Maelstrom"

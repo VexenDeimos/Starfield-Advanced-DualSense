@@ -46,6 +46,8 @@ namespace sds
             else if (key == "AdaptiveTriggers") value = c.adaptiveTriggers;
             else if (key == "AdvancedHaptics") value = c.advancedHaptics;
             else if (key == "WeaponHaptics") value = c.weaponHaptics;
+            else if (key == "CustomWeaponsEnabled") value = c.customWeaponsEnabled;
+            else if (key == "CustomWeaponAdaptiveTriggersEnabled") value = c.customWeaponAdaptiveTriggersEnabled;
             else if (key == "WeaponHapticsBallisticHandguns") value = c.weaponHapticsBallisticHandguns;
             else if (key == "WeaponHapticsRapidBallistics") value = c.weaponHapticsRapidBallistics;
             else if (key == "WeaponHapticsBallisticRifles") value = c.weaponHapticsBallisticRifles;
@@ -65,6 +67,7 @@ namespace sds
             else if (key == "SpeakerComms") value = c.speakerComms;
             else if (key == "SpeakerScannerUI") value = c.speakerScannerUI;
             else if (key == "SpeakerWeapons") value = c.speakerWeapons;
+            else if (key == "CustomWeaponSpeakerAudioEnabled") value = c.customWeaponSpeakerAudioEnabled;
             else if (key == "SpeakerDigipick") value = c.speakerDigipick;
             else if (key == "SpeakerCrafting") value = c.speakerCrafting;
             else if (key == "SpeakerShipSystems") value = c.speakerShipSystems;
@@ -154,6 +157,29 @@ namespace sds
                         saveAfterEdit(control.key);
                     }
                 }
+            } else if (control.kind == SettingsControlKind::TouchpadShortcut) {
+                const auto& config = g_settings->current();
+                TouchpadShortcut selected = TouchpadShortcut::Disabled;
+                if (control.key == "SwipeUpAction") selected = config.swipeUpAction;
+                else if (control.key == "SwipeDownAction") selected = config.swipeDownAction;
+                else if (control.key == "SwipeLeftAction") selected = config.swipeLeftAction;
+                else if (control.key == "SwipeRightAction") selected = config.swipeRightAction;
+                else if (control.key == "RightTouchpadPressAction") selected = config.rightTouchpadPressAction;
+                else if (control.key == "CreateButtonAction") selected = config.createButtonAction;
+
+                int current = static_cast<int>(selected);
+                const char* labels[] = {
+                    "Disabled", "Inventory", "Missions", "Data Menu",
+                    "Skills", "Map", "Powers", "Photo Mode", "Toggle POV"
+                };
+                if (ImGuiMCP::Combo(label.c_str(), &current, labels, 9)) {
+                    if (current >= 0 && current < 9 &&
+                        g_settings->setString(control.key,
+                            touchpadShortcutValue(static_cast<TouchpadShortcut>(current)))) {
+                        applyCurrentSettings();
+                        saveAfterEdit(control.key);
+                    }
+                }
             } else if (control.kind == SettingsControlKind::OperatingMode) {
                 int current = g_settings->current().operatingMode == OperatingMode::ReconnectFixOnly ? 1 : 0;
                 const char* items[] = { "Full", "Reconnect Fix Only" };
@@ -220,6 +246,20 @@ namespace sds
             for (const auto& control : settingsMenuControls()) {
                 if (control.tab == tab) {
                     renderControl(control);
+                    if (tab == SettingsMenuTab::ControllerFeatures &&
+                        control.key == "SwipeRightAction") {
+                        if (ImGuiMCP::Button("Reset Touchpad Bindings to SAD Defaults")) {
+                            g_settings->resetTouchpadBindingsToDefaults();
+                            applyCurrentSettings();
+                            g_status = g_settings->save()
+                                ? "SAD touchpad bindings restored and saved."
+                                : "SAD touchpad bindings restored in memory; TOML save failed.";
+                        }
+                        ImGuiMCP::TextWrapped(
+                            "%s",
+                            "Restores only SAD's six default shortcuts. Touchpad master switch and other settings are preserved.");
+                        ImGuiMCP::Separator();
+                    }
                 }
             }
         }

@@ -1,6 +1,6 @@
 set_xmakever("3.0.0")
 set_project("StarfieldDualSense")
-set_version("0.6.3")
+set_version("0.7.1")
 set_arch("x64")
 set_languages("c++23")
 set_encodings("utf-8")
@@ -1755,7 +1755,7 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             author = "AD Mixon",
             description = "Native DualSense support for Starfield on PC"
         })
-        set_version("0.6.3")
+        set_version("0.7.1")
         set_license("GPL-3.0-or-later")
         add_includedirs("include")
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
@@ -2363,3 +2363,20 @@ if is_plat("windows") then
             "src/core/Touchpad.cpp")
     end)
 end
+
+target("sds-v064-custom-weapon-tests", function()
+    set_kind("binary")
+    set_default(false)
+    set_languages("c++23")
+    add_includedirs("include")
+    add_files(
+        "tests/V064CustomWeaponMappingTest.cpp",
+        "src/core/Config.cpp",
+        "src/core/WeaponProfiles.cpp",
+        "src/core/EffectsEngine.cpp",
+        "src/core/HapticsEngine.cpp",
+        "src/core/WeaponSpeakerProfile.cpp",
+        "src/core/WeaponSpeakerPreparedCache.cpp",
+        "src/core/WeaponSpeakerPlayback.cpp",
+        "src/core/MaelstromSpeakerFireProof.cpp")
+end)

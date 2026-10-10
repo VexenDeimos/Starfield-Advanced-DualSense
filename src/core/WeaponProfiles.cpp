@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -87,44 +90,457 @@ namespace
     {
         std::string normalized;
         normalized.reserve(value.size());
+
         for (const unsigned char ch : value) {
             if (std::isalnum(ch) != 0) {
-                normalized.push_back(static_cast<char>(std::tolower(ch)));
+                normalized.push_back(
+                    static_cast<char>(
+                        std::tolower(ch)));
             }
         }
+
         return normalized;
+    }
+
+    std::string_view trim(std::string_view value)
+    {
+        while (
+            !value.empty() &&
+            std::isspace(
+                static_cast<unsigned char>(
+                    value.front())) != 0) {
+            value.remove_prefix(1);
+        }
+
+        while (
+            !value.empty() &&
+            std::isspace(
+                static_cast<unsigned char>(
+                    value.back())) != 0) {
+            value.remove_suffix(1);
+        }
+
+        return value;
+    }
+
+    std::string_view unquote(std::string_view value)
+    {
+        value = trim(value);
+
+        if (
+            value.size() >= 2 &&
+            value.front() == '"' &&
+            value.back() == '"') {
+            value.remove_prefix(1);
+            value.remove_suffix(1);
+        }
+
+        return value;
+    }
+
+    std::string_view removeInlineComment(
+        std::string_view value)
+    {
+        bool quoted = false;
+        bool escaped = false;
+
+        for (
+            std::size_t i = 0;
+            i < value.size();
+            ++i) {
+            const char ch = value[i];
+
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+
+            if (quoted && ch == '\\') {
+                escaped = true;
+                continue;
+            }
+
+            if (ch == '"') {
+                quoted = !quoted;
+                continue;
+            }
+
+            if (ch == '#' && !quoted) {
+                return value.substr(0, i);
+            }
+        }
+
+        return value;
+    }
+
+    const WeaponProfile* findBuiltInWeaponProfileExact(
+        std::string_view name) noexcept
+    {
+        const auto normalized =
+            normalizeIdentity(name);
+
+        if (normalized.empty()) {
+            return nullptr;
+        }
+
+        for (const auto& profile : kProfiles) {
+            if (
+                normalizeIdentity(profile.name) ==
+                normalized) {
+                return &profile;
+            }
+        }
+
+        return nullptr;
+    }
+
+    const WeaponProfile* findBuiltInWeaponProfile(
+        std::string_view identity) noexcept
+    {
+        if (identity.empty()) {
+            return nullptr;
+        }
+
+        const auto normalizedIdentity =
+            normalizeIdentity(identity);
+
+        if (normalizedIdentity.empty()) {
+            return nullptr;
+        }
+
+        const WeaponProfile* bestMatch = nullptr;
+        std::size_t bestMatchLength = 0u;
+
+        for (const auto& profile : kProfiles) {
+            const auto normalizedName =
+                normalizeIdentity(profile.name);
+
+            if (
+                normalizedName.empty() ||
+                normalizedIdentity.find(
+                    normalizedName) ==
+                    std::string::npos) {
+                continue;
+            }
+
+            if (
+                normalizedName.size() >
+                bestMatchLength) {
+                bestMatch = &profile;
+                bestMatchLength =
+                    normalizedName.size();
+            }
+        }
+
+        return bestMatch;
+    }
+
+    struct CustomWeaponAlias
+    {
+        std::string normalizedEditorId{};
+        const WeaponProfile* profile{ nullptr };
+    };
+
+    using CustomWeaponAliasList =
+        std::vector<CustomWeaponAlias>;
+
+    std::atomic_bool
+        g_customWeaponsEnabled{ true };
+
+    std::atomic<
+        std::shared_ptr<
+            const CustomWeaponAliasList>>
+        g_customWeaponAliases{};
+
+    bool customEditorIdMatchesIdentity(
+        std::string_view normalizedEditorId,
+        std::string_view identity)
+    {
+        if (
+            normalizedEditorId.empty() ||
+            identity.empty()) {
+            return false;
+        }
+
+        const auto separator =
+            identity.find('|');
+
+        const auto editorId =
+            separator == std::string_view::npos
+                ? identity
+                : identity.substr(0, separator);
+
+        const auto normalizedIdentityEditorId =
+            normalizeIdentity(editorId);
+
+        return
+            !normalizedIdentityEditorId.empty() &&
+            normalizedIdentityEditorId ==
+                normalizedEditorId;
+    }
+
+    const WeaponProfile* findCustomWeaponProfile(
+        std::string_view identity) noexcept
+    {
+        if (
+            !g_customWeaponsEnabled.load(
+                std::memory_order_acquire)) {
+            return nullptr;
+        }
+
+        const auto aliases =
+            g_customWeaponAliases.load(
+                std::memory_order_acquire);
+
+        if (!aliases) {
+            return nullptr;
+        }
+
+        for (const auto& alias : *aliases) {
+            if (
+                alias.profile &&
+                customEditorIdMatchesIdentity(
+                    alias.normalizedEditorId,
+                    identity)) {
+                return alias.profile;
+            }
+        }
+
+        return nullptr;
     }
 }
 
-std::span<const sds::WeaponProfile> sds::weaponProfiles() noexcept
+std::span<const sds::WeaponProfile>
+    sds::weaponProfiles() noexcept
 {
     return kProfiles;
 }
 
-const sds::WeaponProfile* sds::findWeaponProfile(std::string_view identity) noexcept
+sds::CustomWeaponProfileConfigResult
+    sds::configureCustomWeaponProfiles(
+        bool enabled,
+        std::string_view tomlText) noexcept
 {
-    if (identity.empty()) {
-        return nullptr;
+    CustomWeaponProfileConfigResult result{};
+
+    g_customWeaponsEnabled.store(
+        enabled,
+        std::memory_order_release);
+
+    try {
+        CustomWeaponAliasList aliases;
+
+        bool inCustomWeaponBlock = false;
+        std::string editorId;
+        std::string feedbackProfileName;
+
+        const auto clearPending =
+            [&]() {
+                editorId.clear();
+                feedbackProfileName.clear();
+            };
+
+        const auto commitPending =
+            [&]() {
+                if (!inCustomWeaponBlock) {
+                    clearPending();
+                    return;
+                }
+
+                // ControllerFeedbackProfile is optional so a block can be
+                // speaker-only without counting as an invalid feedback entry.
+                if (feedbackProfileName.empty()) {
+                    clearPending();
+                    return;
+                }
+
+                const auto normalizedEditorId =
+                    normalizeIdentity(editorId);
+
+                const auto* profile =
+                    findBuiltInWeaponProfileExact(
+                        feedbackProfileName);
+
+                if (
+                    normalizedEditorId.empty() ||
+                    !profile) {
+                    ++result.ignored;
+                    clearPending();
+                    return;
+                }
+
+                const auto existing =
+                    std::find_if(
+                        aliases.begin(),
+                        aliases.end(),
+                        [&](const CustomWeaponAlias& item) {
+                            return
+                                item.normalizedEditorId ==
+                                normalizedEditorId;
+                        });
+
+                if (existing != aliases.end()) {
+                    existing->profile = profile;
+                } else {
+                    aliases.push_back(
+                        CustomWeaponAlias{
+                            normalizedEditorId,
+                            profile
+                        });
+                }
+
+                clearPending();
+            };
+
+        while (!tomlText.empty()) {
+            const auto newline =
+                tomlText.find('\n');
+
+            auto line =
+                newline == std::string_view::npos
+                    ? tomlText
+                    : tomlText.substr(
+                        0,
+                        newline);
+
+            tomlText =
+                newline == std::string_view::npos
+                    ? std::string_view{}
+                    : tomlText.substr(
+                        newline + 1);
+
+            line =
+                trim(
+                    removeInlineComment(
+                        line));
+
+            if (line.empty()) {
+                continue;
+            }
+
+            if (
+                line.size() >= 4 &&
+                line.starts_with("[[") &&
+                line.ends_with("]]")) {
+
+                commitPending();
+
+                const auto section =
+                    trim(
+                        line.substr(
+                            2,
+                            line.size() - 4));
+
+                inCustomWeaponBlock =
+                    section == "CustomWeapons";
+
+                continue;
+            }
+
+            if (
+                line.size() >= 2 &&
+                line.front() == '[' &&
+                line.back() == ']') {
+
+                commitPending();
+                inCustomWeaponBlock = false;
+                continue;
+            }
+
+            if (!inCustomWeaponBlock) {
+                continue;
+            }
+
+            const auto equals =
+                line.find('=');
+
+            if (equals == std::string_view::npos) {
+                continue;
+            }
+
+            const auto key =
+                unquote(
+                    line.substr(
+                        0,
+                        equals));
+
+            const auto value =
+                unquote(
+                    line.substr(
+                        equals + 1));
+
+            if (key == "EditorID") {
+                editorId =
+                    std::string(value);
+            } else if (
+                key ==
+                "ControllerFeedbackProfile") {
+
+                feedbackProfileName =
+                    std::string(value);
+            }
+        }
+
+        commitPending();
+
+        result.loaded =
+            aliases.size();
+
+        g_customWeaponAliases.store(
+            std::make_shared<
+                const CustomWeaponAliasList>(
+                    std::move(aliases)),
+            std::memory_order_release);
+    } catch (...) {
+        result.loaded = 0;
+
+        g_customWeaponAliases.store(
+            {},
+            std::memory_order_release);
     }
 
-    const auto normalizedIdentity = normalizeIdentity(identity);
-    if (normalizedIdentity.empty()) {
-        return nullptr;
+    return result;
+}
+
+bool sds::customWeaponsEnabled() noexcept
+{
+    return
+        g_customWeaponsEnabled.load(
+            std::memory_order_acquire);
+}
+
+std::size_t
+    sds::customWeaponProfileCount() noexcept
+{
+    const auto aliases =
+        g_customWeaponAliases.load(
+            std::memory_order_acquire);
+
+    return aliases ?
+        aliases->size() :
+        0u;
+}
+
+bool sds::isCustomWeaponProfileMatch(
+    std::string_view identity) noexcept
+{
+    return
+        findCustomWeaponProfile(identity) !=
+        nullptr;
+}
+
+const sds::WeaponProfile*
+    sds::findWeaponProfile(
+        std::string_view identity) noexcept
+{
+    if (
+        const auto* custom =
+            findCustomWeaponProfile(identity)) {
+        return custom;
     }
 
-    const WeaponProfile* bestMatch = nullptr;
-    std::size_t bestMatchLength = 0u;
-    for (const auto& profile : kProfiles) {
-        const auto normalizedName = normalizeIdentity(profile.name);
-        if (normalizedName.empty() || normalizedIdentity.find(normalizedName) == std::string::npos) {
-            continue;
-        }
-        if (normalizedName.size() > bestMatchLength) {
-            bestMatch = &profile;
-            bestMatchLength = normalizedName.size();
-        }
-    }
-    return bestMatch;
+    return
+        findBuiltInWeaponProfile(identity);
 }
 
 std::string_view sds::weaponIntensityName(WeaponIntensity intensity) noexcept

@@ -1084,20 +1084,46 @@ void sds::ControllerManager::run() noexcept
                                 if (_config.debugLogging) {
                                     log(std::string("Touchpad: ") + gestureName(gesture));
                                 }
-                                if (const auto action = mapTouchGestureToInputAction(gesture)) {
-                                    const bool bluetoothOnlyPOV =
-                                        *action == InputAction::TogglePOV;
+                                auto action = mapTouchGestureToInputAction(gesture);
+                                switch (gesture) {
+                                case TouchGesture::SwipeUp:
+                                    action = touchpadShortcutAction(live.swipeUpAction);
+                                    break;
+                                case TouchGesture::SwipeDown:
+                                    action = touchpadShortcutAction(live.swipeDownAction);
+                                    break;
+                                case TouchGesture::SwipeLeft:
+                                    action = touchpadShortcutAction(live.swipeLeftAction);
+                                    break;
+                                case TouchGesture::SwipeRight:
+                                    action = touchpadShortcutAction(live.swipeRightAction);
+                                    break;
+                                case TouchGesture::RightClick:
+                                    action = touchpadShortcutAction(live.rightTouchpadPressAction);
+                                    break;
+                                case TouchGesture::CreatePressed:
+                                    action = touchpadShortcutAction(live.createButtonAction);
+                                    break;
+                                default:
+                                    break;
+                                }
+                                if (action) {
+                                    // SAD never overrides USB's left touchpad click.
+                                    // Bluetooth retains the existing native POV bridge.
+                                    const bool nativeUsbLeftClick =
+                                        gesture == TouchGesture::LeftClick &&
+                                        !caps.bluetoothTransport;
 
-                                    if (bluetoothOnlyPOV &&
-                                        !caps.bluetoothTransport) {
+                                    if (nativeUsbLeftClick) {
 
-                                        // USB Starfield already owns the physical
-                                        // DualSense touchpad click. Never duplicate it.
+                                        // Native Starfield owns the physical USB left
+                                        // touchpad click. Never inject a duplicate.
 
                                     } else {
                                         if (!queueInputAction(*action)) {
                                             log("Touchpad: shortcut action queue full; action dropped");
-                                        } else if (bluetoothOnlyPOV) {
+                                        } else if (*action == InputAction::TogglePOV &&
+                                                   caps.bluetoothTransport) {
                                             log(
                                                 "Bluetooth POV bridge: queued native "
                                                 "TogglePOV idCode=0x00200000");

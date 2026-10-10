@@ -378,6 +378,15 @@ namespace sds
                 },
 
                 {
+                    "CustomWeaponsEnabled",
+                    boolText(config.customWeaponsEnabled)
+                },
+                {
+                    "CustomWeaponAdaptiveTriggersEnabled",
+                    boolText(config.customWeaponAdaptiveTriggersEnabled)
+                },
+
+                {
                     "WeaponHapticsBallisticHandguns",
                     boolText(config.weaponHapticsBallisticHandguns)
                 },
@@ -550,6 +559,10 @@ namespace sds
                     boolText(config.speakerWeapons)
                 },
                 {
+                    "CustomWeaponSpeakerAudioEnabled",
+                    boolText(config.customWeaponSpeakerAudioEnabled)
+                },
+                {
                     "SpeakerWeaponsVolume",
                     formatFloat(
                         config.speakerWeaponsVolume)
@@ -585,6 +598,12 @@ namespace sds
                     "Touchpad",
                     boolText(config.touchpad)
                 },
+                { "CreateButtonAction", quote(touchpadShortcutValue(config.createButtonAction)) },
+                { "RightTouchpadPressAction", quote(touchpadShortcutValue(config.rightTouchpadPressAction)) },
+                { "SwipeUpAction", quote(touchpadShortcutValue(config.swipeUpAction)) },
+                { "SwipeDownAction", quote(touchpadShortcutValue(config.swipeDownAction)) },
+                { "SwipeLeftAction", quote(touchpadShortcutValue(config.swipeLeftAction)) },
+                { "SwipeRightAction", quote(touchpadShortcutValue(config.swipeRightAction)) },
 
                 {
                     "BluetoothPowerOffOnExit",
@@ -717,6 +736,20 @@ namespace sds
         current_ = defaults;
     }
 
+    void SettingsService::resetTouchpadBindingsToDefaults()
+    {
+        // Deliberately restore only the six custom shortcut actions.
+        // Preserve the Touchpad master switch, custom weapons, audio,
+        // haptic configuration, and all other user preferences.
+        const Config defaults{};
+        current_.swipeUpAction = defaults.swipeUpAction;
+        current_.swipeDownAction = defaults.swipeDownAction;
+        current_.swipeLeftAction = defaults.swipeLeftAction;
+        current_.swipeRightAction = defaults.swipeRightAction;
+        current_.rightTouchpadPressAction = defaults.rightTouchpadPressAction;
+        current_.createButtonAction = defaults.createButtonAction;
+    }
+
     const Config&
         SettingsService::current() const noexcept
     {
@@ -752,6 +785,15 @@ namespace sds
 
         if (key == "WeaponHaptics") {
             current_.weaponHaptics = value;
+            return true;
+        }
+
+        if (key == "CustomWeaponsEnabled") {
+            current_.customWeaponsEnabled = value;
+            return true;
+        }
+        if (key == "CustomWeaponAdaptiveTriggersEnabled") {
+            current_.customWeaponAdaptiveTriggersEnabled = value;
             return true;
         }
 
@@ -849,6 +891,11 @@ namespace sds
             return true;
         }
 
+        if (key == "CustomWeaponSpeakerAudioEnabled") {
+            current_.customWeaponSpeakerAudioEnabled = value;
+            return true;
+        }
+
         if (key == "SpeakerDigipick") {
             current_.speakerDigipick = value;
             return true;
@@ -879,7 +926,7 @@ namespace sds
             return true;
         }
 
-        if (key == "BluetoothPowerOffOnExit") {
+         if (key == "BluetoothPowerOffOnExit") {
             current_.bluetoothPowerOffOnExit = value;
             return true;
         }
@@ -1087,6 +1134,22 @@ namespace sds
             }
 
             return false;
+        }
+
+        if (key == "SwipeUpAction" || key == "SwipeDownAction" ||
+            key == "SwipeLeftAction" || key == "SwipeRightAction" ||
+            key == "RightTouchpadPressAction" || key == "CreateButtonAction") {
+            TouchpadShortcut shortcut{};
+            if (!parseTouchpadShortcut(value, shortcut)) {
+                return false;
+            }
+            if (key == "SwipeUpAction") current_.swipeUpAction = shortcut;
+            else if (key == "SwipeDownAction") current_.swipeDownAction = shortcut;
+            else if (key == "SwipeLeftAction") current_.swipeLeftAction = shortcut;
+            else if (key == "SwipeRightAction") current_.swipeRightAction = shortcut;
+            else if (key == "RightTouchpadPressAction") current_.rightTouchpadPressAction = shortcut;
+            else current_.createButtonAction = shortcut;
+            return true;
         }
 
         if (key == "SpeakerVoiceLanguage") {

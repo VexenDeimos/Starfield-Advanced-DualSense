@@ -41,6 +41,7 @@ namespace sds
             RetriggerReady
         };
 
+        [[nodiscard]] bool onFootWeaponTriggersEnabled() const noexcept;
         [[nodiscard]] std::uint8_t equippedR2Rating() const noexcept;
         [[nodiscard]] WeaponTriggerFamily equippedTriggerFamily() const noexcept;
         [[nodiscard]] WeaponCadenceClass equippedCadenceClass() const noexcept;
@@ -74,6 +75,7 @@ namespace sds
         Config _config{};
         EffectState _state{};
         bool _weaponEquipped{ false };
+        bool _customWeaponEquipped{ false };
         bool _shipPilotActive{ false };
         bool _shipLightbarSeatActive{ false };
         bool _playerHealthValid{ false };

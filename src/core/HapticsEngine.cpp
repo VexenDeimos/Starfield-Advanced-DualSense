@@ -73,9 +73,10 @@ bool sds::HapticsEngine::setWeaponHapticsConfig(const Config& config) noexcept
     _weaponHapticsConfig = config;
 
     if (_equipped &&
-        !sds::weaponHapticsFamilyEnabled(
-            _weaponHapticsConfig,
-            _equipped->triggerFamily)) {
+        ((_customWeaponEquipped && !_weaponHapticsConfig.customWeaponsEnabled) ||
+         !sds::weaponHapticsFamilyEnabled(
+             _weaponHapticsConfig,
+             _equipped->triggerFamily))) {
         _cutterBeamAuthorized = false;
         _arcWelderAuthorized = false;
         _penumbraStressActive = false;
@@ -95,6 +96,7 @@ std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& ev
         _magsniperChargeActive = false;
         _novablastChargeAuthorized = false;
         _autoRivetChargeAuthorized = false;
+        _customWeaponEquipped = isCustomWeaponProfileMatch(eventText(event));
         _equipped = findWeaponProfile(eventText(event));
         _equippedFormId = event.formId;
         return std::nullopt;
@@ -146,12 +148,14 @@ std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& ev
         _novablastChargeAuthorized = false;
         _autoRivetChargeAuthorized = false;
         _equipped = nullptr;
+        _customWeaponEquipped = false;
         _equippedFormId = 0;
         _gamePaused = false;
         _blockingMenuMask = 0;
         return std::nullopt;
     }
-    if (!_equipped) {
+    if (!_equipped ||
+        (_customWeaponEquipped && !_weaponHapticsConfig.customWeaponsEnabled)) {
         return std::nullopt;
     }
 
@@ -311,7 +315,8 @@ sds::HapticContinuousState sds::HapticsEngine::handleRightTriggerInput(std::uint
         return {};
     }
 
-    if (!_equipped) {
+    if (!_equipped ||
+        (_customWeaponEquipped && !_weaponHapticsConfig.customWeaponsEnabled)) {
         return {};
     }
 

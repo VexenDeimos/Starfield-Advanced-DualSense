@@ -111,6 +111,9 @@ namespace
 sds::Config sds::loadConfig(std::string_view text)
 {
     Config config = Config::defaults();
+    // The original dev-1 boolean is accepted as a migration fallback.
+    // An explicit CreateButtonAction always wins, regardless of TOML order.
+    bool hasExplicitCreateAction = false;
 
     while (!text.empty()) {
         const auto newline = text.find('\n');
@@ -145,6 +148,10 @@ sds::Config sds::loadConfig(std::string_view text)
             parseFloat(value, config.bluetoothHapticStrength);
         } else if (key == "WeaponHaptics") {
             parseBool(value, config.weaponHaptics);
+        } else if (key == "CustomWeaponsEnabled") {
+            parseBool(value, config.customWeaponsEnabled);
+        } else if (key == "CustomWeaponAdaptiveTriggersEnabled") {
+            parseBool(value, config.customWeaponAdaptiveTriggersEnabled);
         } else if (key == "WeaponHapticsBallisticHandguns") {
             parseBool(value, config.weaponHapticsBallisticHandguns);
         } else if (key == "WeaponHapticsBallisticHandgunsStrength") {
@@ -231,6 +238,8 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.speakerScannerUI);
         } else if (key == "SpeakerWeapons") {
             parseBool(value, config.speakerWeapons);
+        } else if (key == "CustomWeaponSpeakerAudioEnabled") {
+            parseBool(value, config.customWeaponSpeakerAudioEnabled);
         } else if (key == "SpeakerWeaponsVolume") {
             parseFloat(value, config.speakerWeaponsVolume);
         } else if (key == "SpeakerDigipick") {
@@ -243,6 +252,26 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.lightbar);
         } else if (key == "Touchpad") {
             parseBool(value, config.touchpad);
+        } else if (key == "CreateButtonPhotoMode") {
+            bool legacyEnabled = true;
+            if (parseBool(value, legacyEnabled) && !hasExplicitCreateAction) {
+                config.createButtonAction = legacyEnabled
+                    ? TouchpadShortcut::PhotoMode : TouchpadShortcut::Disabled;
+            }
+        } else if (key == "CreateButtonAction") {
+            if (parseTouchpadShortcut(value, config.createButtonAction)) {
+                hasExplicitCreateAction = true;
+            }
+        } else if (key == "RightTouchpadPressAction") {
+            (void)parseTouchpadShortcut(value, config.rightTouchpadPressAction);
+        } else if (key == "SwipeUpAction") {
+            (void)parseTouchpadShortcut(value, config.swipeUpAction);
+        } else if (key == "SwipeDownAction") {
+            (void)parseTouchpadShortcut(value, config.swipeDownAction);
+        } else if (key == "SwipeLeftAction") {
+            (void)parseTouchpadShortcut(value, config.swipeLeftAction);
+        } else if (key == "SwipeRightAction") {
+            (void)parseTouchpadShortcut(value, config.swipeRightAction);
         } else if (key == "BluetoothPowerOffOnExit") {
             parseBool(value, config.bluetoothPowerOffOnExit);
         } else if (key == "BluetoothIdleTimeoutEnabled") {

@@ -1,6 +1,12 @@
 #include <StarfieldDualSense/WeaponSpeakerProfile.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
+#include <cctype>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace
 {
@@ -1620,6 +1626,211 @@ namespace
                     { 2u, "WPN_Cutter_Fire_Trigger_Release_Player_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
                 }, false, kBatchGain, kBatchGain } },
     };
+
+    std::string normalizeCustomSpeakerIdentity(
+        std::string_view value)
+    {
+        std::string normalized;
+        normalized.reserve(value.size());
+
+        for (const unsigned char ch : value) {
+            if (std::isalnum(ch) != 0) {
+                normalized.push_back(
+                    static_cast<char>(
+                        std::tolower(ch)));
+            }
+        }
+
+        return normalized;
+    }
+
+    std::string_view trimCustomSpeaker(
+        std::string_view value)
+    {
+        while (
+            !value.empty() &&
+            std::isspace(
+                static_cast<unsigned char>(
+                    value.front())) != 0) {
+            value.remove_prefix(1);
+        }
+
+        while (
+            !value.empty() &&
+            std::isspace(
+                static_cast<unsigned char>(
+                    value.back())) != 0) {
+            value.remove_suffix(1);
+        }
+
+        return value;
+    }
+
+    std::string_view unquoteCustomSpeaker(
+        std::string_view value)
+    {
+        value =
+            trimCustomSpeaker(value);
+
+        if (
+            value.size() >= 2 &&
+            value.front() == '"' &&
+            value.back() == '"') {
+
+            value.remove_prefix(1);
+            value.remove_suffix(1);
+        }
+
+        return value;
+    }
+
+    std::string_view removeCustomSpeakerComment(
+        std::string_view value)
+    {
+        bool quoted = false;
+        bool escaped = false;
+
+        for (
+            std::size_t i = 0;
+            i < value.size();
+            ++i) {
+
+            const char ch =
+                value[i];
+
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+
+            if (quoted && ch == '\\') {
+                escaped = true;
+                continue;
+            }
+
+            if (ch == '"') {
+                quoted = !quoted;
+                continue;
+            }
+
+            if (
+                ch == '#' &&
+                !quoted) {
+
+                return
+                    value.substr(
+                        0,
+                        i);
+            }
+        }
+
+        return value;
+    }
+
+    const WeaponSpeakerProfile*
+        findBuiltInSpeakerProfileExact(
+            std::string_view name) noexcept
+    {
+        const auto normalized =
+            normalizeCustomSpeakerIdentity(
+                name);
+
+        if (normalized.empty()) {
+            return nullptr;
+        }
+
+        for (const auto& profile : kProfiles) {
+            if (
+                normalizeCustomSpeakerIdentity(
+                    profile.weaponIdentity) ==
+                normalized) {
+
+                return &profile;
+            }
+        }
+
+        return nullptr;
+    }
+
+    struct CustomWeaponSpeakerAlias
+    {
+        std::string normalizedEditorId{};
+        const WeaponSpeakerProfile* speakerProfile{ nullptr };
+        const WeaponSpeakerProfile* handlingProfile{ nullptr };
+    };
+
+    using CustomWeaponSpeakerAliasList =
+        std::vector<
+            CustomWeaponSpeakerAlias>;
+
+    std::atomic_bool
+        g_customWeaponSpeakerAudioEnabled{ true };
+
+    std::atomic<
+        std::shared_ptr<
+            const CustomWeaponSpeakerAliasList>>
+        g_customWeaponSpeakerAliases{};
+
+    bool customSpeakerEditorIdMatches(
+        std::string_view normalizedEditorId,
+        std::string_view identity)
+    {
+        if (
+            normalizedEditorId.empty() ||
+            identity.empty()) {
+            return false;
+        }
+
+        const auto separator =
+            identity.find('|');
+
+        const auto editorId =
+            separator == std::string_view::npos
+                ? identity
+                : identity.substr(
+                    0,
+                    separator);
+
+        return
+            normalizeCustomSpeakerIdentity(
+                editorId) ==
+            normalizedEditorId;
+    }
+
+    const WeaponSpeakerProfile*
+        findCustomWeaponSpeakerProfileInternal(
+            std::string_view identity,
+            bool handling) noexcept
+    {
+        if (
+            !g_customWeaponSpeakerAudioEnabled.load(
+                std::memory_order_acquire)) {
+            return nullptr;
+        }
+
+        const auto aliases =
+            g_customWeaponSpeakerAliases.load(
+                std::memory_order_acquire);
+
+        if (!aliases) {
+            return nullptr;
+        }
+
+        for (const auto& alias : *aliases) {
+            if (!customSpeakerEditorIdMatches(
+                    alias.normalizedEditorId,
+                    identity)) {
+                continue;
+            }
+
+            return
+                handling ?
+                    alias.handlingProfile :
+                    alias.speakerProfile;
+        }
+
+        return nullptr;
+    }
 }
 
 std::span<const sds::WeaponSpeakerProfile> sds::weaponSpeakerProfiles() noexcept
@@ -1636,6 +1847,317 @@ const sds::WeaponSpeakerProfile* sds::findWeaponSpeakerProfile(std::string_view 
     }
     return nullptr;
 }
+
+sds::CustomWeaponSpeakerConfigResult
+    sds::configureCustomWeaponSpeakerProfiles(
+        bool enabled,
+        std::string_view tomlText) noexcept
+{
+    CustomWeaponSpeakerConfigResult result{};
+
+    g_customWeaponSpeakerAudioEnabled.store(
+        enabled,
+        std::memory_order_release);
+
+    try {
+        CustomWeaponSpeakerAliasList aliases;
+
+        bool inCustomWeaponBlock = false;
+        std::string editorId;
+        std::string speakerProfileName;
+        std::string handlingProfileName;
+
+        const auto clearPending =
+            [&]() {
+                editorId.clear();
+                speakerProfileName.clear();
+                handlingProfileName.clear();
+            };
+
+        const auto commitPending =
+            [&]() {
+                if (!inCustomWeaponBlock) {
+                    clearPending();
+                    return;
+                }
+
+                if (
+                    speakerProfileName.empty() &&
+                    handlingProfileName.empty()) {
+
+                    clearPending();
+                    return;
+                }
+
+                const auto normalizedEditorId =
+                    normalizeCustomSpeakerIdentity(
+                        editorId);
+
+                if (normalizedEditorId.empty()) {
+                    if (!speakerProfileName.empty()) {
+                        ++result.ignored;
+                    }
+
+                    if (!handlingProfileName.empty()) {
+                        ++result.handlingIgnored;
+                    }
+
+                    clearPending();
+                    return;
+                }
+
+                const WeaponSpeakerProfile*
+                    speakerProfile = nullptr;
+
+                const WeaponSpeakerProfile*
+                    handlingProfile = nullptr;
+
+                if (!speakerProfileName.empty()) {
+                    speakerProfile =
+                        findBuiltInSpeakerProfileExact(
+                            speakerProfileName);
+
+                    if (!speakerProfile) {
+                        ++result.ignored;
+                    }
+                }
+
+                if (!handlingProfileName.empty()) {
+                    handlingProfile =
+                        findBuiltInSpeakerProfileExact(
+                            handlingProfileName);
+
+                    if (!handlingProfile) {
+                        ++result.handlingIgnored;
+                    }
+                }
+
+                if (
+                    !speakerProfile &&
+                    !handlingProfile) {
+
+                    clearPending();
+                    return;
+                }
+
+                const auto existing =
+                    std::find_if(
+                        aliases.begin(),
+                        aliases.end(),
+                        [&](const CustomWeaponSpeakerAlias& item) {
+                            return
+                                item.normalizedEditorId ==
+                                normalizedEditorId;
+                        });
+
+                if (existing != aliases.end()) {
+                    existing->speakerProfile =
+                        speakerProfile;
+
+                    existing->handlingProfile =
+                        handlingProfile;
+                } else {
+                    aliases.push_back(
+                        CustomWeaponSpeakerAlias{
+                            normalizedEditorId,
+                            speakerProfile,
+                            handlingProfile
+                        });
+                }
+
+                clearPending();
+            };
+
+        while (!tomlText.empty()) {
+            const auto newline =
+                tomlText.find('\n');
+
+            auto line =
+                newline == std::string_view::npos
+                    ? tomlText
+                    : tomlText.substr(
+                        0,
+                        newline);
+
+            tomlText =
+                newline == std::string_view::npos
+                    ? std::string_view{}
+                    : tomlText.substr(
+                        newline + 1);
+
+            line =
+                trimCustomSpeaker(
+                    removeCustomSpeakerComment(
+                        line));
+
+            if (line.empty()) {
+                continue;
+            }
+
+            if (
+                line.size() >= 4 &&
+                line.starts_with("[[") &&
+                line.ends_with("]]")) {
+
+                commitPending();
+
+                const auto section =
+                    trimCustomSpeaker(
+                        line.substr(
+                            2,
+                            line.size() - 4));
+
+                inCustomWeaponBlock =
+                    section == "CustomWeapons";
+
+                continue;
+            }
+
+            if (
+                line.size() >= 2 &&
+                line.front() == '[' &&
+                line.back() == ']') {
+
+                commitPending();
+                inCustomWeaponBlock = false;
+                continue;
+            }
+
+            if (!inCustomWeaponBlock) {
+                continue;
+            }
+
+            const auto equals =
+                line.find('=');
+
+            if (equals == std::string_view::npos) {
+                continue;
+            }
+
+            const auto key =
+                unquoteCustomSpeaker(
+                    line.substr(
+                        0,
+                        equals));
+
+            const auto value =
+                unquoteCustomSpeaker(
+                    line.substr(
+                        equals + 1));
+
+            if (key == "EditorID") {
+                editorId =
+                    std::string(value);
+            } else if (
+                key ==
+                "SpeakerAudioProfile") {
+
+                speakerProfileName =
+                    std::string(value);
+            } else if (
+                key ==
+                "HandlingSpeakerAudioProfile") {
+
+                handlingProfileName =
+                    std::string(value);
+            }
+        }
+
+        commitPending();
+
+        for (const auto& alias : aliases) {
+            if (alias.speakerProfile) {
+                ++result.loaded;
+            }
+
+            if (alias.handlingProfile) {
+                ++result.handlingLoaded;
+            }
+        }
+
+        g_customWeaponSpeakerAliases.store(
+            std::make_shared<
+                const CustomWeaponSpeakerAliasList>(
+                    std::move(aliases)),
+            std::memory_order_release);
+    } catch (...) {
+        result = {};
+
+        g_customWeaponSpeakerAliases.store(
+            {},
+            std::memory_order_release);
+    }
+
+    return result;
+}
+
+bool sds::customWeaponSpeakerAudioEnabled() noexcept
+{
+    return
+        g_customWeaponSpeakerAudioEnabled.load(
+            std::memory_order_acquire);
+}
+
+std::size_t
+    sds::customWeaponSpeakerProfileCount() noexcept
+{
+    const auto aliases =
+        g_customWeaponSpeakerAliases.load(
+            std::memory_order_acquire);
+
+    if (!aliases) {
+        return 0u;
+    }
+
+    return static_cast<std::size_t>(
+        std::count_if(
+            aliases->begin(),
+            aliases->end(),
+            [](const CustomWeaponSpeakerAlias& alias) {
+                return alias.speakerProfile != nullptr;
+            }));
+}
+
+std::size_t
+    sds::customWeaponHandlingSpeakerProfileCount() noexcept
+{
+    const auto aliases =
+        g_customWeaponSpeakerAliases.load(
+            std::memory_order_acquire);
+
+    if (!aliases) {
+        return 0u;
+    }
+
+    return static_cast<std::size_t>(
+        std::count_if(
+            aliases->begin(),
+            aliases->end(),
+            [](const CustomWeaponSpeakerAlias& alias) {
+                return alias.handlingProfile != nullptr;
+            }));
+}
+
+const sds::WeaponSpeakerProfile*
+    sds::findCustomWeaponSpeakerProfile(
+        std::string_view weaponIdentity) noexcept
+{
+    return
+        findCustomWeaponSpeakerProfileInternal(
+            weaponIdentity,
+            false);
+}
+
+const sds::WeaponSpeakerProfile*
+    sds::findCustomWeaponHandlingSpeakerProfile(
+        std::string_view weaponIdentity) noexcept
+{
+    return
+        findCustomWeaponSpeakerProfileInternal(
+            weaponIdentity,
+            true);
+}
+
 
 
 const sds::WeaponSpeakerProfile* sds::findWeaponSpeakerAudioFamilyProfile(

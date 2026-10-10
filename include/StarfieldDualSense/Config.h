@@ -1,6 +1,7 @@
 #pragma once
 
 #include <StarfieldDualSense/SpeakerTypes.h>
+#include <StarfieldDualSense/TouchpadBindings.h>
 #include <StarfieldDualSense/WeaponProfiles.h>
 
 #include <algorithm>
@@ -39,6 +40,13 @@ namespace sds
         float hapticStrength{ 1.0F };
         float bluetoothHapticStrength{ 1.0F };
         bool weaponHaptics{ true };
+
+        // Independent output switches for the SAME TOML-defined
+        // ControllerFeedbackProfile mapping. CustomWeaponsEnabled is the
+        // existing Weapon Haptics tab switch (vibration only).
+        bool customWeaponsEnabled{ true };
+        bool customWeaponAdaptiveTriggersEnabled{ true };
+
         bool weaponHapticsBallisticHandguns{ true };
         float weaponHapticsBallisticHandgunsStrength{ 1.0F };
         bool weaponHapticsRapidBallistics{ true };
@@ -74,12 +82,23 @@ namespace sds
         SpeakerVoiceLanguage speakerVoiceLanguage{ SpeakerVoiceLanguage::Auto };
         bool speakerScannerUI{ true };
         bool speakerWeapons{ true };
+
+        // Enables controller-speaker audio mappings for TOML-defined
+        // custom weapons. Independent from custom haptics/triggers.
+        bool customWeaponSpeakerAudioEnabled{ true };
+
         float speakerWeaponsVolume{ 1.0F };
         bool speakerDigipick{ true };
         bool speakerCrafting{ true };
         bool speakerShipSystems{ true };
         bool lightbar{ true };
         bool touchpad{ true };
+        TouchpadShortcut createButtonAction{ TouchpadShortcut::PhotoMode };
+        TouchpadShortcut rightTouchpadPressAction{ TouchpadShortcut::Map };
+        TouchpadShortcut swipeUpAction{ TouchpadShortcut::Inventory };
+        TouchpadShortcut swipeDownAction{ TouchpadShortcut::Missions };
+        TouchpadShortcut swipeLeftAction{ TouchpadShortcut::Powers };
+        TouchpadShortcut swipeRightAction{ TouchpadShortcut::Skills };
 
         // Bluetooth-only controller power management.
         bool bluetoothPowerOffOnExit{ true };
@@ -154,7 +173,8 @@ namespace sds
         const Config& left,
         const Config& right) noexcept
     {
-        if (left.weaponHaptics != right.weaponHaptics) {
+        if (left.weaponHaptics != right.weaponHaptics ||
+            left.customWeaponsEnabled != right.customWeaponsEnabled) {
             return false;
         }
 

@@ -1,74 +1,110 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('debug','releasedbg')]
-    [string]$Mode = 'releasedbg',
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SkipSource
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $repoRoot
-
-$version = '0.1.0'
+Set-Location -LiteralPath $repoRoot
+$version = '0.7.1'
 $dist = Join-Path $repoRoot 'dist'
-$runtimeStage = Join-Path $dist 'runtime-stage'
-$sourceStage = Join-Path $dist 'source-stage'
-$runtimeZip = Join-Path $dist "StarfieldDualSense-v$version.zip"
-$sourceZip = Join-Path $dist "StarfieldDualSense-v$version-source.zip"
+$pluginDir = Join-Path $repoRoot 'build\windows\x64\release'
+$dll = Join-Path $pluginDir 'StarfieldDualSense.dll'
+$toml = Join-Path $repoRoot 'config\StarfieldDualSense.toml'
 
+if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
+    throw 'XMake is required to package an official release.'
+}
 if (-not $SkipBuild) {
-    & (Join-Path $PSScriptRoot 'build.ps1') -Mode $Mode
+    & xmake f -m release -y
+    if ($LASTEXITCODE -ne 0) { throw 'xmake configure failed.' }
+    & xmake build StarfieldDualSense
+    if ($LASTEXITCODE -ne 0) { throw 'xmake build failed.' }
 }
 
-$dll = Get-ChildItem -Path (Join-Path $repoRoot 'build') -Filter 'StarfieldDualSense.dll' -File -Recurse -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTimeUtc -Descending |
-    Select-Object -First 1
-if (-not $dll) {
-    throw 'StarfieldDualSense.dll was not found under build\. Build the plugin first.'
+if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) {
+    throw 'Release DLL is missing. Build in release mode first.'
+}
+if (-not (Test-Path -LiteralPath $toml -PathType Leaf)) {
+    throw 'Default TOML is missing.'
+}
+$dllVersion = (Get-Item -LiteralPath $dll).VersionInfo.FileVersion
+if (-not $dllVersion -or -not $dllVersion.StartsWith('0.7.1')) {
+    throw "DLL FileVersion is not 0.7.1: $dllVersion. Refusing to package a stale or development DLL."
+}
+if ((Get-Content -LiteralPath $toml -TotalCount 1) -ne '# Starfield DualSense v0.7.1') {
+    throw 'Default config header is not v0.7.1.'
 }
 
-Remove-Item $runtimeStage, $sourceStage -Force -Recurse -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path (Join-Path $runtimeStage 'Data\SFSE\Plugins') | Out-Null
-New-Item -ItemType Directory -Force -Path $sourceStage | Out-Null
-
-Copy-Item $dll.FullName (Join-Path $runtimeStage 'Data\SFSE\Plugins\StarfieldDualSense.dll')
-Copy-Item (Join-Path $repoRoot 'config\StarfieldDualSense.toml') (Join-Path $runtimeStage 'Data\SFSE\Plugins\StarfieldDualSense.toml')
-Copy-Item (Join-Path $repoRoot 'README.md') $runtimeStage
-Copy-Item (Join-Path $repoRoot 'CHANGELOG.md') $runtimeStage
-Copy-Item (Join-Path $repoRoot 'LICENSE') $runtimeStage
-
-# Corresponding source bundle: tracked project files plus the exact CommonLibSF tree
-# used for the build (including its recursively cloned commonlib-shared submodule).
-$tracked = git ls-files
-foreach ($relative in $tracked) {
-    if ($relative -like '.worktrees/*' -or $relative -like 'dist/*' -or $relative -like 'build/*') {
-        continue
-    }
-    $source = Join-Path $repoRoot $relative
-    if (Test-Path $source -PathType Leaf) {
-        $destination = Join-Path $sourceStage $relative
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
-        Copy-Item $source $destination
+New-Item -ItemType Directory -Path $dist -Force | Out-Null
+$runtimeZip = Join-Path $dist "StarfieldDualSense_v${version}_Nexus.zip"
+$sourceZip = Join-Path $dist "StarfieldDualSense_v${version}_Source.zip"
+$manifest = Join-Path $dist "StarfieldDualSense_v${version}_SHA256.txt"
+$targets = @($runtimeZip, $manifest)
+if (-not $SkipSource) { $targets += $sourceZip }
+foreach ($target in $targets) {
+    if (Test-Path -LiteralPath $target) {
+        throw "Output already exists (will not overwrite): $target"
     }
 }
 
-$commonLib = Join-Path $repoRoot 'external\CommonLibSF'
-if (Test-Path (Join-Path $commonLib 'xmake.lua')) {
-    $thirdParty = Join-Path $sourceStage 'external\CommonLibSF'
-    New-Item -ItemType Directory -Force -Path $thirdParty | Out-Null
-    Get-ChildItem $commonLib -Force | Where-Object { $_.Name -ne '.git' } | ForEach-Object {
-        Copy-Item $_.FullName $thirdParty -Recurse -Force
+$stage = Join-Path $dist ('.release-package-stage-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $PID)
+$runtimeRoot = Join-Path $stage 'runtime'
+$sourceRoot = Join-Path $stage 'source'
+try {
+    $plugins = Join-Path $runtimeRoot 'SFSE\Plugins'
+    New-Item -ItemType Directory -Path $plugins -Force | Out-Null
+    Copy-Item -LiteralPath $dll -Destination (Join-Path $plugins 'StarfieldDualSense.dll')
+    Copy-Item -LiteralPath $toml -Destination (Join-Path $plugins 'StarfieldDualSense.toml')
+    foreach ($rel in @('README.md','CHANGELOG.md','LICENSE')) {
+        Copy-Item -LiteralPath (Join-Path $repoRoot $rel) -Destination (Join-Path $runtimeRoot $rel)
     }
-    Get-ChildItem $thirdParty -Recurse -Force -Filter '.git' -ErrorAction SilentlyContinue |
-        Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-} else {
-    throw 'CommonLibSF source is missing. Run bootstrap before creating a distributable package.'
+
+    if (-not $SkipSource) {
+        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+            throw 'Git is required for the curated source archive. Use -SkipSource only if needed.'
+        }
+        $relativePaths = @(git ls-files --cached --others --exclude-standard -- src include config docs tests scripts xmake.lua README.md CHANGELOG.md LICENSE .gitignore)
+        if ($LASTEXITCODE -ne 0) { throw 'git ls-files failed.' }
+        if ($relativePaths.Count -lt 30) { throw 'Source file list unexpectedly small; refusing incomplete source ZIP.' }
+        if ($relativePaths -notcontains 'include/StarfieldDualSense/TouchpadBindings.h') {
+            throw 'The untracked TouchpadBindings.h is missing from the source selection.'
+        }
+        foreach ($rel in $relativePaths) {
+            if ([string]::IsNullOrWhiteSpace($rel)) { continue }
+            if ($rel -match '(^|/)(\.git|build|dist|external)(/|$)' -or $rel -match '(\.bak$|\.zip$)') {
+                throw "Unexpected unclean source archive path: $rel"
+            }
+            $source = Join-Path $repoRoot ($rel -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                throw "Git-referenced source file missing: $rel"
+            }
+            $destination = Join-Path $sourceRoot ($rel -replace '/', '\')
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            Copy-Item -LiteralPath $source -Destination $destination
+        }
+    }
+
+    Compress-Archive -Path (Join-Path $runtimeRoot '*') -DestinationPath $runtimeZip -CompressionLevel Optimal
+    if (-not $SkipSource) {
+        Compress-Archive -Path (Join-Path $sourceRoot '*') -DestinationPath $sourceZip -CompressionLevel Optimal
+    }
+
+    $hashes = @()
+    foreach ($item in @($dll, $toml, $runtimeZip, $sourceZip)) {
+        if (Test-Path -LiteralPath $item -PathType Leaf) {
+            $hashes += ('{0}  {1}' -f (Get-FileHash -LiteralPath $item -Algorithm SHA256).Hash, $item)
+        }
+    }
+    [IO.File]::WriteAllLines($manifest, $hashes, (New-Object Text.UTF8Encoding($false)))
+    Write-Host "PASS: Nexus-ready archive: $runtimeZip" -ForegroundColor Green
+    if (-not $SkipSource) { Write-Host "PASS: curated source archive: $sourceZip" -ForegroundColor Green }
+    Write-Host "SHA256 manifest: $manifest"
+    Write-Host 'No game files installed. No Git commit/tag/push performed.'
 }
-
-Remove-Item $runtimeZip, $sourceZip -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path (Join-Path $runtimeStage '*') -DestinationPath $runtimeZip -CompressionLevel Optimal
-Compress-Archive -Path (Join-Path $sourceStage '*') -DestinationPath $sourceZip -CompressionLevel Optimal
-
-Remove-Item $runtimeStage, $sourceStage -Force -Recurse
-Write-Host "Created $runtimeZip"
-Write-Host "Created $sourceZip"
+finally {
+    if (Test-Path -LiteralPath $stage) {
+        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}

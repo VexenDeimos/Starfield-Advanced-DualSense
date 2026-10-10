@@ -23,19 +23,21 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 57>
+    inline constexpr std::array<SettingDescriptor, 66>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
 
             { "AdaptiveTriggers", "Adaptive Triggers", "Enable DualSense adaptive-trigger effects.", SettingApplyMode::Live },
             { "TriggerStrength", "Trigger Strength", "Controls the overall strength of adaptive-trigger effects.", SettingApplyMode::Live },
+            { "CustomWeaponAdaptiveTriggersEnabled", "Custom Weapon Adaptive Triggers", "Enable adaptive-trigger effects for TOML [[CustomWeapons]] ControllerFeedbackProfile mappings independently of custom weapon vibration. Uses the same weapon mapping.", SettingApplyMode::Live },
 
             { "AdvancedHaptics", "Haptic Feedback", "Enable gameplay haptic feedback. USB uses advanced DualSense audio haptics; Bluetooth uses SAD compatible-rumble translation.", SettingApplyMode::Live },
             { "HapticStrength", "Haptic Strength", "Overall haptic strength. 1.0 preserves standard SAD tuning; 2.0 keeps the first overdrive level; values up to 3.0 enter the extreme overdrive range.", SettingApplyMode::Live },
             { "BluetoothHapticStrength", "Bluetooth Haptic Strength", "Additional Bluetooth-only haptic multiplier. USB haptics are unchanged.", SettingApplyMode::Live },
 
             { "WeaponHaptics", "Weapon Haptics", "Master switch for on-foot weapon vibration only. Damage, boostpack, ship, vehicle, Digipick, adaptive triggers, and controller-speaker audio are unaffected.", SettingApplyMode::Live },
+            { "CustomWeaponsEnabled", "Custom Weapon Feedback", "Enable vibration for TOML [[CustomWeapons]] ControllerFeedbackProfile mappings. Adaptive triggers and controller-speaker audio are independent.", SettingApplyMode::Live },
             { "WeaponHapticsBallisticHandguns", "Ballistic Handguns", "Enable vibration for the ballistic handguns weapon group.", SettingApplyMode::Live },
             { "WeaponHapticsBallisticHandgunsStrength", "Ballistic Handguns Strength", "Multiplier for ballistic handguns vibration on both USB and Bluetooth. Range: 0.0-3.0; 1.0 preserves the authored group tuning.", SettingApplyMode::Live },
             { "WeaponHapticsRapidBallistics", "Rapid Ballistics", "Enable vibration for the rapid ballistics weapon group.", SettingApplyMode::Live },
@@ -77,6 +79,7 @@ namespace sds
             { "SpeakerVoiceLanguage", "Radio / Comms Language", "Choose the language used for controller-speaker radio and communications. Auto is the default and follows Starfield's current supported voice language; explicit language choices override it.", SettingApplyMode::Live },
             { "SpeakerScannerUI", "Scanner / UI Speaker Audio", "Play supported scanner and interface sounds through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerWeapons", "Weapon Speaker Audio", "Play supported weapon sounds through the controller speaker in addition to normal game audio.", SettingApplyMode::Live },
+            { "CustomWeaponSpeakerAudioEnabled", "Custom Weapon Speaker Audio", "Enable SpeakerAudioProfile mappings from TOML [[CustomWeapons]] blocks. This affects only controller-speaker weapon audio; custom haptics and adaptive triggers are independent. Re-equip the weapon after changing this setting or its mapping.", SettingApplyMode::Live },
             { "SpeakerWeaponsVolume", "Weapon Speaker Volume", "Controls controller-speaker volume for weapon sounds only.", SettingApplyMode::Live },
             { "SpeakerDigipick", "Digipick Speaker Audio", "Play supported digipick sounds through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerCrafting", "Crafting Speaker Audio", "Play supported crafting sounds through the controller speaker.", SettingApplyMode::Live },
@@ -86,6 +89,12 @@ namespace sds
 
             { "Lightbar", "Lightbar", "Enable SAD's DualSense lightbar behavior.", SettingApplyMode::Live },
             { "Touchpad", "Touchpad", "Enable SAD's DualSense touchpad integration.", SettingApplyMode::Live },
+            { "CreateButtonAction", "Create / Share Button", "Select the SAD shortcut for Create, or Disabled. Disabled does not guarantee native Starfield rebinding.", SettingApplyMode::Live },
+            { "RightTouchpadPressAction", "Right Touchpad Press", "Choose the action for pressing the right half of the touchpad, or Disabled.", SettingApplyMode::Live },
+            { "SwipeUpAction", "Swipe Up", "Choose the action for an upward touchpad swipe, or Disabled.", SettingApplyMode::Live },
+            { "SwipeDownAction", "Swipe Down", "Choose the action for a downward touchpad swipe, or Disabled.", SettingApplyMode::Live },
+            { "SwipeLeftAction", "Swipe Left", "Choose the action for a leftward touchpad swipe, or Disabled.", SettingApplyMode::Live },
+            { "SwipeRightAction", "Swipe Right", "Choose the action for a rightward touchpad swipe, or Disabled.", SettingApplyMode::Live },
 
             { "BluetoothPowerOffOnExit", "Bluetooth Power Off on Exit", "Power off a Bluetooth-connected DualSense when Starfield exits. USB connections are unaffected.", SettingApplyMode::Live },
             { "BluetoothIdleTimeoutEnabled", "Bluetooth Idle Timeout", "Power off an idle Bluetooth-connected DualSense after the configured timeout. Meaningful controller input resets the timer; USB connections are unaffected.", SettingApplyMode::Live },
@@ -112,6 +121,7 @@ namespace sds
         [[nodiscard]] bool save();
 
         void resetToDefaults();
+        void resetTouchpadBindingsToDefaults();
 
         [[nodiscard]]
         const Config& current() const noexcept;

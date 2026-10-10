@@ -126,6 +126,8 @@ namespace sds
         mutable std::mutex _mutex{};
         std::vector<Group> _groups{};
         const WeaponSpeakerProfile* _activeProfile{ nullptr };
+        const WeaponSpeakerProfile* _activeHandlingProfile{ nullptr };
+        bool _customWeaponMappingActive{ false };
         std::uint64_t _nextSustainedGeneration{ 1u };
         std::uint64_t _activeSustainedGeneration{ 0u };
         std::uint64_t _releasePendingGeneration{ 0u };

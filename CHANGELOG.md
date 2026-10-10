@@ -1,3 +1,28 @@
+## 0.7.1 - 2026-10-10
+
+**Release numbering:** This is the first published v0.7.x release. The v0.7 feature work and the Bluetooth map-cursor correction (the `.1` update) ship together; v0.7.0 was not released separately.
+
+### v0.7 feature set — Custom and modded weapons
+
+- Added `[[CustomWeapons]]` TOML mappings using a weapon EditorID. Each weapon can independently borrow a supported controller-feedback profile (haptics and adaptive triggers), controller-speaker firing audio profile, and controller-speaker handling audio profile.
+- Added independent custom-weapon output settings and live settings support. Handling audio covers compatible draw, holster, and reload events without replacing normal Starfield weapon audio.
+- Custom-weapon firing and handling output remains conditional on the actual events emitted by the modded weapon.
+
+### v0.7 feature set — Configurable DualSense shortcuts
+
+- Added individual action selectors for Swipe Up/Down/Left/Right, the right touchpad press, and Create/Share, including **Disabled, Data Menu, and Photo Mode** options.
+- Added **Reset Touchpad Bindings to SAD Defaults** to the SFSE settings menu. It resets only the six shortcut assignments, preserving the global `Touchpad` setting and all other options.
+- Preserved the existing global `Touchpad` master enable/disable setting and Starfield's native left-touchpad POV click.
+- Fixed Data Menu action routing through Starfield's native gamepad input pipeline; retained migration of the previous Create Photo Mode setting.
+
+### v0.7.1 — Bluetooth galaxy-map cursor correction
+
+- Moved Bluetooth galaxy-map left-stick cursor input to Starfield's native slot-2 polling cadence, preventing excess runtime replay of held map-stick input without imposing a fixed speed multiplier.
+- Measured USB/Bluetooth cursor displacement in actual gameplay footage: differences approximately **0.8% at 60 FPS** and **2.3% at 30 FPS** in the tested runs.
+- Preserved existing on-foot, scanner, vehicle, speaker, trigger, haptic, lightbar, and Bluetooth reconnect behavior; USB and Bluetooth regression tests completed in gameplay.
+
+- ProductVersion/FileVersion: `0.7.1.0`.
+
 ## 0.6.3 - 2026-10-06
 
 - Fixed Bluetooth Galaxy Map stick timing so the left-stick cursor and right-stick planet rotation closely match native USB behavior.

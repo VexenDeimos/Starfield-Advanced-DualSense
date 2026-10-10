@@ -29,6 +29,7 @@ namespace sds
         OperatingMode,
         SpeakerOutputMode,
         SpeakerVoiceLanguage,
+        TouchpadShortcut,
     };
 
     struct SettingsMenuControlDescriptor
@@ -52,7 +53,7 @@ namespace sds
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 57> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 66> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -63,6 +64,7 @@ namespace sds
         { "BoostpackHapticsStrength", SettingsMenuTab::Haptics, SettingsControlKind::Float, 0.0F, 3.0F },
 
         { "WeaponHaptics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "CustomWeaponsEnabled", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "WeaponHapticsBallisticHandguns", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "WeaponHapticsBallisticHandgunsStrength", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Float, 0.0F, 3.0F },
         { "WeaponHapticsRapidBallistics", SettingsMenuTab::WeaponHaptics, SettingsControlKind::Boolean, 0.0F, 0.0F },
@@ -94,6 +96,7 @@ namespace sds
         { "MusicHapticsStrength", SettingsMenuTab::Music, SettingsControlKind::Float, 0.0F, 2.0F },
 
         { "AdaptiveTriggers", SettingsMenuTab::AdaptiveTriggers, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "CustomWeaponAdaptiveTriggersEnabled", SettingsMenuTab::AdaptiveTriggers, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "TriggerStrength", SettingsMenuTab::AdaptiveTriggers, SettingsControlKind::Float, 0.0F, 1.0F },
 
         { "ControllerSpeaker", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
@@ -103,6 +106,7 @@ namespace sds
         { "SpeakerVoiceLanguage", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::SpeakerVoiceLanguage, 0.0F, 0.0F },
         { "SpeakerScannerUI", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeapons", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "CustomWeaponSpeakerAudioEnabled", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeaponsVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },
         { "SpeakerDigipick", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerCrafting", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
@@ -112,6 +116,12 @@ namespace sds
 
         { "Lightbar", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "Touchpad", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "CreateButtonAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
+        { "RightTouchpadPressAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
+        { "SwipeUpAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
+        { "SwipeDownAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
+        { "SwipeLeftAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
+        { "SwipeRightAction", SettingsMenuTab::ControllerFeatures, SettingsControlKind::TouchpadShortcut, 0.0F, 0.0F },
 
         { "BluetoothPowerOffOnExit", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "BluetoothIdleTimeoutEnabled", SettingsMenuTab::ControllerFeatures, SettingsControlKind::Boolean, 0.0F, 0.0F },

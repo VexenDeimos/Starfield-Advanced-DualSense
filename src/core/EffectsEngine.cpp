@@ -125,14 +125,20 @@ bool sds::EffectsEngine::applyLiveSettings(
 {
     const float triggerStrength = std::clamp(settings.triggerStrength, 0.0F, 1.0F);
     const bool adaptiveChanged = _config.adaptiveTriggers != settings.adaptiveTriggers;
+    const bool customAdaptiveChanged =
+        _config.customWeaponAdaptiveTriggersEnabled !=
+        settings.customWeaponAdaptiveTriggersEnabled;
     const bool strengthChanged = _config.triggerStrength != triggerStrength;
     const bool lightbarChanged = _config.lightbar != settings.lightbar;
 
-    if (!adaptiveChanged && !strengthChanged && !lightbarChanged) {
+    if (!adaptiveChanged && !customAdaptiveChanged &&
+        !strengthChanged && !lightbarChanged) {
         return false;
     }
 
     _config.adaptiveTriggers = settings.adaptiveTriggers;
+    _config.customWeaponAdaptiveTriggersEnabled =
+        settings.customWeaponAdaptiveTriggersEnabled;
     _config.triggerStrength = triggerStrength;
     _config.lightbar = settings.lightbar;
 
@@ -140,17 +146,26 @@ bool sds::EffectsEngine::applyLiveSettings(
         _state.output.lightbar = {};
     }
 
-    if (!settings.adaptiveTriggers) {
+    if (!settings.adaptiveTriggers ||
+        (_customWeaponEquipped && !_shipPilotActive &&
+         !_landVehicleContextActive &&
+         !settings.customWeaponAdaptiveTriggersEnabled)) {
         _state.output.leftTrigger = {};
         _state.output.rightTrigger = {};
         _state.transientTriggerActive = false;
         _state.transientUntil = {};
         _shipEMTriggerRefreshPhase = ShipEMTriggerRefreshPhase::None;
-    } else if (adaptiveChanged || strengthChanged) {
+    } else if (adaptiveChanged || customAdaptiveChanged || strengthChanged) {
         restorePersistentTrigger();
     }
 
     return true;
+}
+
+bool sds::EffectsEngine::onFootWeaponTriggersEnabled() const noexcept
+{
+    return _config.adaptiveTriggers &&
+        (!_customWeaponEquipped || _config.customWeaponAdaptiveTriggersEnabled);
 }
 
 std::uint8_t sds::EffectsEngine::equippedR2Rating() const noexcept
@@ -170,7 +185,7 @@ sds::WeaponCadenceClass sds::EffectsEngine::equippedCadenceClass() const noexcep
 
 sds::TriggerEffect sds::EffectsEngine::equippedWeaponTrigger() const noexcept
 {
-    if (!_config.adaptiveTriggers) {
+    if (!onFootWeaponTriggersEnabled()) {
         return {};
     }
 
@@ -203,7 +218,7 @@ sds::TriggerEffect sds::EffectsEngine::chargePullTrigger() const noexcept
 
 sds::TriggerEffect sds::EffectsEngine::firePulseTrigger() const noexcept
 {
-    if (!_config.adaptiveTriggers) {
+    if (!onFootWeaponTriggersEnabled()) {
         return {};
     }
 
@@ -512,7 +527,7 @@ sds::TriggerEffect sds::EffectsEngine::landVehicleAimTrigger() const noexcept
 
 sds::TriggerEffect sds::EffectsEngine::sustainedFireTrigger() const noexcept
 {
-    if (!_config.adaptiveTriggers) {
+    if (!onFootWeaponTriggersEnabled()) {
         return {};
     }
 
@@ -583,6 +598,7 @@ std::chrono::milliseconds sds::EffectsEngine::firePulseDuration() const noexcept
 void sds::EffectsEngine::clearOnFootPersistentState() noexcept
 {
     _weaponEquipped = false;
+    _customWeaponEquipped = false;
     _weaponProfile = nullptr;
     _rightTriggerInput = 0;
     _rightTriggerPressed = false;
@@ -737,6 +753,7 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
             break;
         }
         _weaponEquipped = true;
+        _customWeaponEquipped = isCustomWeaponProfileMatch(eventIdentity(event));
         _weaponProfile = findWeaponProfile(eventIdentity(event));
         // A weapon swap must always terminate any previous recoil/beam effect
         // so the newly equipped weapon immediately owns its matrix wall.
@@ -752,7 +769,7 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
     case GameEventType::WeaponFired:
         // This event reaches the engine only from a confirmed Starfield
         // animation marker. R2 input alone never fabricates recoil.
-        if (_config.adaptiveTriggers && _weaponEquipped) {
+        if (onFootWeaponTriggersEnabled() && _weaponEquipped) {
             const auto markerText = eventIdentity(event);
             const bool sustainedEnergy = equippedTriggerFamily() == WeaponTriggerFamily::SustainedEnergy;
             const bool cutterHeartbeatWatchdog = _weaponProfile && _weaponProfile->name == "Cutter";
@@ -1196,6 +1213,7 @@ sds::EffectState sds::EffectsEngine::handle(const GameEvent& event) noexcept
         _shipEMTriggerRefreshPhase = ShipEMTriggerRefreshPhase::None;
         _persistentContextSuppressed = false;
         _weaponEquipped = false;
+        _customWeaponEquipped = false;
         _weaponProfile = nullptr;
         _rightTriggerInput = 0;
         _rightTriggerPressed = false;
@@ -1255,7 +1273,8 @@ sds::EffectState sds::EffectsEngine::handleRightTriggerInput(
         return _state;
     }
 
-    if (_persistentContextSuppressed || !_weaponEquipped || !_config.adaptiveTriggers) {
+    if (_persistentContextSuppressed || !_weaponEquipped ||
+        !onFootWeaponTriggersEnabled()) {
         return _state;
     }
 

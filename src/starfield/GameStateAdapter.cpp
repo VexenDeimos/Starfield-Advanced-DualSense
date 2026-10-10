@@ -2934,11 +2934,29 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                 vehicleNativePollRightStick &&
                 _monocleOpen;
 
+            // Galaxy-map cursor movement should be produced at Starfield's
+            // native gamepad polling cadence, just like wired USB. The
+            // runtime permanent task can execute substantially more often
+            // than the rendered-frame/native gamepad poll and over-apply
+            // held map-stick input (observed at both 30 and 60 FPS).
+            // Keep the existing runtime path when no SAD shadow is present.
+            bool galaxyMapNativePollLeftStick = false;
+            if (idCode == 11 &&
+                gamepadDevice != nullptr &&
+                !rev8ScannerNativePollSticks) {
+                if (auto* ui = RE::UI::GetSingleton()) {
+                    galaxyMapNativePollLeftStick =
+                        ui->IsMenuOpen(
+                            RE::BSFixedString("GalaxyStarMapMenu"));
+                }
+            }
+
             const bool suppressRuntimeStick =
                 (idCode == 12 &&
                  vehicleNativePollRightStick) ||
                 (idCode == 11 &&
-                 rev8ScannerNativePollSticks);
+                 (rev8ScannerNativePollSticks ||
+                  galaxyMapNativePollLeftStick));
 
             if (suppressRuntimeStick) {
                 // Keep runtime state synchronized so leaving vehicle/scanner
@@ -2953,7 +2971,9 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
 
             // BLUETOOTH CONTEXT-SENSITIVE STICK CADENCE TEST V5
             // On-foot movement/look remains on unrestricted runtime replay.
-            // Only map cursor and actual vehicle-camera contexts are capped.
+            // The galaxy-map left stick uses native slot2 timing when the
+            // shadow is present; this cadence path is the fallback without
+            // a shadow. Other protected contexts retain their prior behavior.
             // Keep the REV-8 scanner overlay on the proven vehicle-safe
             // stick cadence. MonocleMenu can alter Starfield input/camera
             // context while REV-8 authority itself remains valid.
@@ -3165,6 +3185,7 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
 
         static bool vehicleNativePollActive = false;
         static bool scannerNativePollActive = false;
+        static bool galaxyMapNativePollActive = false;
 
         const bool vehicleActive =
             _landVehicleCorrelationArmed.load(
@@ -3173,6 +3194,16 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
         const bool scannerActive =
             vehicleActive &&
             _monocleOpen;
+
+        bool galaxyMapActive = false;
+        if (!scannerActive) {
+            if (auto* ui = RE::UI::GetSingleton()) {
+                galaxyMapActive = ui->IsMenuOpen(
+                    RE::BSFixedString("GalaxyStarMapMenu"));
+            }
+        }
+        const bool leftNativePollActive =
+            scannerActive || galaxyMapActive;
 
         // R2 needs native slot2 timing in BOTH scanner contexts:
         //  - on-foot MonocleMenu (Cutter)
@@ -3204,16 +3235,17 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             vehicleNativePollActive = true;
         }
 
-        if (!scannerActive &&
-            scannerNativePollActive) {
+        if (!leftNativePollActive &&
+            (scannerNativePollActive ||
+             galaxyMapNativePollActive)) {
 
             leftPreviousX = 0.0F;
             leftPreviousY = 0.0F;
             leftPreviousDirection = 0;
         }
 
-        scannerNativePollActive =
-            scannerActive;
+        scannerNativePollActive = scannerActive;
+        galaxyMapNativePollActive = galaxyMapActive;
 
         const auto moduleBase =
             g_starfieldModuleBase.load(
@@ -3305,9 +3337,10 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             }
         }
 
-        // Outside a land vehicle there are no native-slot2 stick events to
-        // reproduce. On-foot Scanner has already handled R2 above.
-        if (!vehicleActive) {
+        // Native-poll stick reproduction applies to land-vehicle camera and
+        // REV-8 scanner contexts, plus the galaxy-map left cursor stick.
+        // On-foot Scanner without a map still handles R2 above only.
+        if (!vehicleActive && !galaxyMapActive) {
             return;
         }
 
@@ -3417,7 +3450,7 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
             previousDirection = currentDirection;
         };
 
-        if (scannerNativePollActive) {
+        if (leftNativePollActive) {
             emitNativePollStick(
                 11,
                 left.x,
@@ -3427,26 +3460,38 @@ void sds::GameStateAdapter::dispatchBluetoothScannerSticksAtNativePoll(
                 leftPreviousDirection);
         }
 
+        if (galaxyMapNativePollActive) {
+            static std::atomic_bool galaxyMapTimingLogged{ false };
+            if (!galaxyMapTimingLogged.exchange(
+                    true,
+                    std::memory_order_acq_rel)) {
+                log(
+                    "Bluetooth galaxy-map left stick: NATIVE-SLOT2-TIMING "
+                    "id=11 runtimeStickReplay=suppressed "
+                    "fallback=runtime-when-shadow-unavailable");
+            }
+        }
+
         // Vehicle right-stick Look follows Starfield's own slot2 poll timing.
         // This avoids both runtime-tick over-application (hyper-sensitive)
         // and coarse fixed-cadence replay (visible camera stutter).
-        emitNativePollStick(
-            12,
-            right.x,
-            right.y,
-            rightPreviousX,
-            rightPreviousY,
-            rightPreviousDirection);
+        if (vehicleActive) {
+            emitNativePollStick(
+                12,
+                right.x,
+                right.y,
+                rightPreviousX,
+                rightPreviousY,
+                rightPreviousDirection);
 
-        static std::atomic_bool vehicleRightTimingLogged{ false };
-
-        if (!vehicleRightTimingLogged.exchange(
-                true,
-                std::memory_order_acq_rel)) {
-
-            log(
-                "Bluetooth land-vehicle right stick: NATIVE-SLOT2-TIMING "
-                "id=12 runtimeStickReplay=suppressed");
+            static std::atomic_bool vehicleRightTimingLogged{ false };
+            if (!vehicleRightTimingLogged.exchange(
+                    true,
+                    std::memory_order_acq_rel)) {
+                log(
+                    "Bluetooth land-vehicle right stick: NATIVE-SLOT2-TIMING "
+                    "id=12 runtimeStickReplay=suppressed");
+            }
         }
 
         if (scannerNativePollActive) {
@@ -5485,8 +5530,17 @@ RE::BSEventNotifyControl sds::GameStateAdapter::ProcessEvent(
         }
         identity += fullName;
     }
-    const auto* profile = findWeaponProfile(identity);
-    copyText(normalized, profile ? profile->name : std::string_view(identity));
+    const bool customProfile =
+        isCustomWeaponProfileMatch(identity);
+
+    const auto* profile =
+        findWeaponProfile(identity);
+
+    copyText(
+        normalized,
+        profile && !customProfile
+            ? profile->name
+            : std::string_view(identity));
 
     disarmTargetHitDiagnostic();
     disarmTESHitDiagnostic();

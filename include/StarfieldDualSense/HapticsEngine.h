@@ -22,6 +22,7 @@ namespace sds
         float _hapticStrength{ 1.0F };
         Config _weaponHapticsConfig{};
         const WeaponProfile* _equipped{ nullptr };
+        bool _customWeaponEquipped{ false };
         std::uint32_t _equippedFormId{ 0 };
         bool _cutterBeamAuthorized{ false };
         bool _arcWelderAuthorized{ false };
