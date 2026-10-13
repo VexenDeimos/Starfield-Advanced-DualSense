@@ -1,6 +1,7 @@
 #pragma once
 
 #include <StarfieldDualSense/BoostpackSpeakerPreparedCache.h>
+#include <StarfieldDualSense/LandVehicleSpeakerAudio.h>
 #include <StarfieldDualSense/WeaponSpeakerPreparedCache.h>
 #include <StarfieldDualSense/MusicReconTypes.h>
 #include <StarfieldDualSense/MusicHapticsTypes.h>
@@ -32,6 +33,10 @@ namespace sds
         bool prepareShipWeaponSemantics{ false };
         bool prepareMusicRecon{ false };
         bool prepareBoostpackSpeaker{ false };
+        bool prepareLandVehicleSpeaker{ false };
+        // Shared atomic cache is the only bridge from early SFSE prewarm to
+        // the runtime worker; never owns or changes a transport/backend.
+        std::shared_ptr<WeaponSpeakerPreparedCache> existingWeaponCache{};
     };
 
     struct WeaponAudioStartupBatch
@@ -40,8 +45,11 @@ namespace sds
         std::vector<WwisePcmWeaponVariantCandidate> variants{};
         std::vector<std::string> diagnostics{};
         bool weaponPreparationRequested{ true };
+        bool weaponPreparationAlreadyReady{ false };
         bool boostpackPreparationRequested{ false };
         PreparedBoostpackSpeakerCue boostpackCue{};
+        LandVehicleSpeakerSounds landVehicleSounds{};
+        bool landVehiclePreparationRequested{false};
         ShipWeaponSemanticCatalog shipWeaponCatalog{};
     };
 
@@ -64,6 +72,15 @@ namespace sds
     public:
         virtual ~IWeaponAudioPipelineBackend() = default;
         virtual WeaponAudioStartupBatch resolveStartup() = 0;
+        // Optional follow-up stage for the SFSE-load main-menu prewarm worker.
+        // The first stage publishes three menu cues immediately. This stage
+        // then prepares priority gameplay audio without waiting for PostDataLoad.
+        [[nodiscard]] virtual bool hasDeferredPriorityPrewarm() const noexcept { return false; }
+        virtual WeaponAudioStartupBatch resolvePriorityPrewarm() { return {}; }
+        // Third, isolated early stage: use the proven exhaustive weapon resolver
+        // after priority UI/boostpack/rover audio has been published.
+        [[nodiscard]] virtual bool hasDeferredWeaponPrewarm() const noexcept { return false; }
+        virtual WeaponAudioStartupBatch resolveWeaponPrewarm() { return {}; }
         virtual bool prepareVariant(
             const WwisePcmWeaponVariantCandidate& candidate,
             const WeaponSpeakerPcmPreparation& preparation,
@@ -126,7 +143,8 @@ namespace sds
             std::unique_ptr<IWeaponAudioPipelineBackend> backend,
             std::shared_ptr<UiSpeakerPreparedCache> uiPreparedCache = {},
             std::shared_ptr<ShipWeaponSemanticCache> shipWeaponSemanticCache = {},
-            std::shared_ptr<BoostpackSpeakerPreparedCache> boostpackPreparedCache = {});
+            std::shared_ptr<BoostpackSpeakerPreparedCache> boostpackPreparedCache = {},
+            std::shared_ptr<LandVehicleSpeakerCache> landVehiclePreparedCache = {});
         ~WeaponAudioPipeline();
 
         WeaponAudioPipeline(const WeaponAudioPipeline&) = delete;
@@ -149,6 +167,7 @@ namespace sds
         void run() noexcept;
         void publishStartupUi(const WeaponAudioStartupBatch& startup);
         void publishStartupBoostpack(const WeaponAudioStartupBatch& startup);
+        void publishStartupLandVehicle(const WeaponAudioStartupBatch& startup);
         void publishStartupFamilies(const WeaponAudioStartupBatch& startup);
         [[nodiscard]] bool prepareFamily(
             const WeaponSpeakerProfile& familyProfile,
@@ -162,6 +181,7 @@ namespace sds
         std::shared_ptr<UiSpeakerPreparedCache> _uiPreparedCache{};
         std::shared_ptr<ShipWeaponSemanticCache> _shipWeaponSemanticCache{};
         std::shared_ptr<BoostpackSpeakerPreparedCache> _boostpackPreparedCache{};
+        std::shared_ptr<LandVehicleSpeakerCache> _landVehiclePreparedCache{};
         std::unique_ptr<IWeaponAudioPipelineBackend> _backend{};
         std::thread _worker{};
         std::atomic_bool _running{ false };
@@ -175,6 +195,9 @@ namespace sds
         std::atomic<std::size_t> _familiesFailed{ 0u };
         std::atomic<std::size_t> _uiCuesPublished{ 0u };
         std::atomic<std::size_t> _uiCuesFailed{ 0u };
+        // Worker-local diagnostic verbosity. Early prewarm has no runtime log
+        // drain yet, so omit 495 per-WEM trace lines to avoid queue overflow.
+        bool _compactWeaponPrewarmDiagnostics{ false };
         std::atomic<std::uint64_t> _discoveryAccepted{ 0u };
         std::atomic<std::uint64_t> _discoveryResolved{ 0u };
         std::atomic<std::uint64_t> _discoveryDropped{ 0u };

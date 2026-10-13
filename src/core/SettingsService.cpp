@@ -555,6 +555,10 @@ namespace sds
                     boolText(config.speakerScannerUI)
                 },
                 {
+                    "SpeakerMenuSounds",
+                    boolText(config.speakerMenuSounds)
+                },
+                {
                     "SpeakerWeapons",
                     boolText(config.speakerWeapons)
                 },
@@ -577,9 +581,10 @@ namespace sds
                 },
                 {
                     "SpeakerShipSystems",
-                    boolText(
-                        config.speakerShipSystems)
+                    boolText(config.speakerShipSystems)
                 },
+                { "SpeakerLandVehicle", boolText(config.speakerLandVehicle) },
+                { "SpeakerLandVehicleVolume", formatFloat(config.speakerLandVehicleVolume) },
                 {
                     "SpeakerBoostpack",
                     boolText(config.speakerBoostpack)
@@ -668,6 +673,22 @@ namespace sds
     bool SettingsService::save()
     {
         auto text = readFile(configPath_);
+
+        // Remove the two discontinued per-sound switches on an explicit save.
+        // All unrelated keys and comments remain untouched.
+        for (const std::string_view obsolete : {"SpeakerLandVehicleEngine", "SpeakerLandVehicleGun"}) {
+            std::size_t cursor = 0;
+            while (cursor < text.size()) {
+                const auto end = text.find('\n', cursor);
+                const auto lineEnd = end == std::string::npos ? text.size() : end;
+                const std::string_view line(text.data() + cursor, lineEnd - cursor);
+                if (lineHasKey(line, obsolete)) {
+                    text.erase(cursor, end == std::string::npos ? text.size() - cursor : end + 1 - cursor);
+                } else {
+                    cursor = end == std::string::npos ? text.size() : end + 1;
+                }
+            }
+        }
 
         const bool hadExistingFile =
             std::filesystem::exists(configPath_);
@@ -886,6 +907,11 @@ namespace sds
             return true;
         }
 
+        if (key == "SpeakerMenuSounds") {
+            current_.speakerMenuSounds = value;
+            return true;
+        }
+
         if (key == "SpeakerWeapons") {
             current_.speakerWeapons = value;
             return true;
@@ -908,6 +934,10 @@ namespace sds
 
         if (key == "SpeakerShipSystems") {
             current_.speakerShipSystems = value;
+            return true;
+        }
+        if (key == "SpeakerLandVehicle") {
+            current_.speakerLandVehicle = value;
             return true;
         }
 
@@ -1070,6 +1100,11 @@ namespace sds
 
         if (key == "SpeakerBoostpackVolume") {
             current_.speakerBoostpackVolume =
+                std::clamp(value, 0.0F, 1.0F);
+            return true;
+        }
+        if (key == "SpeakerLandVehicleVolume") {
+            current_.speakerLandVehicleVolume =
                 std::clamp(value, 0.0F, 1.0F);
             return true;
         }

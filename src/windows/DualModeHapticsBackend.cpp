@@ -82,6 +82,8 @@ namespace
             return { 255, 185, 100ms, "ShipTouchdownThump" };
         case K::BoostpackIgnition:
             return { 185, 210, 95ms, "BoostpackIgnition" };
+        case K::OnFootLandingThump:
+            return { 180, 195, 90ms, "OnFootLandingThump" };
         case K::DigipickRotateTick:
             return { 40, 125, 24ms, "DigipickRotateTick" };
         case K::DigipickSelectClick:

@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
-$version = '0.7.1'
+$version = '0.7.6'
 $dist = Join-Path $repoRoot 'dist'
 $pluginDir = Join-Path $repoRoot 'build\windows\x64\release'
 $dll = Join-Path $pluginDir 'StarfieldDualSense.dll'
@@ -30,11 +30,11 @@ if (-not (Test-Path -LiteralPath $toml -PathType Leaf)) {
     throw 'Default TOML is missing.'
 }
 $dllVersion = (Get-Item -LiteralPath $dll).VersionInfo.FileVersion
-if (-not $dllVersion -or -not $dllVersion.StartsWith('0.7.1')) {
-    throw "DLL FileVersion is not 0.7.1: $dllVersion. Refusing to package a stale or development DLL."
+if (-not $dllVersion -or $dllVersion -notmatch '^0\.7\.6(\.0)?$') {
+    throw "DLL FileVersion is not 0.7.6.0: $dllVersion. Refusing to package a stale or development DLL."
 }
-if ((Get-Content -LiteralPath $toml -TotalCount 1) -ne '# Starfield DualSense v0.7.1') {
-    throw 'Default config header is not v0.7.1.'
+if ((Get-Content -LiteralPath $toml -TotalCount 1) -ne '# Starfield DualSense v0.7.6') {
+    throw 'Default config header is not v0.7.6.'
 }
 
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
@@ -68,8 +68,14 @@ try {
         $relativePaths = @(git ls-files --cached --others --exclude-standard -- src include config docs tests scripts xmake.lua README.md CHANGELOG.md LICENSE .gitignore)
         if ($LASTEXITCODE -ne 0) { throw 'git ls-files failed.' }
         if ($relativePaths.Count -lt 30) { throw 'Source file list unexpectedly small; refusing incomplete source ZIP.' }
-        if ($relativePaths -notcontains 'include/StarfieldDualSense/TouchpadBindings.h') {
-            throw 'The untracked TouchpadBindings.h is missing from the source selection.'
+        foreach ($requiredHeader in @(
+            'include/StarfieldDualSense/TouchpadBindings.h',
+            'include/StarfieldDualSense/LandVehicleSpeakerAudio.h',
+            'include/StarfieldDualSense/OnFootLandingGate.h'
+        )) {
+            if ($relativePaths -notcontains $requiredHeader) {
+                throw "Required source header missing from archive: $requiredHeader"
+            }
         }
         foreach ($rel in $relativePaths) {
             if ([string]::IsNullOrWhiteSpace($rel)) { continue }

@@ -31,6 +31,7 @@ namespace sds
         [[nodiscard]] SpeakerOutputMode outputMode() const noexcept;
         [[nodiscard]] SpeakerVoiceLanguage voiceLanguage() const noexcept;
         [[nodiscard]] bool categoryEnabled(SpeakerCategory category) const noexcept;
+        [[nodiscard]] float landVehicleVolume() const noexcept;
         [[nodiscard]] bool handle(GameEvent event) noexcept;
         [[nodiscard]] bool submitCaptured(
             PreparedSpeakerPcm pcm,

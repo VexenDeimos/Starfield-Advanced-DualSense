@@ -2,6 +2,7 @@
 
 #include <StarfieldDualSense/UiAudioCandidateCatalog.h>
 
+#include <algorithm>
 #include <utility>
 
 sds::UiSpeakerPreparedCache::UiSpeakerPreparedCache()
@@ -50,6 +51,19 @@ bool sds::UiSpeakerPreparedCache::publish(PreparedUiSpeakerCue cue) noexcept
                 if (variant.mediaId == 0u || variant.pcm.frames.empty()) {
                     return false;
                 }
+            }
+        }
+
+        // Data Menu has two unusually quiet authored clips. Apply a local
+        // +6 dB gain during preparation, NOT at the global speaker volume.
+        // No per-PostEvent PCM allocation or impact on other UI/weapon cues.
+        constexpr std::uint32_t kDashboardOpen = 0x297426A6u;
+        constexpr std::uint32_t kDashboardClose = 0x42BF2272u;
+        if (cue.eventId == kDashboardOpen || cue.eventId == kDashboardClose) {
+            constexpr float kDashboardGain = 2.0F;
+            cue.pcm.gain = std::clamp(cue.pcm.gain * kDashboardGain, 0.0F, 4.0F);
+            for (auto& variant : cue.variants) {
+                variant.pcm.gain = std::clamp(variant.pcm.gain * kDashboardGain, 0.0F, 4.0F);
             }
         }
 

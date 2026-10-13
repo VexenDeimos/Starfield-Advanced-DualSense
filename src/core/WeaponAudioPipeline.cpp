@@ -1,6 +1,7 @@
 #include <StarfieldDualSense/WeaponAudioPipeline.h>
 
 #include <algorithm>
+#include <chrono>
 #include <exception>
 #include <optional>
 #include <sstream>
@@ -11,11 +12,13 @@ sds::WeaponAudioPipeline::WeaponAudioPipeline(
     std::unique_ptr<IWeaponAudioPipelineBackend> backend,
     std::shared_ptr<UiSpeakerPreparedCache> uiPreparedCache,
     std::shared_ptr<ShipWeaponSemanticCache> shipWeaponSemanticCache,
-    std::shared_ptr<BoostpackSpeakerPreparedCache> boostpackPreparedCache) :
+    std::shared_ptr<BoostpackSpeakerPreparedCache> boostpackPreparedCache,
+    std::shared_ptr<LandVehicleSpeakerCache> landVehiclePreparedCache) :
     _preparedCache(std::move(preparedCache)),
     _uiPreparedCache(std::move(uiPreparedCache)),
     _shipWeaponSemanticCache(std::move(shipWeaponSemanticCache)),
     _boostpackPreparedCache(std::move(boostpackPreparedCache)),
+    _landVehiclePreparedCache(std::move(landVehiclePreparedCache)),
     _backend(std::move(backend))
 {}
 
@@ -300,7 +303,7 @@ bool sds::WeaponAudioPipeline::prepareFamily(
                 pushDiagnostic(line.str());
                 return false;
             }
-            if (!diagnostic.empty()) {
+            if (!diagnostic.empty() && !_compactWeaponPrewarmDiagnostics) {
                 pushDiagnostic(std::move(diagnostic));
             }
             output.push_back(std::move(preparedVariant));
@@ -385,6 +388,16 @@ void sds::WeaponAudioPipeline::publishStartupBoostpack(
          << " source=real-Starfield-WEM extraction=disabled";
     pushDiagnostic(line.str());
 }
+void sds::WeaponAudioPipeline::publishStartupLandVehicle(const WeaponAudioStartupBatch& startup)
+{
+    if (!startup.landVehiclePreparationRequested) return;
+    if (!_landVehiclePreparedCache || !_landVehiclePreparedCache->publish(startup.landVehicleSounds)) {
+        pushDiagnostic("Land vehicle speaker cache: INACTIVE reason=media-missing-or-decode-failed; normal audio unaffected");
+        return;
+    }
+    pushDiagnostic("Land vehicle speaker cache: READY partial-or-complete media source=original-Starfield-WEM");
+}
+
 void sds::WeaponAudioPipeline::publishStartupFamilies(const WeaponAudioStartupBatch& startup)
 {
     for (const auto& logical : weaponSpeakerProfiles()) {
@@ -446,7 +459,9 @@ void sds::WeaponAudioPipeline::run() noexcept
             return;
         }
 
+        const auto startAt = std::chrono::steady_clock::now();
         auto startup = _backend->resolveStartup();
+        const auto resolvedAt = std::chrono::steady_clock::now();
         for (auto& line : startup.diagnostics) {
             pushDiagnostic(std::move(line));
         }
@@ -467,13 +482,16 @@ void sds::WeaponAudioPipeline::run() noexcept
 
         publishStartupUi(startup);
         publishStartupBoostpack(startup);
+        publishStartupLandVehicle(startup);
         if (startup.weaponPreparationRequested) {
             if (!_preparedCache) {
                 failTerminal("Weapon audio pipeline: terminal failure reason=weapon-cache-unavailable");
                 _running.store(false, std::memory_order_release);
                 return;
             }
-            publishStartupFamilies(startup);
+            if (!startup.weaponPreparationAlreadyReady) {
+                publishStartupFamilies(startup);
+            }
             const auto cacheStats = _preparedCache->stats();
             std::ostringstream summary;
             summary << "Weapon audio pipeline: startup complete familiesReady="
@@ -484,6 +502,92 @@ void sds::WeaponAudioPipeline::run() noexcept
                     << " failedFamilies=" << _familiesFailed.load(std::memory_order_relaxed);
             pushDiagnostic(summary.str());
         }
+        const auto firstStagePublishedAt = std::chrono::steady_clock::now();
+        {
+            std::ostringstream line;
+            line << "Audio startup timing: phase="
+                 << (_backend->hasDeferredPriorityPrewarm() ? "early-main-menu" : "full-runtime")
+                 << " stage=initial resolverMs="
+                 << std::chrono::duration_cast<std::chrono::milliseconds>(resolvedAt - startAt).count()
+                 << " publishMs="
+                 << std::chrono::duration_cast<std::chrono::milliseconds>(firstStagePublishedAt - resolvedAt).count();
+            pushDiagnostic(line.str());
+        }
+
+        if (_backend->hasDeferredPriorityPrewarm() &&
+            !_stopRequested.load(std::memory_order_acquire)) {
+            const auto priorityStartedAt = std::chrono::steady_clock::now();
+            pushDiagnostic("Audio prewarm: priority gameplay stage START (43 UI + boostpack + rover; weapons remain background)");
+            try {
+                auto priority = _backend->resolvePriorityPrewarm();
+                const auto priorityResolvedAt = std::chrono::steady_clock::now();
+                for (auto& line : priority.diagnostics) {
+                    pushDiagnostic(std::move(line));
+                }
+                if (!_stopRequested.load(std::memory_order_acquire)) {
+                    publishStartupUi(priority);
+                    publishStartupBoostpack(priority);
+                    publishStartupLandVehicle(priority);
+                }
+                const auto priorityPublishedAt = std::chrono::steady_clock::now();
+                std::ostringstream line;
+                line << "Audio startup timing: phase=early-priority"
+                     << " stage=priority resolverMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(priorityResolvedAt - priorityStartedAt).count()
+                     << " publishMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(priorityPublishedAt - priorityResolvedAt).count()
+                     << " totalSinceStartMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(priorityPublishedAt - startAt).count();
+                pushDiagnostic(line.str());
+            } catch (const std::exception& exception) {
+                pushDiagnostic(std::string("Audio prewarm: priority stage FAILED (main-menu audio preserved) error: ") +
+                    exception.what());
+            } catch (...) {
+                pushDiagnostic("Audio prewarm: priority stage FAILED (main-menu audio preserved) unknown error");
+            }
+        }
+
+        // Run this only after publishing all priority gameplay audio. The
+        // existing runtime worker remains an independent, unchanged fallback
+        // if the early exhaustive preparation cannot finish successfully.
+        if (_backend->hasDeferredWeaponPrewarm() &&
+            !_stopRequested.load(std::memory_order_acquire)) {
+            const auto weaponStartedAt = std::chrono::steady_clock::now();
+            pushDiagnostic("Audio prewarm: early exhaustive weapon stage START original-resolver 495-variants");
+            try {
+                auto earlyWeapons = _backend->resolveWeaponPrewarm();
+                const auto weaponResolvedAt = std::chrono::steady_clock::now();
+                for (auto& line : earlyWeapons.diagnostics) {
+                    pushDiagnostic(std::move(line));
+                }
+                if (!_stopRequested.load(std::memory_order_acquire) && _preparedCache) {
+                    _compactWeaponPrewarmDiagnostics = true;
+                    if (!earlyWeapons.weaponPreparationAlreadyReady) {
+                        publishStartupFamilies(earlyWeapons);
+                    }
+                    _compactWeaponPrewarmDiagnostics = false;
+                }
+                const auto weaponPublishedAt = std::chrono::steady_clock::now();
+                const auto cacheStats = _preparedCache ? _preparedCache->stats() : WeaponSpeakerPreparedCacheStats{};
+                std::ostringstream line;
+                line << "Audio startup timing: phase=early-weapons resolverMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(weaponResolvedAt - weaponStartedAt).count()
+                     << " publishMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(weaponPublishedAt - weaponResolvedAt).count()
+                     << " totalSinceStartMs="
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(weaponPublishedAt - startAt).count()
+                     << " readyFamilies=" << cacheStats.readyFamilies << '/' << cacheStats.physicalFamilies
+                     << " preparedVariants=" << cacheStats.preparedVariants << '/' << weaponSpeakerPhysicalVariantCount();
+                pushDiagnostic(line.str());
+            } catch (const std::exception& exception) {
+                _compactWeaponPrewarmDiagnostics = false;
+                pushDiagnostic(std::string("Audio prewarm: early weapon stage FAILED (runtime fallback retained) error: ") + exception.what());
+            } catch (...) {
+                _compactWeaponPrewarmDiagnostics = false;
+                pushDiagnostic("Audio prewarm: early weapon stage FAILED (runtime fallback retained) unknown error");
+            }
+        }
+
         markStartupSettled();
         if (_stopRequested.load(std::memory_order_acquire)) {
             _running.store(false, std::memory_order_release);

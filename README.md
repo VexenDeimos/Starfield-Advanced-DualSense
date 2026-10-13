@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.7.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.6-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -30,6 +30,9 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Digipick Feedback** | Real Digipick sounds through the controller speaker plus tactile feedback for rotation, shape selection, successful insertion, and puzzle completion. |
 | **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research-station sounds through the controller speaker. |
 | **Boostpack Feedback** | Dedicated boostpack haptics and real boostpack audio through the controller speaker. |
+| **REV-8 Speaker Audio** | Real Starfield REV-8 engine, mounted-gun, and boost/thrust audio through the DualSense controller speaker. |
+| **Fast Speaker Startup** | Priority menu/UI/boostpack/REV-8 audio is prepared early, followed by the original full 495-variant weapon resolver; the completed cache is reused after loading. |
+| **On-Foot Landing Feedback** | Player-verified landing impacts derived from Starfield Wwise events, including recent boostpack-assisted landings. |
 | **Touchpad** | Individually configurable swipes, right touchpad press, and Create button, including Disabled/Photo Mode and a reset-to-defaults button; the global `Touchpad` master switch remains. |
 | **Dynamic Lightbar** | Player-health colors, a Main Menu white-to-blue breathing effect, and ship takeoff/landing/touchdown lighting. |
 | **Battery Indicator** | The five DualSense player-indicator LEDs act as a battery gauge on both USB and Bluetooth. |
@@ -93,7 +96,7 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 ## Custom / Modded Weapon Profiles
 
-SAD v0.7.1 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
+SAD v0.7.6 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
 
 Open `Data\SFSE\Plugins\StarfieldDualSense.toml` and add a separate array-of-tables entry for each weapon:
 
@@ -388,7 +391,7 @@ The TOML is organized by feature area and documents the accepted syntax and rang
 | Adaptive Triggers | `AdaptiveTriggers`, `TriggerStrength` |
 | Haptics | `AdvancedHaptics`, `HapticStrength`, `BluetoothHapticStrength`, `BoostpackHaptics`, `BoostpackHapticsStrength`, `MusicHapticsEnabled`, `MusicHapticsStrength` |
 | Weapon Haptics | `WeaponHaptics` plus per-family enable and `0.0-3.0` strength controls for ballistic handguns, rapid ballistics, ballistic rifles, precision ballistics, shotguns, heavy ballistics, launchers, magnetic, laser, particle, sustained-energy, EM, and melee weapons |
-| Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
+| Controller Speaker | `ControllerSpeaker`, `SpeakerVolume`, `SpeakerOutputMode`, `SpeakerComms`, `SpeakerVoiceLanguage`, `SpeakerScannerUI`, `SpeakerMenuSounds`, `SpeakerWeapons`, `SpeakerWeaponsVolume`, `SpeakerDigipick`, `SpeakerCrafting`, `SpeakerShipSystems`, `SpeakerLandVehicle`, `SpeakerLandVehicleVolume`, `SpeakerBoostpack`, `SpeakerBoostpackVolume` |
 | Custom Weapons | `[[CustomWeapons]]`, `EditorID`, `ControllerFeedbackProfile`, `SpeakerAudioProfile`, `HandlingSpeakerAudioProfile`, `CustomWeaponsEnabled`, `CustomWeaponAdaptiveTriggersEnabled`, `CustomWeaponSpeakerAudioEnabled` |
 | Controller Features | `Lightbar`, `Touchpad`, `SwipeUpAction`, `SwipeDownAction`, `SwipeLeftAction`, `SwipeRightAction`, `RightTouchpadPressAction`, `CreateButtonAction`, `BluetoothPowerOffOnExit`, `BluetoothIdleTimeoutEnabled`, `BluetoothIdleTimeoutMinutes` |
 | Diagnostics | `DebugLogging` |
@@ -425,6 +428,21 @@ Runs only the passive DualSense reconnect-repair path. In this mode, the reconne
 See [`config/StarfieldDualSense.toml`](config/StarfieldDualSense.toml) for the current settings, comments, valid values, and ranges.
 
 ---
+
+## Controller-Speaker Startup and REV-8 Sounds
+
+SAD prepares the three main-menu UI cues first, followed by the supported 43 UI, boostpack, and REV-8 sounds. The **original exhaustive weapon resolver** then prepares all **495 weapon audio variants** during startup; gameplay reuses the completed cache when available and retains the original runtime fallback if preparation is incomplete. No separate external audio assets are required.
+
+These settings can be adjusted in the SFSE settings menu or the default TOML:
+
+```toml
+SpeakerMenuSounds = true
+SpeakerShipSystems = true
+SpeakerLandVehicle = true
+SpeakerLandVehicleVolume = 0.7
+```
+
+`SpeakerMenuSounds` controls supported menu cues independently of scanner/UI cues. `SpeakerLandVehicle` and `SpeakerLandVehicleVolume` control REV-8 controller-speaker audio; the volume accepts `0.0` to `1.0`. `SpeakerShipSystems` is the separate ship-system speaker category switch. The `ControllerSpeaker` master switch still disables every speaker category.
 
 ## Controller Speaker Output Modes
 

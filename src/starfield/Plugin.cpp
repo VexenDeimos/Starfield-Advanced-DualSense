@@ -1,4 +1,6 @@
 #include <StarfieldDualSense/BoostpackFeedbackAuthority.h>
+#include <StarfieldDualSense/OnFootLandingGate.h>
+#include <StarfieldDualSense/LandVehicleSpeakerAudio.h>
 
 #include <REL/Relocation.h>
 #include <cstring>
@@ -86,7 +88,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.7.1";
+    constexpr std::string_view kVersion = "0.7.6";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -126,7 +128,15 @@ namespace
     sds::ShipLaunchLandingReconProbe g_shipLaunchLandingReconProbe;
     std::mutex g_boostpackFeedbackMutex{};
     std::unique_ptr<sds::BoostpackFeedbackAuthority> g_boostpackFeedbackAuthority;
+    sds::OnFootLandingGate g_onFootLandingGate{};
     std::shared_ptr<sds::BoostpackSpeakerPreparedCache> g_boostpackSpeakerPreparedCache;
+    std::shared_ptr<sds::LandVehicleSpeakerCache> g_landVehicleSpeakerCache;
+    std::mutex g_landVehicleSpeakerMutex;
+    int g_landVehicleEngineBand = -1;
+    std::uint64_t g_landVehicleEngineEpoch = 0;
+    float g_landVehicleEngineVolume = -1.0F;
+    int g_landVehicleThrustKind = 0; // 0=engine, 1=forward boost, 2=vertical boost
+    std::chrono::steady_clock::time_point g_landVehicleLastGun{};
     std::unique_ptr<sds::BoostpackSpeakerPlayback> g_boostpackSpeakerPlayback;
     std::atomic_uint8_t g_boostpackProductionBlockingMenuMask{ 0 };
     std::atomic_bool g_boostpackProductionLandVehicleActive{ false };
@@ -1482,12 +1492,131 @@ if (connected && g_controller->bluetoothTransport()) {
             eventId == sds::kLandVehicleTouchdownCandidateSecondaryEventId;
     }
 
+    void stopLandVehicleEngineSpeaker() noexcept
+    {
+        std::scoped_lock lock(g_landVehicleSpeakerMutex);
+        if (g_landVehicleEngineBand != -1 && g_speakerManager) {
+            (void)g_speakerManager->clearPersistentCaptured(sds::kRoverEngineSpeakerOwner);
+        }
+        g_landVehicleEngineBand = -1;
+        g_landVehicleEngineEpoch = 0;
+        g_landVehicleEngineVolume = -1.0F;
+        g_landVehicleThrustKind = 0;
+    }
+
+    void updateLandVehicleEngineSpeaker(const sds::LandVehicleMotionState& state) noexcept
+    {
+        try {
+            if (!state.authorityActive || !g_speakerManager || !g_landVehicleSpeakerCache ||
+                !g_speakerManager->categoryEnabled(sds::SpeakerCategory::LandVehicle) ||
+                g_speakerManager->landVehicleVolume() <= 0.0F) {
+                stopLandVehicleEngineSpeaker();
+                return;
+            }
+            const auto sounds = g_landVehicleSpeakerCache->snapshot();
+            if (!sounds) return; // Startup decoder has not published yet.
+            std::scoped_lock lock(g_landVehicleSpeakerMutex);
+            if (g_landVehicleThrustKind != 0) return; // Thrust takes priority over engine.
+            const float speed = std::max(0.0F, state.speed);
+            // Hysteresis avoids rapid re-starts when hovering near the thresholds.
+            int band = speed < 0.60F ? 0 : (speed < 8.0F ? 1 : 2);
+            if (g_landVehicleEngineBand == 0 && speed < 1.2F) band = 0;
+            if (g_landVehicleEngineBand == 1 && speed > 0.35F && speed < 9.5F) band = 1;
+            if (g_landVehicleEngineBand == 2 && speed > 6.5F) band = 2;
+            const float volume = g_speakerManager->landVehicleVolume();
+            if (band == g_landVehicleEngineBand && state.authorityEpoch == g_landVehicleEngineEpoch &&
+                volume == g_landVehicleEngineVolume) return;
+            const sds::LandVehicleSpeakerClip* clip = band == 0 ? &sounds->idle :
+                (band == 1 ? &sounds->low : &sounds->high);
+            sds::PersistentPreparedSpeakerPcm voice{};
+            if (!clip->pcm) return; // Allow incomplete WEM decoding without muting the gun.
+            voice.owner = sds::kRoverEngineSpeakerOwner;
+            voice.pcm = clip->pcm;
+            voice.loopResumeFrame = clip->loopResumeFrame;
+            voice.gainScale = band == 0 ? 0.33F : (band == 1 ? 0.42F : 0.50F);
+            if (g_speakerManager->setPersistentCaptured(std::move(voice), sds::SpeakerCategory::LandVehicle)) {
+                g_landVehicleEngineBand = band;
+                g_landVehicleEngineEpoch = state.authorityEpoch;
+                g_landVehicleEngineVolume = volume;
+            }
+        } catch (...) { stopLandVehicleEngineSpeaker(); }
+    }
+
+    void observeLandVehicleThrustSpeaker(const sds::WeaponSfxWwiseObservation& observation) noexcept
+    {
+        constexpr std::uintptr_t kStartRva = 0xF1C21Du;
+        constexpr std::uintptr_t kStopRva = 0xF1C4ABu;
+        constexpr std::uint32_t kForwardStart = 0x6F4CEC6Cu;
+        constexpr std::uint32_t kForwardStop = 0xE4B57376u;
+        constexpr std::uint32_t kVerticalStop = 0x59BD1A2Eu;
+        const int startKind = observation.callsiteRva == kStartRva ?
+            (observation.eventId == kForwardStart ? 1 :
+             observation.eventId == sds::kRoverVerticalBoostEventId ? 2 : 0) : 0;
+        const int stopKind = observation.callsiteRva == kStopRva ?
+            (observation.eventId == kForwardStop ? 1 :
+             observation.eventId == kVerticalStop ? 2 : 0) : 0;
+        if (!startKind && !stopKind) return;
+        if (!g_speakerManager || !g_landVehicleSpeakerCache) return;
+        const auto clips = g_landVehicleSpeakerCache->snapshot();
+        if (!clips) return;
+        if (!g_speakerManager->categoryEnabled(sds::SpeakerCategory::LandVehicle) ||
+            g_speakerManager->landVehicleVolume() <= 0.0F) return;
+        std::scoped_lock lock(g_landVehicleSpeakerMutex);
+        if (stopKind) {
+            if (g_landVehicleThrustKind == stopKind) {
+                g_landVehicleThrustKind = 0;
+                g_landVehicleEngineBand = -1; // Next vehicle motion tick resumes idle/driving.
+                (void)g_speakerManager->clearPersistentCaptured(sds::kRoverEngineSpeakerOwner);
+            }
+            return;
+        }
+        if (g_landVehicleThrustKind == startKind) return;
+        const auto& clip = startKind == 1 ? clips->forwardThrust : clips->verticalThrust;
+        if (!clip.pcm) return;
+        sds::PersistentPreparedSpeakerPcm voice{};
+        voice.owner = sds::kRoverEngineSpeakerOwner;
+        voice.pcm = clip.pcm;
+        voice.loopResumeFrame = clip.loopResumeFrame;
+        voice.gainScale = startKind == 1 ? 0.45F : 0.55F;
+        if (g_speakerManager->setPersistentCaptured(std::move(voice), sds::SpeakerCategory::LandVehicle)) {
+            g_landVehicleThrustKind = startKind;
+            g_landVehicleEngineBand = -1;
+        }
+    }
+
+    void observeLandVehicleGunSpeaker(
+        const sds::WeaponSfxWwiseObservation& observation) noexcept
+    {
+        if (observation.eventId != sds::kRoverMountedLaserEventId ||
+            observation.externalCount != 0 || observation.hasExternalSources ||
+            !g_gameState || !g_gameState->landVehicleReconCorrelationArmed() ||
+            !g_speakerManager || !g_speakerManager->categoryEnabled(sds::SpeakerCategory::LandVehicle) ||
+            !g_landVehicleSpeakerCache) return;
+        const auto sounds = g_landVehicleSpeakerCache->snapshot();
+        if (!sounds || !sounds->laser) return;
+        {
+            std::scoped_lock lock(g_landVehicleSpeakerMutex);
+            if (g_landVehicleLastGun != std::chrono::steady_clock::time_point{} &&
+                observation.when >= g_landVehicleLastGun &&
+                observation.when - g_landVehicleLastGun < std::chrono::milliseconds(85)) return;
+            g_landVehicleLastGun = observation.when;
+        }
+        auto pcm = *sounds->laser;
+        pcm.gain *= 0.65F;
+        (void)g_speakerManager->submitCaptured(
+            std::move(pcm), sds::SpeakerCategory::LandVehicle,
+            {.id = (static_cast<std::uint64_t>(observation.eventId) << 32u) | 543730516u,
+             .controllerOnlySafe = false}, false);
+    }
+
     void observeLandVehicleReconWwise(
         const sds::WeaponSfxWwiseObservation& observation) noexcept
     {
         if (!g_gameState || !g_gameState->landVehicleReconCorrelationArmed()) {
             return;
         }
+        observeLandVehicleGunSpeaker(observation);
+        observeLandVehicleThrustSpeaker(observation);
 
         // Hardware-observed REV-8 boost/thrust lifecycle.
         // Unlike the input semantic, these events follow actual
@@ -2252,19 +2381,35 @@ if (connected && g_controller->bluetoothTransport()) {
             if (!g_uiSpeakerPreparedCache) {
                 g_uiSpeakerPreparedCache = std::make_shared<sds::UiSpeakerPreparedCache>();
             }
+            if (!g_weaponSpeakerPreparedCache) {
+                g_weaponSpeakerPreparedCache = std::make_shared<sds::WeaponSpeakerPreparedCache>();
+            }
+            // Early and post-PostDataLoad workers publish into the same
+            // atomic prepared-cache slots. No live speaker/HID objects exist
+            // at this stage, and neither worker controls Bluetooth ownership.
+            if (!g_boostpackSpeakerPreparedCache) {
+                g_boostpackSpeakerPreparedCache = std::make_shared<sds::BoostpackSpeakerPreparedCache>();
+            }
+            if (!g_landVehicleSpeakerCache) {
+                g_landVehicleSpeakerCache = std::make_shared<sds::LandVehicleSpeakerCache>();
+            }
 
             const sds::AudioPipelineStartupOptions startupOptions{
                 .prepareUi = true,
                 .prepareMainMenuUiOnly = true,
                 .prepareWeapons = false,
                 .resolveUiDiagnostics = false,
+                .existingWeaponCache = g_weaponSpeakerPreparedCache,
             };
             g_mainMenuUiAudioPipeline = std::make_unique<sds::WeaponAudioPipeline>(
-                std::shared_ptr<sds::WeaponSpeakerPreparedCache>{},
+                g_weaponSpeakerPreparedCache,
                 sds::makeRealWeaponAudioPipelineBackend(g_weaponAudioPipelineDataPath, startupOptions),
-                g_uiSpeakerPreparedCache);
+                g_uiSpeakerPreparedCache,
+                std::shared_ptr<sds::ShipWeaponSemanticCache>{},
+                g_boostpackSpeakerPreparedCache,
+                g_landVehicleSpeakerCache);
             g_mainMenuUiAudioPipeline->start();
-            pluginLog("Main-menu UI speaker prewarm: worker started cues=3 events=GeneralFocus,GeneralOK,GeneralCancel preparation=pre-PostDataLoad");
+            pluginLog("Main-menu UI speaker prewarm: worker started cues=3 events=GeneralFocus,GeneralOK,GeneralCancel preparation=pre-PostDataLoad deferredPriority=43-UI+boostpack+rover then exhaustive-weapons-495");
         } catch (const std::exception& exception) {
             pluginLog(std::string("Main-menu UI speaker prewarm: failed error=\"") + exception.what() + "\"");
         } catch (...) {
@@ -2505,6 +2650,33 @@ if (connected && g_controller->bluetoothTransport()) {
         if (update.speakerCue && g_boostpackSpeakerPlayback) {
             (void)g_boostpackSpeakerPlayback->observeWwise(observation);
         }
+    }
+
+    void observeOnFootLandingWwise(
+        const sds::WeaponSfxWwiseObservation& observation) noexcept
+    {
+        // This native Wwise observation is the physical JumpDown sound, not
+        // a jump-button edge. The same cue occurs after a boostpack descent.
+        if (observation.externalCount != 0u || observation.hasExternalSources) {
+            return;
+        }
+        const auto hit = g_onFootLandingGate.observe(
+            observation.eventId, observation.gameObjectId, observation.when,
+            boostpackProductionCaptureArmed());
+        if (!hit || !g_haptics) {
+            return;
+        }
+        const bool emitted = g_haptics->emitOnFootLanding(hit->baseGain, observation.when);
+        char line[256]{};
+        std::snprintf(
+            line, sizeof(line),
+            "On-foot landing haptic: nativeJumpDown=0x%08X object=0x%llX boostAssisted=%s gain=%.2f submitted=%s authority=player-Wwise",
+            observation.eventId,
+            static_cast<unsigned long long>(observation.gameObjectId),
+            hit->boostAssisted ? "yes" : "no",
+            static_cast<double>(hit->baseGain),
+            emitted ? "yes" : "no");
+        pluginLog(line);
     }
 
     void observeBoostpackProductionSemantic(
@@ -3068,15 +3240,27 @@ if (connected && g_controller->bluetoothTransport()) {
                 kNativeCircleButtonId =
                     0x2000;
 
+            constexpr std::int32_t
+                kNativeSquareButtonId =
+                    0x8000;
+
+            constexpr std::int32_t
+                kNativeTriangleButtonId =
+                    0x1000;
+
             static void* transitionGamepad = nullptr;
             static bool previousL3 = false;
             static bool previousCircle = false;
+            static bool previousSquare = false;
+            static bool previousTriangle = false;
             static bool timingLogged = false;
 
             if (transitionGamepad != gamepad) {
                 transitionGamepad = gamepad;
                 previousL3 = false;
                 previousCircle = false;
+                previousSquare = false;
+                previousTriangle = false;
             }
 
             float nativeDeltaSeconds =
@@ -3123,6 +3307,47 @@ if (connected && g_controller->bluetoothTransport()) {
                         previousCircle ? 1.0F : 0.0F,
                         currentCircle ? 1.0F : 0.0F);
                 }
+
+                // X/Square and Y/Triangle were being submitted from the
+                // separate runtime tick. Starfield saw those events but
+                // gameplay intermittently ignored them. Move ONLY these
+                // buttons to the exact native slot-2 timing used by L3 and
+                // Circle; maintain the original shadowless fallback below.
+                const bool currentSquare = state.square;
+                const bool currentTriangle = state.triangle;
+
+                if (currentSquare || previousSquare) {
+                    transition(
+                        gamepad,
+                        kNativeSquareButtonId,
+                        nativeDeltaSeconds,
+                        previousSquare ? 1.0F : 0.0F,
+                        currentSquare ? 1.0F : 0.0F);
+                }
+
+                if (currentTriangle || previousTriangle) {
+                    transition(
+                        gamepad,
+                        kNativeTriangleButtonId,
+                        nativeDeltaSeconds,
+                        previousTriangle ? 1.0F : 0.0F,
+                        currentTriangle ? 1.0F : 0.0F);
+                }
+
+                if (currentSquare != previousSquare ||
+                    currentTriangle != previousTriangle) {
+                    pluginLog(
+                        currentSquare != previousSquare
+                            ? (currentSquare
+                                ? "BT XY SLOT2: X/Square DOWN"
+                                : "BT XY SLOT2: X/Square UP")
+                            : (currentTriangle
+                                ? "BT XY SLOT2: Y/Triangle DOWN"
+                                : "BT XY SLOT2: Y/Triangle UP"));
+                }
+
+                previousSquare = currentSquare;
+                previousTriangle = currentTriangle;
 
                 if (!timingLogged &&
                     (currentL3 ||
@@ -4354,6 +4579,14 @@ if (connected && g_controller->bluetoothTransport()) {
 
             replayState.circle =
                 false;
+
+            // Square/Triangle now dispatch at native slot-2 time just like
+            // L3/Circle. Only mask them when the SAD shadow actually exists:
+            // shadowless fallback keeps the existing runtime bridge intact.
+            replayState.square =
+                false;
+            replayState.triangle =
+                false;
         }
         else if (!shadowlessFallbackLogged) {
             pluginLog(
@@ -5023,6 +5256,9 @@ if (connected && g_controller->bluetoothTransport()) {
         resetLandVehicleWwiseRecon(std::chrono::steady_clock::now());
 
         auto nativeLog = [](std::string_view message) { pluginLog(message); };
+        if (!g_landVehicleSpeakerCache) {
+            g_landVehicleSpeakerCache = std::make_shared<sds::LandVehicleSpeakerCache>();
+        }
         g_audioTransport = std::make_shared<sds::DualSenseAudioTransport>(
             nativeLog,
             config.debugLogging,
@@ -5106,8 +5342,10 @@ if (connected && g_controller->bluetoothTransport()) {
                 g_boostpackFeedbackAuthority =
                     std::make_unique<sds::BoostpackFeedbackAuthority>();
             }
-            g_boostpackSpeakerPreparedCache =
-                std::make_shared<sds::BoostpackSpeakerPreparedCache>();
+            if (!g_boostpackSpeakerPreparedCache) {
+                g_boostpackSpeakerPreparedCache =
+                    std::make_shared<sds::BoostpackSpeakerPreparedCache>();
+            }
             g_boostpackSpeakerPlayback =
                 std::make_unique<sds::BoostpackSpeakerPlayback>(
                     [](const sds::PreparedSpeakerPcm& pcm,
@@ -5202,7 +5440,10 @@ if (connected && g_controller->bluetoothTransport()) {
         }
 
         if (weaponSpeakerCaptureEnabled) {
-            g_weaponSpeakerPreparedCache = std::make_shared<sds::WeaponSpeakerPreparedCache>();
+            // Retain cache populated by the early SFSE-load worker.
+            if (!g_weaponSpeakerPreparedCache) {
+                g_weaponSpeakerPreparedCache = std::make_shared<sds::WeaponSpeakerPreparedCache>();
+            }
             g_weaponSpeakerPlayback = std::make_unique<sds::WeaponSpeakerPlayback>(
                 [](const sds::PreparedSpeakerPcm& pcm,
                     std::string_view,
@@ -5613,6 +5854,7 @@ if (connected && g_controller->bluetoothTransport()) {
                 break;
 
             case sds::GameEventType::LandVehicleContextExited:
+                stopLandVehicleEngineSpeaker();
                 g_boostpackProductionLandVehicleActive.store(false, std::memory_order_release);
                 refreshBoostpackProductionContext("land-vehicle-exit");
                 resetLandVehicleActionGate();
@@ -5623,6 +5865,7 @@ if (connected && g_controller->bluetoothTransport()) {
                 break;
 
             case sds::GameEventType::Shutdown:
+                stopLandVehicleEngineSpeaker();
                 setBoostpackProductionContextEligible(false, "shutdown-event");
                 resetLandVehicleActionGate();
                 g_lastShipStateValid.store(false, std::memory_order_release);
@@ -5714,6 +5957,7 @@ if (connected && g_controller->bluetoothTransport()) {
             false,
             config.advancedHaptics);
         g_gameState->setLandVehicleMotionCallback([](const sds::LandVehicleMotionState& state) {
+            updateLandVehicleEngineSpeaker(state);
             if (g_haptics) {
                 g_haptics->handleLandVehicleMotionState(state);
             }
@@ -6119,6 +6363,7 @@ if (connected && g_controller->bluetoothTransport()) {
                     observeShipLaunchLandingReconWwise(observation);
                     observeLandVehicleReconWwise(observation);
                     observeBoostpackProductionWwise(observation);
+                    observeOnFootLandingWwise(observation);
                     if (g_shipEmReconEnabled.load(std::memory_order_acquire)) {
                         observeShipEmReconWwise(observation);
                     }
@@ -6441,13 +6686,16 @@ if (connected && g_controller->bluetoothTransport()) {
                     .prepareShipWeaponSemantics = shipBallisticHapticsEnabled,
                     .prepareMusicRecon = musicSelectionEnabled,
                     .prepareBoostpackSpeaker = boostpackProductionEnabled,
+                    .prepareLandVehicleSpeaker = true,
+                    .existingWeaponCache = g_weaponSpeakerPreparedCache,
                 };
                 g_weaponAudioPipeline = std::make_unique<sds::WeaponAudioPipeline>(
                     g_weaponSpeakerPreparedCache,
                     sds::makeRealWeaponAudioPipelineBackend(g_weaponAudioPipelineDataPath, startupOptions),
                     g_uiSpeakerPreparedCache,
                     g_shipWeaponSemanticCache,
-                    g_boostpackSpeakerPreparedCache);
+                    g_boostpackSpeakerPreparedCache,
+                    g_landVehicleSpeakerCache);
                 g_weaponAudioPipeline->start();
                 if (g_musicRecon && g_audioCapture && g_audioCapture->active()) {
                     pluginLog("Music recon: ACTIVE diagnostic-only source=existing-PostEvent-hook externalSources=zero resolver=shared-background-worker decode=music-name-candidates output=none wholeGameMix=no");

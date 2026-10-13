@@ -14,11 +14,14 @@ namespace sds
         bool speakerComms{ true };
         SpeakerVoiceLanguage speakerVoiceLanguage{ SpeakerVoiceLanguage::Auto };
         bool speakerScannerUI{ true };
+        bool speakerMenuSounds{ true };
         bool speakerWeapons{ true };
         float speakerWeaponsVolume{ 1.0F };
         bool speakerDigipick{ true };
         bool speakerCrafting{ true };
         bool speakerShipSystems{ true };
+        bool speakerLandVehicle{ true };
+        float speakerLandVehicleVolume{ 0.70F };
         bool speakerBoostpack{ true };
         float speakerBoostpackVolume{ 1.0F };
 
@@ -36,11 +39,14 @@ namespace sds
             .speakerComms = config.speakerComms,
             .speakerVoiceLanguage = config.speakerVoiceLanguage,
             .speakerScannerUI = config.speakerScannerUI,
+            .speakerMenuSounds = config.speakerMenuSounds,
             .speakerWeapons = config.speakerWeapons,
             .speakerWeaponsVolume = std::clamp(config.speakerWeaponsVolume, 0.0F, 1.0F),
             .speakerDigipick = config.speakerDigipick,
             .speakerCrafting = config.speakerCrafting,
             .speakerShipSystems = config.speakerShipSystems,
+            .speakerLandVehicle = config.speakerLandVehicle,
+            .speakerLandVehicleVolume = std::clamp(config.speakerLandVehicleVolume, 0.0F, 1.0F),
             .speakerBoostpack = config.speakerBoostpack,
             .speakerBoostpackVolume = std::clamp(config.speakerBoostpackVolume, 0.0F, 1.0F),
         };
@@ -59,6 +65,8 @@ namespace sds
             return live.speakerComms;
         case SpeakerCategory::ScannerUI:
             return live.speakerScannerUI;
+        case SpeakerCategory::Menu:
+            return live.speakerMenuSounds;
         case SpeakerCategory::Weapons:
             return live.speakerWeapons;
         case SpeakerCategory::Digipick:
@@ -67,6 +75,8 @@ namespace sds
             return live.speakerCrafting;
         case SpeakerCategory::ShipSystems:
             return live.speakerShipSystems;
+        case SpeakerCategory::LandVehicle:
+            return live.speakerLandVehicle;
         case SpeakerCategory::Boostpack:
             return live.speakerBoostpack;
         }

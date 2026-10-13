@@ -50,6 +50,9 @@ namespace sds
             std::chrono::steady_clock::time_point when = std::chrono::steady_clock::now()) noexcept;
         [[nodiscard]] bool emitBoostpackIgnition(
             std::chrono::steady_clock::time_point when = std::chrono::steady_clock::now()) noexcept;
+        [[nodiscard]] bool emitOnFootLanding(
+            float baseGain,
+            std::chrono::steady_clock::time_point when = std::chrono::steady_clock::now()) noexcept;
         [[nodiscard]] bool startBoostpackThrust() noexcept;
         [[nodiscard]] bool refreshBoostpackThrust() noexcept;
         [[nodiscard]] bool stopBoostpackThrust() noexcept;

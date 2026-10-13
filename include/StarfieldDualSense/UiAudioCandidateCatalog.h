@@ -49,17 +49,24 @@ namespace sds
         SpeakerCategory category{ SpeakerCategory::ScannerUI };
     };
 
-    inline constexpr std::array<UiSpeakerCueDefinition, 41> kUiSpeakerCueDefinitions{{
-        { 0x05234A32u, "UIMenuGeneralFocus", 0x3u, SpeakerCategory::ScannerUI },
-        { 0x5C8034FCu, "UIMenuGeneralOK", 0x3u, SpeakerCategory::ScannerUI },
-        { 0x7956E9B0u, "UIMenuGeneralCancel", 0x3u, SpeakerCategory::ScannerUI },
+    // Menu cues use SpeakerMenuSounds. Monocle scanner cues remain on
+    // the backward-compatible SpeakerScannerUI setting.
+    inline constexpr std::array<UiSpeakerCueDefinition, 43> kUiSpeakerCueDefinitions{{
+        { 0x05234A32u, "UIMenuGeneralFocus", 0x3u, SpeakerCategory::Menu },
+        { 0x5C8034FCu, "UIMenuGeneralOK", 0x3u, SpeakerCategory::Menu },
+        { 0x7956E9B0u, "UIMenuGeneralCancel", 0x3u, SpeakerCategory::Menu },
+        // The Data Menu (dashboard) uses dedicated native authored audio.
+        // Its controller-speaker playback is driven by actual MenuOpenCloseEvent
+        // transitions so Start, swipe, and future remappings behave identically.
+        { 0x297426A6u, "UIMenuDashboardOpen", 0x3u, SpeakerCategory::Menu },
+        { 0x42BF2272u, "UIMenuDashboardClose", 0x3u, SpeakerCategory::Menu },
         { 0x12D8B183u, "UIMenuMonocleOpen", 0x3u, SpeakerCategory::ScannerUI },
         { 0x1F770B61u, "UIMenuMonocleClose", 0x3u, SpeakerCategory::ScannerUI },
-        { 0xF488F841u, "UIMenuSkillsSkillFocus", 0x3u, SpeakerCategory::ScannerUI },
-        { 0x7470A961u, "UIMenuStarmapRolloverFade", 0x3u, SpeakerCategory::ScannerUI },
-        { 0xC7F9CACCu, "UIMenuSurfaceMapRollover", 0x3u, SpeakerCategory::ScannerUI },
-        { 0x0976086Cu, "UIMenuMissionsMenuSelectionChange", 0x3u, SpeakerCategory::ScannerUI },
-        { 0xB32B4C8Eu, "UIMenuMissionsMenuSubtasksToggle", 0x3u, SpeakerCategory::ScannerUI },
+        { 0xF488F841u, "UIMenuSkillsSkillFocus", 0x3u, SpeakerCategory::Menu },
+        { 0x7470A961u, "UIMenuStarmapRolloverFade", 0x3u, SpeakerCategory::Menu },
+        { 0xC7F9CACCu, "UIMenuSurfaceMapRollover", 0x3u, SpeakerCategory::Menu },
+        { 0x0976086Cu, "UIMenuMissionsMenuSelectionChange", 0x3u, SpeakerCategory::Menu },
+        { 0xB32B4C8Eu, "UIMenuMissionsMenuSubtasksToggle", 0x3u, SpeakerCategory::Menu },
 
         // Exact authored Digipick equip/engagement sequence observed immediately before
         // SecurityMenu opens on Starfield 1.16.244.0. These events intentionally do not

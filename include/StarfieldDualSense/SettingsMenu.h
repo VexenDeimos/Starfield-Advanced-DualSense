@@ -53,7 +53,7 @@ namespace sds
         "About",
     };
 
-    inline constexpr std::array<SettingsMenuControlDescriptor, 66> kSettingsMenuControls{{
+    inline constexpr std::array<SettingsMenuControlDescriptor, 69> kSettingsMenuControls{{
         { "OperatingMode", SettingsMenuTab::General, SettingsControlKind::OperatingMode, 0.0F, 0.0F },
         { "DualSenseReconnectFix", SettingsMenuTab::General, SettingsControlKind::Boolean, 0.0F, 0.0F },
 
@@ -105,12 +105,15 @@ namespace sds
         { "SpeakerComms", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerVoiceLanguage", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::SpeakerVoiceLanguage, 0.0F, 0.0F },
         { "SpeakerScannerUI", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "SpeakerMenuSounds", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeapons", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "CustomWeaponSpeakerAudioEnabled", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerWeaponsVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },
         { "SpeakerDigipick", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerCrafting", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerShipSystems", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "SpeakerLandVehicle", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
+        { "SpeakerLandVehicleVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },
         { "SpeakerBoostpack", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Boolean, 0.0F, 0.0F },
         { "SpeakerBoostpackVolume", SettingsMenuTab::ControllerSpeaker, SettingsControlKind::Float, 0.0F, 1.0F },
 

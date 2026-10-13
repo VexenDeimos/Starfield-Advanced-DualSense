@@ -22,7 +22,9 @@ namespace sds
         Digipick,
         Crafting,
         ShipSystems,
-        Boostpack
+        Boostpack,
+        Menu,
+        LandVehicle
     };
 
     enum class SpeakerRoutingMode : std::uint8_t

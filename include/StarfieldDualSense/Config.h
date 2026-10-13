@@ -81,6 +81,7 @@ namespace sds
         bool speakerComms{ true };
         SpeakerVoiceLanguage speakerVoiceLanguage{ SpeakerVoiceLanguage::Auto };
         bool speakerScannerUI{ true };
+        bool speakerMenuSounds{ true };
         bool speakerWeapons{ true };
 
         // Enables controller-speaker audio mappings for TOML-defined
@@ -91,6 +92,8 @@ namespace sds
         bool speakerDigipick{ true };
         bool speakerCrafting{ true };
         bool speakerShipSystems{ true };
+        bool speakerLandVehicle{ true };
+        float speakerLandVehicleVolume{ 0.70F };
         bool lightbar{ true };
         bool touchpad{ true };
         TouchpadShortcut createButtonAction{ TouchpadShortcut::PhotoMode };

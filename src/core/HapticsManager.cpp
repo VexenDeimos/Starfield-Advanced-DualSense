@@ -1297,6 +1297,41 @@ bool sds::HapticsManager::emitBoostpackIgnition(
     }
 }
 
+bool sds::HapticsManager::emitOnFootLanding(
+    float baseGain,
+    std::chrono::steady_clock::time_point when) noexcept
+{
+    try {
+        if (!_advancedHapticsEnabled.load(std::memory_order_acquire) || !_backend) {
+            return true;
+        }
+        {
+            std::scoped_lock lock(_engineMutex);
+            if (_shipContextSuppressed || _shipPilotActive || _landVehicleContextActive) {
+                return true;
+            }
+        }
+        const float gain = std::clamp(
+            baseGain * _hapticStrength.load(std::memory_order_acquire),
+            0.0F, sds::kHapticOverdriveGainMax);
+        if (gain <= 0.0F) {
+            return true;
+        }
+        if (!_backend->enqueue(HapticCommand{
+                .kind = HapticEffectKind::OnFootLandingThump,
+                .gain = gain,
+                .when = when,
+            })) {
+            log("Haptics: on-foot landing enqueue failed; other controller features unaffected");
+            return false;
+        }
+        return true;
+    } catch (...) {
+        log("Haptics: on-foot landing dispatch failed; other controller features unaffected");
+        return false;
+    }
+}
+
 bool sds::HapticsManager::startBoostpackThrust() noexcept
 {
     try {

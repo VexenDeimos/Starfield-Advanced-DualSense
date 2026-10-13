@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 66>
+    inline constexpr std::array<SettingDescriptor, 69>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -77,13 +77,16 @@ namespace sds
 
             { "SpeakerComms", "Radio / Comms Voice", "Play supported remote and radio communications through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerVoiceLanguage", "Radio / Comms Language", "Choose the language used for controller-speaker radio and communications. Auto is the default and follows Starfield's current supported voice language; explicit language choices override it.", SettingApplyMode::Live },
-            { "SpeakerScannerUI", "Scanner / UI Speaker Audio", "Play supported scanner and interface sounds through the controller speaker.", SettingApplyMode::Live },
+            { "SpeakerScannerUI", "Scanner Speaker Sounds", "Play supported scanner sounds through the controller speaker. The existing TOML key is retained for compatibility.", SettingApplyMode::Live },
+            { "SpeakerMenuSounds", "Menu Speaker Sounds", "Play dashboard, inventory/map menu cues, focus and selection clicks through the controller speaker. Does not affect the game's normal audio or scanner sounds.", SettingApplyMode::Live },
             { "SpeakerWeapons", "Weapon Speaker Audio", "Play supported weapon sounds through the controller speaker in addition to normal game audio.", SettingApplyMode::Live },
             { "CustomWeaponSpeakerAudioEnabled", "Custom Weapon Speaker Audio", "Enable SpeakerAudioProfile mappings from TOML [[CustomWeapons]] blocks. This affects only controller-speaker weapon audio; custom haptics and adaptive triggers are independent. Re-equip the weapon after changing this setting or its mapping.", SettingApplyMode::Live },
             { "SpeakerWeaponsVolume", "Weapon Speaker Volume", "Controls controller-speaker volume for weapon sounds only.", SettingApplyMode::Live },
             { "SpeakerDigipick", "Digipick Speaker Audio", "Play supported digipick sounds through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerCrafting", "Crafting Speaker Audio", "Play supported crafting sounds through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerShipSystems", "Ship Systems Speaker Audio", "Play supported ship-system sounds through the controller speaker.", SettingApplyMode::Live },
+            { "SpeakerLandVehicle", "Land Vehicle Speaker Audio", "Toggle rover engine, mounted-laser, and boost/thrust sounds together on the controller speaker.", SettingApplyMode::Live },
+            { "SpeakerLandVehicleVolume", "Land Vehicle Volume", "Adjust rover controller-speaker audio independently of other sounds.", SettingApplyMode::Live },
             { "SpeakerBoostpack", "Boostpack Speaker Audio", "Play Starfield's real boostpack audio through the controller speaker.", SettingApplyMode::Live },
             { "SpeakerBoostpackVolume", "Boostpack Speaker Volume", "Controls controller-speaker volume for boostpack audio only.", SettingApplyMode::Live },
 

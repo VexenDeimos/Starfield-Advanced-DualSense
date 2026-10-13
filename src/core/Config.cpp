@@ -236,6 +236,8 @@ sds::Config sds::loadConfig(std::string_view text)
             parseSpeakerVoiceLanguage(value, config.speakerVoiceLanguage);
         } else if (key == "SpeakerScannerUI") {
             parseBool(value, config.speakerScannerUI);
+        } else if (key == "SpeakerMenuSounds") {
+            parseBool(value, config.speakerMenuSounds);
         } else if (key == "SpeakerWeapons") {
             parseBool(value, config.speakerWeapons);
         } else if (key == "CustomWeaponSpeakerAudioEnabled") {
@@ -246,6 +248,10 @@ sds::Config sds::loadConfig(std::string_view text)
             parseBool(value, config.speakerDigipick);
         } else if (key == "SpeakerCrafting") {
             parseBool(value, config.speakerCrafting);
+        } else if (key == "SpeakerLandVehicle") {
+            parseBool(value, config.speakerLandVehicle);
+        } else if (key == "SpeakerLandVehicleVolume") {
+            parseFloat(value, config.speakerLandVehicleVolume);
         } else if (key == "SpeakerShipSystems") {
             parseBool(value, config.speakerShipSystems);
         } else if (key == "Lightbar") {
@@ -302,10 +308,12 @@ bool sds::speakerCategoryEnabled(const Config& config, SpeakerCategory category)
     switch (category) {
     case SpeakerCategory::Comms: return config.speakerComms;
     case SpeakerCategory::ScannerUI: return config.speakerScannerUI;
+    case SpeakerCategory::Menu: return config.speakerMenuSounds;
     case SpeakerCategory::Weapons: return config.speakerWeapons;
     case SpeakerCategory::Digipick: return config.speakerDigipick;
     case SpeakerCategory::Crafting: return config.speakerCrafting;
     case SpeakerCategory::ShipSystems: return config.speakerShipSystems;
+    case SpeakerCategory::LandVehicle: return config.speakerLandVehicle;
     default: return false;
     }
 }

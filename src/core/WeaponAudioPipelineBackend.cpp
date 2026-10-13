@@ -55,6 +55,63 @@ namespace
             options_(options)
         {}
 
+        [[nodiscard]] bool hasDeferredPriorityPrewarm() const noexcept override
+        {
+            return options_.prepareMainMenuUiOnly;
+        }
+
+        sds::WeaponAudioStartupBatch resolvePriorityPrewarm() override
+        {
+            if (!options_.prepareMainMenuUiOnly) return {};
+
+            // Reuse this worker's already prepared archive resolver. Do not
+            // start another worker or modify the native Bluetooth transport.
+            const auto original = options_;
+            options_.prepareMainMenuUiOnly = false;
+            options_.prepareUi = true;
+            options_.prepareWeapons = false;
+            options_.resolveUiDiagnostics = false;
+            options_.prepareShipWeaponSemantics = false;
+            options_.prepareMusicRecon = false;
+            options_.prepareBoostpackSpeaker = true;
+            options_.prepareLandVehicleSpeaker = true;
+            try {
+                auto batch = resolveStartup();
+                options_ = original;
+                return batch;
+            } catch (...) {
+                options_ = original;
+                throw;
+            }
+        }
+
+        [[nodiscard]] bool hasDeferredWeaponPrewarm() const noexcept override
+        {
+            return options_.prepareMainMenuUiOnly && options_.existingWeaponCache != nullptr;
+        }
+
+        sds::WeaponAudioStartupBatch resolveWeaponPrewarm() override
+        {
+            if (!hasDeferredWeaponPrewarm()) return {};
+            const auto saved = options_;
+            options_.prepareMainMenuUiOnly = false;
+            options_.prepareUi = false;
+            options_.prepareWeapons = true;
+            options_.resolveUiDiagnostics = false;
+            options_.prepareShipWeaponSemantics = false;
+            options_.prepareMusicRecon = false;
+            options_.prepareBoostpackSpeaker = false;
+            options_.prepareLandVehicleSpeaker = false;
+            try {
+                auto batch = resolveStartup();
+                options_ = saved;
+                return batch;
+            } catch (...) {
+                options_ = saved;
+                throw;
+            }
+        }
+
         sds::WeaponAudioStartupBatch resolveStartup() override
         {
             const auto prepared = resolver_.prepare(false);
@@ -66,6 +123,7 @@ namespace
             sds::WeaponAudioStartupBatch batch{};
             batch.weaponPreparationRequested = options_.prepareWeapons;
             batch.boostpackPreparationRequested = options_.prepareBoostpackSpeaker;
+            batch.landVehiclePreparationRequested = options_.prepareLandVehicleSpeaker;
 
             if (options_.prepareMusicRecon) {
                 const auto targets = resolver_.musicSelectionReconTargetEvents();
@@ -90,6 +148,95 @@ namespace
                 line << "Ship weapon semantic catalog: prepared ballisticFireEvents="
                      << batch.shipWeaponCatalog.size()
                      << " source=SoundBanksInfo behavior=read-only";
+                batch.diagnostics.push_back(line.str());
+            }
+
+            if (options_.prepareLandVehicleSpeaker) {
+                const auto engine = resolver_.resolveObservedEventInMemory(
+                    "rover-engine-speaker", sds::kRoverEngineEventId);
+                const auto gun = resolver_.resolveObservedEventInMemory(
+                    "rover-gun-speaker", sds::kRoverMountedLaserEventId);
+                const auto boost = resolver_.resolveObservedEventInMemory(
+                    "rover-boost-speaker", sds::kRoverVerticalBoostEventId);
+                // SoundBanksInfo supplies a directory-qualified shortName. Match
+                // exactly the final filename, never just a substring.
+                auto prepare = [&](const auto& resolved, std::string_view exactName,
+                                   bool looping, sds::LandVehicleSpeakerClip& clip,
+                                   std::string_view label) -> bool {
+                    std::string reason = "filename-not-found";
+                    for (const auto& media : resolved.media) {
+                        const std::string_view path = media.originalName;
+                        const auto lastSlash = path.find_last_of("\\/");
+                        const auto filename = path.substr(lastSlash == std::string_view::npos ? 0u : lastSlash + 1u);
+                        if (filename != exactName) continue;
+                        if (media.wemPayload.empty()) { reason = "payload-empty"; break; }
+                        auto decoded = sds::decodeWeaponSpeakerWemToSpeakerPcm(media.wemPayload, 1.0F);
+                        if (!decoded.prepared || decoded.pcm.frames.empty()) {
+                            reason = "WEM-decode-failed";
+                            break;
+                        }
+                        if (decoded.pcm.frames.size() > 480000u) decoded.pcm.frames.resize(480000u);
+                        std::size_t resume = 0u;
+                        if (looping && !sds::prepareWeaponSpeakerSustainedLoopPcm(
+                                decoded.pcm, 1.0F, 720u, resume)) {
+                            reason = "loop-preparation-failed";
+                            break;
+                        }
+                        clip.pcm = std::make_shared<const sds::PreparedSpeakerPcm>(std::move(decoded.pcm));
+                        clip.loopResumeFrame = resume;
+                        std::ostringstream line;
+                        line << "Rover speaker clip: READY role=" << label << " media=" << media.mediaId
+                             << " frames=" << clip.pcm->frames.size();
+                        batch.diagnostics.push_back(line.str());
+                        return true;
+                    }
+                    std::ostringstream line;
+                    line << "Rover speaker clip: INACTIVE role=" << label << " reason=" << reason
+                         << " eventFound=" << (resolved.found ? "yes" : "no")
+                         << " bank=" << resolved.bankName << " event=" << resolved.eventName
+                         << " resolvedMedia=" << resolved.media.size()
+                         << " resolverError=" << resolved.error;
+                    batch.diagnostics.push_back(line.str());
+                    return false;
+                };
+                sds::LandVehicleSpeakerSounds sounds{};
+                const bool engineEventOk = engine.found &&
+                    engine.eventName == "SFBGS004_CreationsVehicle_Engine_Play";
+                const bool gunEventOk = gun.found &&
+                    gun.eventName == "SFBGS004_CreationsVehicle_WPN_MountedLaser_PC";
+                const bool boostEventOk = boost.found &&
+                    boost.eventName == "SFBGS004_CreationsVehicle_BoostJump_Play";
+                if (engineEventOk) {
+                    (void)prepare(engine, "SFBGS004_Vehicle_Rev8_Engine_1st_Idle.wav", true, sounds.idle, "engine-idle");
+                    (void)prepare(engine, "SFBGS004_Vehicle_Rev8_Engine_1st_B.wav", true, sounds.low, "engine-slow");
+                    (void)prepare(engine, "SFBGS004_Vehicle_Rev8_Engine_1st_E.wav", true, sounds.high, "engine-fast");
+                } else {
+                    batch.diagnostics.emplace_back("Rover speaker: engine event not resolved as expected");
+                }
+                if (gunEventOk) {
+                    sds::LandVehicleSpeakerClip laser{};
+                    if (prepare(gun, "SFBGS004_CreationsVehicle_WPN_MountedLaser_01.wav", false, laser, "mounted-laser"))
+                        sounds.laser = std::move(laser.pcm);
+                } else {
+                    batch.diagnostics.emplace_back("Rover speaker: mounted-laser event not resolved as expected");
+                }
+                if (boostEventOk) {
+                    (void)prepare(boost, "SFBGS004_CreationsVehicle_Boost_Horizontal_Lp.wav", true,
+                                  sounds.forwardThrust, "forward-thrust");
+                    (void)prepare(boost, "SFBGS004_CreationsVehicle_BoostJump_Loop.wav", true,
+                                  sounds.verticalThrust, "vertical-thrust");
+                } else {
+                    batch.diagnostics.emplace_back("Rover speaker: boost-jump event not resolved as expected");
+                }
+                const int ready = int(bool(sounds.idle.pcm)) + int(bool(sounds.low.pcm)) +
+                    int(bool(sounds.high.pcm)) + int(bool(sounds.laser)) +
+                    int(bool(sounds.forwardThrust.pcm)) + int(bool(sounds.verticalThrust.pcm));
+                batch.landVehicleSounds = std::move(sounds);
+                std::ostringstream line;
+                line << "Land vehicle speaker preparation: " << (ready ? "READY" : "INACTIVE")
+                     << " readyClips=" << ready << "/6 source=exact-Starfield-WEM"
+                     << " engineMedia=" << engine.media.size() << " gunMedia=" << gun.media.size()
+                     << " boostMedia=" << boost.media.size() << " extraction=disabled";
                 batch.diagnostics.push_back(line.str());
             }
 
@@ -276,22 +423,35 @@ namespace
 
             if (options_.prepareWeapons) {
                 correlation_ = std::make_unique<sds::WeaponSfxMediaCorrelation>(resolver_);
-                auto run = resolver_.run(false);
-                if (!run.attempted) {
-                    throw std::runtime_error(
-                        run.error.empty() ? "Wwise weapon resolver run was not attempted" : run.error);
+                // If the early SFSE worker completed the full validated cache,
+                // reuse it. If still incomplete, run the original exhaustive
+                // resolver unchanged as a reliable runtime fallback.
+                const auto existing = options_.existingWeaponCache
+                    ? options_.existingWeaponCache->stats()
+                    : sds::WeaponSpeakerPreparedCacheStats{};
+                if (existing.readyFamilies == sds::weaponSpeakerAudioFamilyCount() &&
+                    existing.preparedVariants == sds::weaponSpeakerPhysicalVariantCount()) {
+                    batch.weaponPreparationAlreadyReady = true;
+                    batch.diagnostics.push_back(
+                        "Weapon audio startup: REUSED complete early prewarm 495/495; no second weapon scan");
+                } else {
+                    auto run = resolver_.run(false);
+                    if (!run.attempted) {
+                        throw std::runtime_error(
+                            run.error.empty() ? "Wwise weapon resolver run was not attempted" : run.error);
+                    }
+                    batch.diagnostics.push_back(sds::formatWwiseResolverRunHeader(run));
+                    {
+                        std::ostringstream line;
+                        line << "Weapon audio pipeline: startup resolver complete physicalVariants="
+                             << run.weaponVariants.size()
+                             << " expectedPhysicalVariants=" << sds::weaponSpeakerPhysicalVariantCount()
+                             << " physicalFamilies=" << sds::weaponSpeakerAudioFamilyCount()
+                             << " logicalProfiles=" << sds::weaponSpeakerProfiles().size();
+                        batch.diagnostics.push_back(line.str());
+                    }
+                    batch.variants = std::move(run.weaponVariants);
                 }
-                batch.diagnostics.push_back(sds::formatWwiseResolverRunHeader(run));
-                {
-                    std::ostringstream line;
-                    line << "Weapon audio pipeline: startup resolver complete physicalVariants="
-                         << run.weaponVariants.size()
-                         << " expectedPhysicalVariants=" << sds::weaponSpeakerPhysicalVariantCount()
-                         << " physicalFamilies=" << sds::weaponSpeakerAudioFamilyCount()
-                         << " logicalProfiles=" << sds::weaponSpeakerProfiles().size();
-                    batch.diagnostics.push_back(line.str());
-                }
-                batch.variants = std::move(run.weaponVariants);
             }
             return batch;
         }

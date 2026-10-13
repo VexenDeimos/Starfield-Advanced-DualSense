@@ -66,11 +66,13 @@ namespace sds
             else if (key == "ControllerSpeaker") value = c.controllerSpeaker;
             else if (key == "SpeakerComms") value = c.speakerComms;
             else if (key == "SpeakerScannerUI") value = c.speakerScannerUI;
+            else if (key == "SpeakerMenuSounds") value = c.speakerMenuSounds;
             else if (key == "SpeakerWeapons") value = c.speakerWeapons;
             else if (key == "CustomWeaponSpeakerAudioEnabled") value = c.customWeaponSpeakerAudioEnabled;
             else if (key == "SpeakerDigipick") value = c.speakerDigipick;
             else if (key == "SpeakerCrafting") value = c.speakerCrafting;
             else if (key == "SpeakerShipSystems") value = c.speakerShipSystems;
+            else if (key == "SpeakerLandVehicle") value = c.speakerLandVehicle;
             else if (key == "SpeakerBoostpack") value = c.speakerBoostpack;
             else if (key == "Lightbar") value = c.lightbar;
             else if (key == "Touchpad") value = c.touchpad;
@@ -104,6 +106,7 @@ namespace sds
             else if (key == "SpeakerVolume") value = c.speakerVolume;
             else if (key == "SpeakerWeaponsVolume") value = c.speakerWeaponsVolume;
             else if (key == "SpeakerBoostpackVolume") value = c.speakerBoostpackVolume;
+            else if (key == "SpeakerLandVehicleVolume") value = c.speakerLandVehicleVolume;
             else if (key == "BluetoothIdleTimeoutMinutes") value = c.bluetoothIdleTimeoutMinutes;
             else return false;
             return true;

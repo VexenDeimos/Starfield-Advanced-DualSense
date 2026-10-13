@@ -49,12 +49,16 @@ namespace sds
         [[nodiscard]] UiSpeakerPlaybackStats stats() const noexcept;
 
     private:
+        [[nodiscard]] bool observeWwiseInternal(
+            const UiAudioWwiseObservation& observation) noexcept;
+
         SubmitCallback _submit{};
         std::shared_ptr<UiSpeakerPreparedCache> _preparedCache{};
         LogCallback _log{};
         std::atomic_bool _shuttingDown{ false };
         std::atomic<std::uint32_t> _craftingMenuMask{ 0u };
         std::atomic_bool _securityMenuActive{ false };
+        std::atomic_bool _dataMenuOpen{ false };
         std::atomic<std::uint64_t> _variantSequence{ 0u };
         std::atomic<std::uint64_t> _observed{ 0u };
         std::atomic<std::uint64_t> _submitted{ 0u };

@@ -2,6 +2,7 @@
 
 #include <StarfieldDualSense/UiAudioCandidateCatalog.h>
 
+#include <cstdio>
 #include <string_view>
 #include <utility>
 
@@ -13,6 +14,8 @@ namespace
     constexpr std::uint32_t kFoodCraftingMenu = 1u << 3u;
     constexpr std::uint32_t kDrugsCraftingMenu = 1u << 4u;
     constexpr std::uint32_t kResearchMenu = 1u << 5u;
+    constexpr std::uint32_t kDataMenuOpenAudioEvent = 0x297426A6u;
+    constexpr std::uint32_t kDataMenuCloseAudioEvent = 0x42BF2272u;
 
     [[nodiscard]] constexpr std::uint32_t craftingMenuBit(std::string_view menu) noexcept
     {
@@ -56,6 +59,43 @@ sds::UiSpeakerPlayback::UiSpeakerPlayback(
 {}
 
 bool sds::UiSpeakerPlayback::observeWwise(const UiAudioWwiseObservation& observation) noexcept
+{
+    if (_log && (observation.eventId == kDataMenuOpenAudioEvent ||
+                 observation.eventId == kDataMenuCloseAudioEvent)) {
+        _log(observation.eventId == kDataMenuOpenAudioEvent
+            ? "Data Menu speaker: native Wwise OPEN observed"
+            : "Data Menu speaker: native Wwise CLOSE observed");
+    }
+    // Dashboard audio is posted by Starfield itself (exact event and object
+    // verified in the 2026-10-12 runtime log). Use the native event timing,
+    // like every other promoted UI cue, independent of Start or swipe binds.
+    // GameEvent menu notifications below no longer submit duplicate sounds.
+    const bool dashboardOpen = observation.eventId == kDataMenuOpenAudioEvent;
+    const bool dashboardClose = observation.eventId == kDataMenuCloseAudioEvent;
+    const bool accepted = observeWwiseInternal(observation);
+
+    if (accepted && (dashboardOpen || dashboardClose)) {
+        // Pair the existing general UI click with the audible dashboard cue.
+        // Reuse its already-prepared PCM, native object, and category gates.
+        // Do not raise click volume or change other UI event behavior.
+        auto click = observation;
+        click.eventId = dashboardOpen ? 0x5C8034FCu : 0x7956E9B0u;
+        const bool clickAccepted = observeWwiseInternal(click);
+        if (_log) {
+            _log(dashboardOpen
+                ? (clickAccepted
+                    ? "Data Menu speaker: OPEN click=GeneralOK queued"
+                    : "Data Menu speaker: OPEN click=GeneralOK rejected")
+                : (clickAccepted
+                    ? "Data Menu speaker: CLOSE click=GeneralCancel queued"
+                    : "Data Menu speaker: CLOSE click=GeneralCancel rejected"));
+        }
+    }
+    return accepted;
+}
+
+bool sds::UiSpeakerPlayback::observeWwiseInternal(
+    const UiAudioWwiseObservation& observation) noexcept
 {
     _observed.fetch_add(1u, std::memory_order_relaxed);
     if (_shuttingDown.load(std::memory_order_acquire)) {
@@ -125,6 +165,18 @@ bool sds::UiSpeakerPlayback::observeWwise(const UiAudioWwiseObservation& observa
 
     try {
         const bool accepted = _submit(*pcm, prepared->eventId, mediaId, category);
+        if (_log && (observation.eventId == kDataMenuOpenAudioEvent ||
+                     observation.eventId == kDataMenuCloseAudioEvent)) {
+            char diagnostic[256]{};
+            std::snprintf(
+                diagnostic, sizeof(diagnostic),
+                "Data Menu speaker: source=native-Wwise action=%s queue=%s mediaId=%u frames=%zu gain=%.3f object=0x%llX",
+                observation.eventId == kDataMenuOpenAudioEvent ? "OPEN" : "CLOSE",
+                accepted ? "accepted" : "rejected",
+                mediaId, pcm->frames.size(), static_cast<double>(pcm->gain),
+                static_cast<unsigned long long>(observation.gameObjectId));
+            _log(diagnostic);
+        }
         if (accepted) {
             _submitted.fetch_add(1u, std::memory_order_relaxed);
         } else {
@@ -144,6 +196,14 @@ void sds::UiSpeakerPlayback::observeGameEvent(const GameEvent& event) noexcept
     }
 
     const auto menu = std::string_view(event.text.data());
+    if (menu == "DataMenu") {
+        // Observe only. The real native Wwise PostEvent is the sole source of
+        // these two speaker sounds, preventing duplicate UI output.
+        _dataMenuOpen.store(
+            event.type == GameEventType::MenuOpened,
+            std::memory_order_release);
+        return;
+    }
     if (menu == "SecurityMenu") {
         _securityMenuActive.store(
             event.type == GameEventType::MenuOpened,
@@ -168,6 +228,7 @@ void sds::UiSpeakerPlayback::beginShutdown() noexcept
     _shuttingDown.store(true, std::memory_order_release);
     _craftingMenuMask.store(0u, std::memory_order_release);
     _securityMenuActive.store(false, std::memory_order_release);
+    _dataMenuOpen.store(false, std::memory_order_release);
 }
 
 bool sds::UiSpeakerPlayback::armed() const noexcept

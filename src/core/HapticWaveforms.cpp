@@ -119,6 +119,9 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
     case HapticEffectKind::BoostpackIgnition:
         duration = 0.070F;
         break;
+    case HapticEffectKind::OnFootLandingThump:
+        duration = 0.090F;
+        break;
     case HapticEffectKind::DigipickRotateTick:
         duration = 0.020F;
         break;
@@ -389,6 +392,15 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
                 attack(t, 0.0007F) * std::exp(-t / 0.015F);
             const float finalFade = std::clamp((duration - t) / 0.008F, 0.0F, 1.0F);
             sample = (ignition + jetEdge) * finalFade;
+        } else if (command.kind == HapticEffectKind::OnFootLandingThump) {
+            // A compact physical touchdown, intentionally distinct from ship
+            // impacts, vehicle touchdowns and sustained boostpack thrust.
+            const float body = 0.92F * oscillator(58.0F, t) *
+                attack(t, 0.0012F) * std::exp(-t / 0.036F);
+            const float edge = 0.32F * oscillator(136.0F, t) *
+                attack(t, 0.0007F) * std::exp(-t / 0.014F);
+            const float finalFade = std::clamp((duration - t) / 0.011F, 0.0F, 1.0F);
+            sample = (body + edge) * finalFade;
         } else if (command.kind == HapticEffectKind::DigipickRotateTick) {
             const float body = 0.48F * oscillator(170.0F, t) *
                 attack(t, 0.0006F) * std::exp(-t / 0.0065F);

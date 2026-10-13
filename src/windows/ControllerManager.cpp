@@ -625,10 +625,17 @@ void sds::ControllerManager::run() noexcept
             lastObservedAboveReleaseThreshold = false;
         };
 
-        auto clearLatestBluetoothInput = [this]() noexcept {
+        // Diagnostic only: track the two physical Bluetooth face buttons
+        // that fail intermittently near interaction prompts. Do not alter
+        // game input state, timing, or HID transport behavior.
+        bool observedBtSquare = false;
+        bool observedBtTriangle = false;
+        auto clearLatestBluetoothInput = [this, &observedBtSquare, &observedBtTriangle]() noexcept {
             try {
                 std::scoped_lock inputLock(_latestInputMutex);
                 _latestInputState.reset();
+                observedBtSquare = false;
+                observedBtTriangle = false;
             } catch (...) {
             }
         };
@@ -1024,6 +1031,20 @@ void sds::ControllerManager::run() noexcept
                         batteryFull = input->batteryFull;
 
                         if (caps.bluetoothTransport) {
+                            if (_config.debugLogging) {
+                                if (observedBtSquare != input->square) {
+                                    log(std::string("BT XY RAW: button=X/Square edge=") +
+                                        (input->square ? "DOWN" : "UP") +
+                                        " stage=HID-worker");
+                                }
+                                if (observedBtTriangle != input->triangle) {
+                                    log(std::string("BT XY RAW: button=Y/Triangle edge=") +
+                                        (input->triangle ? "DOWN" : "UP") +
+                                        " stage=HID-worker");
+                                }
+                            }
+                            observedBtSquare = input->square;
+                            observedBtTriangle = input->triangle;
                             if (hasMeaningfulBluetoothActivity(*input)) {
                                 lastBluetoothMeaningfulInput = now;
                             }
@@ -1108,25 +1129,13 @@ void sds::ControllerManager::run() noexcept
                                     break;
                                 }
                                 if (action) {
-                                    // SAD never overrides USB's left touchpad click.
-                                    // Bluetooth retains the existing native POV bridge.
-                                    const bool nativeUsbLeftClick =
-                                        gesture == TouchGesture::LeftClick &&
-                                        !caps.bluetoothTransport;
-
-                                    if (nativeUsbLeftClick) {
-
-                                        // Native Starfield owns the physical USB left
-                                        // touchpad click. Never inject a duplicate.
-
-                                    } else {
+                                    // The physical left touchpad click belongs to
+                                    // Starfield's context-sensitive input handling.
+                                    // USB is already native; Bluetooth is forwarded
+                                    // through the physical input bridge.
+                                    if (gesture != TouchGesture::LeftClick) {
                                         if (!queueInputAction(*action)) {
                                             log("Touchpad: shortcut action queue full; action dropped");
-                                        } else if (*action == InputAction::TogglePOV &&
-                                                   caps.bluetoothTransport) {
-                                            log(
-                                                "Bluetooth POV bridge: queued native "
-                                                "TogglePOV idCode=0x00200000");
                                         }
                                     }
                                 }

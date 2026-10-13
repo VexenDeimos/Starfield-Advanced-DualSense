@@ -71,6 +71,7 @@ void sds::ControllerSpeakerManager::applyLiveSettings(
     std::scoped_lock lock(_stateMutex);
     next.speakerWeaponsVolume = std::clamp(next.speakerWeaponsVolume, 0.0F, 1.0F);
     next.speakerBoostpackVolume = std::clamp(next.speakerBoostpackVolume, 0.0F, 1.0F);
+    next.speakerLandVehicleVolume = std::clamp(next.speakerLandVehicleVolume, 0.0F, 1.0F);
 
     if (next == _live) {
         return;
@@ -162,6 +163,12 @@ bool sds::ControllerSpeakerManager::categoryEnabled(SpeakerCategory category) co
     return speakerCategoryEnabled(_live, category);
 }
 
+float sds::ControllerSpeakerManager::landVehicleVolume() const noexcept
+{
+    std::scoped_lock lock(_stateMutex);
+    return _live.speakerLandVehicleVolume;
+}
+
 bool sds::ControllerSpeakerManager::handle(GameEvent event) noexcept
 {
     std::scoped_lock lock(_stateMutex);
@@ -174,6 +181,7 @@ bool sds::ControllerSpeakerManager::handle(GameEvent event) noexcept
     effective.speakerOutputMode = _live.outputMode;
     effective.speakerComms = _live.speakerComms;
     effective.speakerScannerUI = _live.speakerScannerUI;
+    effective.speakerMenuSounds = _live.speakerMenuSounds;
     effective.speakerWeapons = _live.speakerWeapons;
     effective.speakerWeaponsVolume = _live.speakerWeaponsVolume;
     effective.speakerDigipick = _live.speakerDigipick;
@@ -203,6 +211,8 @@ bool sds::ControllerSpeakerManager::submitCaptured(
         pcm.gain *= _live.speakerWeaponsVolume;
     } else if (category == SpeakerCategory::Boostpack) {
         pcm.gain *= _live.speakerBoostpackVolume;
+    } else if (category == SpeakerCategory::LandVehicle) {
+        pcm.gain *= _live.speakerLandVehicleVolume;
     }
     return replaceExisting ?
         _backend->replacePreparedPcm(std::move(pcm)) :
@@ -221,6 +231,8 @@ bool sds::ControllerSpeakerManager::setPersistentCaptured(
         voice.gainScale *= _live.speakerWeaponsVolume;
     } else if (category == SpeakerCategory::Boostpack) {
         voice.gainScale *= _live.speakerBoostpackVolume;
+    } else if (category == SpeakerCategory::LandVehicle) {
+        voice.gainScale *= _live.speakerLandVehicleVolume;
     }
     return _backend->setPersistentPreparedPcm(std::move(voice));
 }

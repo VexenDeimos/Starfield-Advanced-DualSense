@@ -203,6 +203,10 @@ struct sds::NativeBluetoothBackend::Impl
     bool lightbarStartupReady{ false };
     bool lightbarReleasePending{ false };
     bool transportHandoffLedReleasePending{ false };
+    // Bluetooth RGB writes may be accepted before the physical lightbar takes
+    // ownership. These retries are STEADY RGB only: no repeat setup/release.
+    std::chrono::steady_clock::time_point firstRgbTakeoverAt{};
+    std::uint8_t postTakeoverReassertCount{ 0 };
     std::chrono::steady_clock::time_point connectionEstablishedAt{};
     std::uint16_t outputReportLength{ 0 };
     std::uint16_t featureReportLength{ 0 };
@@ -251,6 +255,8 @@ struct sds::NativeBluetoothBackend::Impl
         lightbarStartupReady = false;
         lightbarReleasePending = false;
         transportHandoffLedReleasePending = false;
+        firstRgbTakeoverAt = {};
+        postTakeoverReassertCount = 0;
         connectionEstablishedAt = {};
         outputReportLength = 0;
         featureReportLength = 0;
@@ -356,6 +362,13 @@ struct sds::NativeBluetoothBackend::Impl
             return false;
         }
 
+        writeLog(
+            std::string("Native Bluetooth: lightbar setup accepted ") +
+            "flags2=" +
+            std::to_string(static_cast<unsigned>(report[41])) +
+            " setup=" +
+            std::to_string(static_cast<unsigned>(report[44])));
+
         // Do not send RELEASE_LEDS as an empty standalone packet.
         // Carry it with the first real RGB packet instead.
         lightbarReleasePending = true;
@@ -415,32 +428,105 @@ struct sds::NativeBluetoothBackend::Impl
             releasingLedsWithThisPacket = true;
 
             writeLog(
-                "Bluetooth LED takeover: "
-                "first colored packet carries RELEASE_LEDS");
+                std::string("Bluetooth LED takeover: first RGB packet ") +
+                "flags0=" +
+                std::to_string(static_cast<unsigned>(report[3])) +
+                " flags1=" +
+                std::to_string(static_cast<unsigned>(report[4])) +
+                " flags2=" +
+                std::to_string(static_cast<unsigned>(report[41])) +
+                " playerLeds=" +
+                std::to_string(static_cast<unsigned>(report[46])) +
+                " rgb=" +
+                std::to_string(static_cast<unsigned>(report[47])) + "," +
+                std::to_string(static_cast<unsigned>(report[48])) + "," +
+                std::to_string(static_cast<unsigned>(report[49])));
+
         }
         const bool wrote =
             writeReport(
                 report,
                 includeLightbar ? "steady" : "trigger-only");
 
-        if (wrote &&
-            releasingLedsWithThisPacket) {
-            lightbarReleasePending = false;
+        if (releasingLedsWithThisPacket) {
+            writeLog(
+                wrote ?
+                    "Bluetooth LED takeover: first RGB write accepted" :
+                    "Bluetooth LED takeover: first RGB write FAILED");
+            if (wrote) {
+                lightbarReleasePending = false;
+                firstRgbTakeoverAt = std::chrono::steady_clock::now();
+                postTakeoverReassertCount = 0;
+                writeLog(
+                    "Bluetooth LED takeover: bounded post-takeover "
+                    "steady-RGB reassert armed delaysMs=600,1600,3100 "
+                    "setup=none release=none");
+            }
         }
 
         return wrote;
     }
 
+    void maybeReassertPostTakeoverLightbar()
+    {
+        if (!lightbarStartupReady ||
+            !lightbarInitialized ||
+            lightbarReleasePending ||
+            firstRgbTakeoverAt ==
+                std::chrono::steady_clock::time_point{} ||
+            postTakeoverReassertCount >= 3U) {
+            return;
+        }
+
+        constexpr std::array<std::chrono::milliseconds, 3>
+            kReassertDelays{
+                std::chrono::milliseconds(600),
+                std::chrono::milliseconds(1600),
+                std::chrono::milliseconds(3100)
+            };
+
+        const auto elapsed =
+            std::chrono::steady_clock::now() - firstRgbTakeoverAt;
+        const auto index =
+            static_cast<std::size_t>(postTakeoverReassertCount);
+        if (elapsed < kReassertDelays[index]) {
+            return;
+        }
+
+        // Mark the attempt before writing, because failed writes can reset
+        // the backend during HID disconnect. Do not issue init or release.
+        ++postTakeoverReassertCount;
+        const auto color = output.lightbar;
+        const bool wrote = writeCurrentOutput(true);
+        writeLog(
+            std::string("Bluetooth LED takeover: post-takeover ") +
+            "steady-RGB reassert=" + std::to_string(index + 1U) +
+            "/3 result=" + (wrote ? "OK" : "FAILED") +
+            " rgb=" +
+            std::to_string(static_cast<unsigned>(color.r)) + "," +
+            std::to_string(static_cast<unsigned>(color.g)) + "," +
+            std::to_string(static_cast<unsigned>(color.b)) +
+            " setup=none release=none");
+    }
+
     void observeLightbarStartupState()
     {
+        // DualSense sensor timestamps advance at about 3 million ticks/sec.
+        // The previous 10.2M-tick takeover failed in the captured third
+        // Bluetooth handoff (timestamp=10,204,570), while the two working
+        // takeovers occurred at 13.66M and 25.79M ticks. This is a cautious
+        // one-time startup timing experiment, not a confirmed firmware limit.
         constexpr std::uint32_t kLedStartupCompleteTimestamp =
-            10200000U;
+            13500000U;
 
         constexpr auto kHostLedSettleDelay =
             std::chrono::milliseconds(2000);
 
-        if (lightbarStartupReady ||
-            inputReport[0] != 0x31U) {
+        if (lightbarStartupReady) {
+            maybeReassertPostTakeoverLightbar();
+            return;
+        }
+        if (inputReport[0] != 0x31U) {
             return;
         }
 
@@ -478,6 +564,8 @@ struct sds::NativeBluetoothBackend::Impl
             std::string(
                 "Native Bluetooth: LED startup complete timestamp=") +
             std::to_string(timestamp) +
+            " threshold=" +
+            std::to_string(kLedStartupCompleteTimestamp) +
             " hostElapsedMs=" +
             std::to_string(hostElapsedMs));
 

@@ -29,8 +29,8 @@ test = read("tests/V064CustomWeaponMappingTest.cpp")
 
 checks = [
     (
-        "release runtime version is 0.7.1",
-        'kVersion = "0.7.1"' in plugin,
+        "release runtime version is 0.7.6",
+        'kVersion = "0.7.6"' in plugin,
     ),
     (
         "feedback global defaults on",
@@ -114,12 +114,12 @@ checks = [
         '"CustomWeaponSpeakerAudioEnabled", SettingsMenuTab::ControllerSpeaker' in menu_h,
     ),
     (
-        "settings descriptor count is 66",
-        "std::array<SettingDescriptor, 66>" in service_h,
+        "settings descriptor count is 69",
+        "std::array<SettingDescriptor, 69>" in service_h,
     ),
     (
-        "menu control count is 66",
-        "std::array<SettingsMenuControlDescriptor, 66>" in menu_h,
+        "menu control count is 69",
+        "std::array<SettingsMenuControlDescriptor, 69>" in menu_h,
     ),
     (
         "speaker setting persists",
@@ -195,5 +195,5 @@ if failed:
 
 print()
 print(
-    "PASS v0.7.1 structured custom-weapon + speaker source contract"
+    "PASS v0.7.6 structured custom-weapon + speaker source contract"
 )

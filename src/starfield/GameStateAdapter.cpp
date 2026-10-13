@@ -2278,6 +2278,33 @@ void sds::GameStateAdapter::observeSemanticButton(
             button->deviceType ==
                 RE::InputEvent::DeviceType::kGamepad;
 
+        // Bluetooth X/Y action-stage diagnostic. USB events use the same
+        // observer so the log can compare action mapping by transport.
+        // This observes Starfield's resolved physical ButtonEvent AFTER the
+        // native helper; it does not dispatch, synthesize, or change inputs.
+        if (button->deviceType == RE::InputEvent::DeviceType::kGamepad &&
+            (button->idCode == 0x8000 || button->idCode == 0x1000)) {
+            const bool edge = button->value <= 0.0F || button->heldDownSecs <= 0.045F;
+            static std::atomic<std::uint32_t> xyMappedLogCount{ 0u };
+            if (edge && xyMappedLogCount.fetch_add(1u, std::memory_order_relaxed) < 160u) {
+                char mapped[440]{};
+                std::snprintf(
+                    mapped, sizeof(mapped),
+                    "BT XY RESOLVED: button=%s action='%s' edge=%s value=%.3f held=%.3f disabled=%s status=%u deviceId=%u transportBridge=%s timeCode=%u",
+                    button->idCode == 0x8000 ? "X/Square" : "Y/Triangle",
+                    userEvent,
+                    button->value > 0.0F ? "DOWN" : "UP",
+                    static_cast<double>(button->value),
+                    static_cast<double>(button->heldDownSecs),
+                    button->disabled ? "yes" : "no",
+                    static_cast<unsigned>(button->status),
+                    static_cast<unsigned>(button->deviceID),
+                    g_bluetoothPhysicalBridgeActive.load(std::memory_order_acquire) ? "Bluetooth" : "USB-or-inactive",
+                    static_cast<unsigned>(button->timeCode));
+                log(mapped);
+            }
+        }
+
         const bool mappedNativeInput = isMappedNativeInputUserEvent(userEvent);
         const bool vehicleReconInputActive = _landVehicleCorrelationArmed.load(std::memory_order_acquire);
         const bool boostpackInputActive =
@@ -2456,6 +2483,8 @@ namespace
     struct BluetoothPhysicalBridgeRuntime
     {
         std::array<BluetoothPhysicalButtonRuntime, 16> buttons{};
+        bool touchpadClickHeld{ false };
+        bool touchpadLeftClick{ false };
 
         float leftX{ 0.0F };
         float leftY{ 0.0F };
@@ -2645,7 +2674,9 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
             const bool useNativeShadowButtonTransition =
                 gamepadDevice != nullptr &&
                 (idCode == 0x0002 ||
-                 idCode == 0x2000);
+                 idCode == 0x2000 ||
+                 idCode == 0x8000 || // X / Square: draw/holster
+                 idCode == 0x1000);  // Y / Triangle: jump
 
             if (useNativeShadowButtonTransition) {
 
@@ -2682,6 +2713,22 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                 runtime.down =
                     currentDown;
 
+                // X/Y previously reached the native queue but could be
+                // ignored in context. Trial: match the L3/Circle native
+                // transition path while retaining current HID ownership.
+                if ((idCode == 0x8000 || idCode == 0x1000) &&
+                    currentDown != previousDown) {
+                    notifyInputPresentationDevice(
+                        InputPresentationDevice::Gamepad);
+                    log(idCode == 0x8000
+                        ? (currentDown
+                            ? "BT XY NATIVE: X/Square DOWN via Starfield transition helper"
+                            : "BT XY NATIVE: X/Square UP via Starfield transition helper")
+                        : (currentDown
+                            ? "BT XY NATIVE: Y/Triangle DOWN via Starfield transition helper"
+                            : "BT XY NATIVE: Y/Triangle UP via Starfield transition helper"));
+                }
+
                 // Starfield's native transition helper now owns the
                 // authoritative held-time bookkeeping for this button.
                 runtime.heldSeconds = 0.0F;
@@ -2697,7 +2744,7 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
                     log(
                         "Bluetooth native button transition helper: "
                         "ACTIVE rva=Starfield+0x22FC2A0 "
-                        "buttons=L3,Circle "
+                        "buttons=L3,Circle,X/Square,Y/Triangle "
                         "gamepad=SAD-shadow "
                         "hardwarePolling=no");
                 }
@@ -2744,7 +2791,27 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
             notifyInputPresentationDevice(
                 InputPresentationDevice::Gamepad);
 
-            if (!dispatchNativeInputFrame(emission)) {
+            // Diagnostic only: correlate each observed X/Y transition
+            // with the actual native queue submission. Logs only edges,
+            // never the steady held frames or other controller buttons.
+            const bool xyTransition =
+                (idCode == 0x8000 || idCode == 0x1000) &&
+                currentDown != previousDown;
+            const bool published = dispatchNativeInputFrame(emission);
+            if (xyTransition) {
+                char diagnostic[256]{};
+                std::snprintf(
+                    diagnostic,
+                    sizeof(diagnostic),
+                    "BT XY BRIDGE: button=%s edge=%s publish=%s held=%.3f shadow=%s stage=runtime-tick",
+                    idCode == 0x8000 ? "X/Square" : "Y/Triangle",
+                    currentDown ? "DOWN" : "UP",
+                    published ? "OK" : "FAILED",
+                    static_cast<double>(emission.heldDownSecs),
+                    gamepadDevice ? "yes" : "no");
+                log(diagnostic);
+            }
+            if (!published) {
                 return false;
             }
 
@@ -2830,6 +2897,37 @@ void sds::GameStateAdapter::dispatchBluetoothPhysicalInput(
             12,
             0x1000,
             state.triangle ? 1.0F : 0.0F);
+
+        // Reproduce the physical left touchpad click over Bluetooth.
+        // Starfield determines its action from the current UI context.
+        // Button slot 13 is unused by the existing physical bridge.
+        //
+        // Latch the touched half when the click begins. Moving the
+        // finger while holding the button must not change its action.
+        if (state.click &&
+            !g_bluetoothPhysicalBridgeRuntime.touchpadClickHeld) {
+
+            const TouchPoint* finger =
+                state.first.down ? &state.first :
+                (state.second.down ? &state.second : nullptr);
+
+            g_bluetoothPhysicalBridgeRuntime.touchpadClickHeld = true;
+            g_bluetoothPhysicalBridgeRuntime.touchpadLeftClick =
+                !finger || finger->x < 960;
+
+        } else if (!state.click) {
+            g_bluetoothPhysicalBridgeRuntime.touchpadClickHeld = false;
+            g_bluetoothPhysicalBridgeRuntime.touchpadLeftClick = false;
+        }
+
+        const bool nativeLeftClick =
+            g_bluetoothPhysicalBridgeRuntime.touchpadClickHeld &&
+            g_bluetoothPhysicalBridgeRuntime.touchpadLeftClick;
+
+        (void)emitButton(
+            13,
+            0x00200000,
+            nativeLeftClick ? 1.0F : 0.0F);
 
         const float leftTrigger =
             state.l2 <= 2 ?
