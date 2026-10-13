@@ -162,13 +162,30 @@ namespace
                 // exactly the final filename, never just a substring.
                 auto prepare = [&](const auto& resolved, std::string_view exactName,
                                    bool looping, sds::LandVehicleSpeakerClip& clip,
-                                   std::string_view label) -> bool {
-                    std::string reason = "filename-not-found";
+                                   std::string_view label,
+                                    std::uint32_t exactMediaId = 0u) -> bool {
+                    // Deimog's Creation JSON gives event-level media names, but the
+                    // shared resolver may surface only numeric WEM names. Its four
+                    // verified firing media IDs are the exact identity. Keep the
+                    // original filename policy unchanged for every other sound.
+                    std::string reason = exactMediaId ? "media-id-not-found" : "filename-not-found";
                     for (const auto& media : resolved.media) {
-                        const std::string_view path = media.originalName;
-                        const auto lastSlash = path.find_last_of("\\/");
-                        const auto filename = path.substr(lastSlash == std::string_view::npos ? 0u : lastSlash + 1u);
-                        if (filename != exactName) continue;
+                        if (exactMediaId != 0u) {
+                            if (media.mediaId != exactMediaId) continue;
+                            // Never borrow a colliding media ID from the base game.
+                            auto archive = media.archivePath.filename().string();
+                            std::transform(archive.begin(), archive.end(), archive.begin(),
+                                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                            if (archive != "sfbgs019 - main.ba2") {
+                                reason = "unexpected-media-archive";
+                                break;
+                            }
+                        } else {
+                            const std::string_view path = media.originalName;
+                            const auto lastSlash = path.find_last_of("\\/");
+                            const auto filename = path.substr(lastSlash == std::string_view::npos ? 0u : lastSlash + 1u);
+                            if (filename != exactName) continue;
+                        }
                         if (media.wemPayload.empty()) { reason = "payload-empty"; break; }
                         auto decoded = sds::decodeWeaponSpeakerWemToSpeakerPcm(media.wemPayload, 1.0F);
                         if (!decoded.prepared || decoded.pcm.frames.empty()) {
@@ -220,6 +237,34 @@ namespace
                 } else {
                     batch.diagnostics.emplace_back("Rover speaker: mounted-laser event not resolved as expected");
                 }
+                // Deimog is optional, and its audio is read from the user's own
+                // installed Creation. Never ship these WEMs or treat them as prerequisites.
+                const auto deimog = resolver_.resolveObservedEventInMemory(
+                    "deimog-rocket-speaker", sds::kDeimogRocketLaunchEventId);
+                int deimogReady = 0;
+                if (deimog.found && deimog.bankName == "SFBGS019" &&
+                    deimog.eventName == "SFBGS0019_DeimogVehicle_WPN_RocketLauncher_PC") {
+                    constexpr std::array<std::string_view, 4> kRocketFilenames{{
+                        "SFBGS0019_Vehicle_Deimog_WPN_RocketLauncher_Fire_01.wav",
+                        "SFBGS0019_Vehicle_Deimog_WPN_RocketLauncher_Fire_02.wav",
+                        "SFBGS0019_Vehicle_Deimog_WPN_RocketLauncher_Fire_03.wav",
+                        "SFBGS0019_Vehicle_Deimog_WPN_RocketLauncher_Fire_04.wav",
+                    }};
+                    constexpr std::array<std::uint32_t, 4> kRocketMediaIds{{
+                        872335090u, 530932654u, 1007612472u, 564989739u,
+                    }};
+                    for (std::size_t index = 0; index < kRocketFilenames.size(); ++index) {
+                        sds::LandVehicleSpeakerClip shot{};
+                        if (prepare(deimog, kRocketFilenames[index], false, shot,
+                                    "deimog-rocket", kRocketMediaIds[index])) {
+                            sounds.deimogRocketShots[index] = std::move(shot.pcm);
+                            ++deimogReady;
+                        }
+                    }
+                } else {
+                    batch.diagnostics.emplace_back(
+                        "Deimog rocket speaker: INACTIVE optional-Creation-absent-or-event-unavailable");
+                }
                 if (boostEventOk) {
                     (void)prepare(boost, "SFBGS004_CreationsVehicle_Boost_Horizontal_Lp.wav", true,
                                   sounds.forwardThrust, "forward-thrust");
@@ -235,6 +280,7 @@ namespace
                 std::ostringstream line;
                 line << "Land vehicle speaker preparation: " << (ready ? "READY" : "INACTIVE")
                      << " readyClips=" << ready << "/6 source=exact-Starfield-WEM"
+                      << " optionalDeimogClips=" << deimogReady << "/4"
                      << " engineMedia=" << engine.media.size() << " gunMedia=" << gun.media.size()
                      << " boostMedia=" << boost.media.size() << " extraction=disabled";
                 batch.diagnostics.push_back(line.str());

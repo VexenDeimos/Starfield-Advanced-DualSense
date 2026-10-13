@@ -1587,25 +1587,47 @@ if (connected && g_controller->bluetoothTransport()) {
     void observeLandVehicleGunSpeaker(
         const sds::WeaponSfxWwiseObservation& observation) noexcept
     {
-        if (observation.eventId != sds::kRoverMountedLaserEventId ||
-            observation.externalCount != 0 || observation.hasExternalSources ||
+        const bool deimog = observation.eventId == sds::kDeimogRocketLaunchEventId;
+        if (!deimog && observation.eventId != sds::kRoverMountedLaserEventId) return;
+        if (observation.externalCount != 0 || observation.hasExternalSources ||
             !g_gameState || !g_gameState->landVehicleReconCorrelationArmed() ||
             !g_speakerManager || !g_speakerManager->categoryEnabled(sds::SpeakerCategory::LandVehicle) ||
             !g_landVehicleSpeakerCache) return;
         const auto sounds = g_landVehicleSpeakerCache->snapshot();
-        if (!sounds || !sounds->laser) return;
+        if (!sounds) return;
+        const sds::PreparedSpeakerPcm* selected = nullptr;
+        std::uint32_t selectedMediaId = 543730516u; // Existing mounted laser, unchanged.
         {
             std::scoped_lock lock(g_landVehicleSpeakerMutex);
             if (g_landVehicleLastGun != std::chrono::steady_clock::time_point{} &&
                 observation.when >= g_landVehicleLastGun &&
                 observation.when - g_landVehicleLastGun < std::chrono::milliseconds(85)) return;
+            if (deimog) {
+                // Exact, Creation-owned firing media, in the same order as prewarm.
+                constexpr std::array<std::uint32_t, 4> kRocketMediaIds{{
+                    872335090u, 530932654u, 1007612472u, 564989739u,
+                }};
+                static std::size_t nextDeimogVariant = 0u; // Guarded by speaker mutex.
+                for (std::size_t offset = 0; offset < kRocketMediaIds.size(); ++offset) {
+                    const auto index = (nextDeimogVariant + offset) % kRocketMediaIds.size();
+                    if (sounds->deimogRocketShots[index]) {
+                        selected = sounds->deimogRocketShots[index].get();
+                        selectedMediaId = kRocketMediaIds[index];
+                        nextDeimogVariant = (index + 1u) % kRocketMediaIds.size();
+                        break;
+                    }
+                }
+            } else if (sounds->laser) {
+                selected = sounds->laser.get();
+            }
+            if (!selected) return; // Creation absent? No sound; all other features remain.
             g_landVehicleLastGun = observation.when;
         }
-        auto pcm = *sounds->laser;
+        auto pcm = *selected;
         pcm.gain *= 0.65F;
         (void)g_speakerManager->submitCaptured(
             std::move(pcm), sds::SpeakerCategory::LandVehicle,
-            {.id = (static_cast<std::uint64_t>(observation.eventId) << 32u) | 543730516u,
+            {.id = (static_cast<std::uint64_t>(observation.eventId) << 32u) | selectedMediaId,
              .controllerOnlySafe = false}, false);
     }
 

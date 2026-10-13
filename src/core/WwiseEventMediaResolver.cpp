@@ -94,9 +94,16 @@ namespace
         return name == "shatteredspace - main01.ba2" || name == "shatteredspace - main02.ba2";
     }
 
+    // Optional Creation. Missing archive is never an error or an install dependency.
+    bool isDeimogMainArchive(const std::filesystem::path& path)
+    {
+        return lower(path.filename().string()) == "sfbgs019 - main.ba2";
+    }
+
     bool archiveName(const std::filesystem::path& path)
     {
-        return isStarfieldWwiseArchive(path) || isShatteredSpaceMainArchive(path);
+        return isStarfieldWwiseArchive(path) || isShatteredSpaceMainArchive(path) ||
+            isDeimogMainArchive(path);
     }
 
     std::uint8_t archivePriority(const std::filesystem::path& path)

@@ -444,7 +444,7 @@ SpeakerLandVehicleVolume = 0.7
 
 `SpeakerMenuSounds` controls supported menu cues independently of scanner/UI cues. `SpeakerLandVehicle` and `SpeakerLandVehicleVolume` control land-vehicle controller-speaker audio; the volume accepts `0.0` to `1.0`. `SpeakerShipSystems` is the separate ship-system speaker category switch. The `ControllerSpeaker` master switch still disables every speaker category.
 
-**Land vehicle compatibility:** Audio support depends on the vehicle and its in-game events. The Deimog's engine/running and thruster sounds work through the controller speaker, but its mounted-gun audio does not currently play through the controller speaker.
+**Land vehicle compatibility:** Audio support depends on each vehicle's in-game events. SAD plays the Deimog's engine/running, thrust/boost, and authentic rocket-launcher firing sounds through the DualSense speaker over USB and Bluetooth. **The Deimog Creation is optional:** when it is not installed, SAD skips its rocket audio automatically; standard REV-8 and other supported features remain available. No Deimog sound assets are bundled with SAD; the sounds are read from an installed Deimog Creation.
 
 ## Controller Speaker Output Modes
 
