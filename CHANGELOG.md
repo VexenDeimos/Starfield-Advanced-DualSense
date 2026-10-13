@@ -7,8 +7,8 @@
 
 ### Controller-speaker audio and startup
 
-- Added real Starfield REV-8 controller-speaker audio for engine idle/low/high, mounted gun, forward thrust, and vertical boost; controlled by independent REV-8 speaker settings and volume.
-- Added a prioritized early startup preparation sequence: main-menu cues, supported 43 UI cues, boostpack and REV-8 clips, then the original complete **495-variant** weapon audio resolver. The runtime reuses the completed early weapon cache or retains the original fallback.
+- Added real Starfield land-vehicle controller-speaker audio for engine idle/low/high, forward thrust, vertical boost, and mounted-weapon sounds where supported; controlled by independent land-vehicle speaker settings and volume. Engine/running and thruster audio also work on the Deimog, but its mounted-gun audio does not currently play through the controller speaker.
+- Added a prioritized early startup preparation sequence: main-menu cues, supported 43 UI cues, boostpack and land-vehicle clips, then the original complete **495-variant** weapon audio resolver. The runtime reuses the completed early weapon cache or retains the original fallback.
 - Fixed delayed weapon-speaker availability after loading saves over both USB and Bluetooth, without replacing the original exhaustive resolver. Confirmed all 495 variants prepared and weapon audio playing on both connection types.
 - Kept normal Starfield game audio untouched; controller-speaker playback remains additive where supported.
 
@@ -16,7 +16,7 @@
 
 - Added event-authoritative on-foot landing haptics, including boostpack-assisted impacts with duplicate-landing suppression.
 - Exposed independent `SpeakerMenuSounds`, `SpeakerShipSystems`, `SpeakerLandVehicle`, and `SpeakerLandVehicleVolume` settings in the shipped TOML (defaults already existed in code).
-- Preserved tested REV-8 haptics, triggers, lightbar and controller-speaker behavior, plus menu/scanner actions, touchpad gestures and native left-touchpad POV.
+- Preserved tested land-vehicle haptics, triggers, lightbar and controller-speaker behavior where supported, plus menu/scanner actions, touchpad gestures and native left-touchpad POV.
 
 ### Release housekeeping
 

@@ -19,8 +19,8 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | Feature | What SAD adds |
 | --- | --- |
 | **Native USB + Bluetooth** | Direct DualSense and DualSense Edge support over USB and Bluetooth without requiring DSX, DualSenseX, reWASD, an Xbox wrapper, or another virtual controller. |
-| **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and the REV-8. |
-| **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, the REV-8, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
+| **Adaptive Triggers** | Gameplay-aware trigger resistance and weapon-specific effects, including on-foot weapons, ships, and supported land vehicles. |
+| **Advanced Haptics** | Tactile feedback for weapons, damage, movement/gameplay events, ships, supported land vehicles, Digipicks, boostpack use, launch/landing events, and more. USB uses the DualSense audio-haptics path; Bluetooth uses SAD's native Bluetooth vibration path for supported feedback. |
 | **Weapon Haptics Controls** | A master weapon-vibration switch plus per-family enable and `0.0-3.0` strength controls for 13 on-foot weapon groups, applied live to USB and Bluetooth haptics. |
 | **Custom / Modded Weapons** | Map a modded weapon EditorID to any supported SAD weapon haptics/trigger profile and separate controller-speaker firing/handling profiles using repeatable `[[CustomWeapons]]` blocks. |
 | **DualSense Edge** | Standard SAD DualSense features are supported on Edge hardware, including USB output-report sizing and native-output ownership arbitration for the Edge's larger HID report. Rear paddles and Fn controls are not separately mapped. |
@@ -30,8 +30,8 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **Digipick Feedback** | Real Digipick sounds through the controller speaker plus tactile feedback for rotation, shape selection, successful insertion, and puzzle completion. |
 | **Crafting / Research Audio** | Supported crafting, cooking, medical, industrial, weapon/armor, and research-station sounds through the controller speaker. |
 | **Boostpack Feedback** | Dedicated boostpack haptics and real boostpack audio through the controller speaker. |
-| **REV-8 Speaker Audio** | Real Starfield REV-8 engine, mounted-gun, and boost/thrust audio through the DualSense controller speaker. |
-| **Fast Speaker Startup** | Priority menu/UI/boostpack/REV-8 audio is prepared early, followed by the original full 495-variant weapon resolver; the completed cache is reused after loading. |
+| **Land Vehicle Speaker Audio** | Real Starfield engine and boost/thrust audio through the DualSense controller speaker on supported land vehicles, plus mounted-weapon sounds where available. |
+| **Fast Speaker Startup** | Priority menu/UI/boostpack/land-vehicle audio is prepared early, followed by the original full 495-variant weapon resolver; the completed cache is reused after loading. |
 | **On-Foot Landing Feedback** | Player-verified landing impacts derived from Starfield Wwise events, including recent boostpack-assisted landings. |
 | **Touchpad** | Individually configurable swipes, right touchpad press, and Create button, including Disabled/Photo Mode and a reset-to-defaults button; the global `Touchpad` master switch remains. |
 | **Dynamic Lightbar** | Player-health colors, a Main Menu white-to-blue breathing effect, and ship takeoff/landing/touchdown lighting. |
@@ -154,7 +154,7 @@ Setting:
 
     Lightbar = false
 
-disables **all colored SAD lightbar effects**, including player health, Main Menu, REV-8 health feedback, takeoff, landing, and touchdown lighting.
+disables **all colored SAD lightbar effects**, including player health, Main Menu, land-vehicle health feedback, takeoff, landing, and touchdown lighting.
 
 ### Battery Player LEDs
 
@@ -429,9 +429,9 @@ See [`config/StarfieldDualSense.toml`](config/StarfieldDualSense.toml) for the c
 
 ---
 
-## Controller-Speaker Startup and REV-8 Sounds
+## Controller-Speaker Startup and Land Vehicle Sounds
 
-SAD prepares the three main-menu UI cues first, followed by the supported 43 UI, boostpack, and REV-8 sounds. The **original exhaustive weapon resolver** then prepares all **495 weapon audio variants** during startup; gameplay reuses the completed cache when available and retains the original runtime fallback if preparation is incomplete. No separate external audio assets are required.
+SAD prepares the three main-menu UI cues first, followed by the supported 43 UI, boostpack, and land-vehicle sounds. The **original exhaustive weapon resolver** then prepares all **495 weapon audio variants** during startup; gameplay reuses the completed cache when available and retains the original runtime fallback if preparation is incomplete. No separate external audio assets are required.
 
 These settings can be adjusted in the SFSE settings menu or the default TOML:
 
@@ -442,7 +442,9 @@ SpeakerLandVehicle = true
 SpeakerLandVehicleVolume = 0.7
 ```
 
-`SpeakerMenuSounds` controls supported menu cues independently of scanner/UI cues. `SpeakerLandVehicle` and `SpeakerLandVehicleVolume` control REV-8 controller-speaker audio; the volume accepts `0.0` to `1.0`. `SpeakerShipSystems` is the separate ship-system speaker category switch. The `ControllerSpeaker` master switch still disables every speaker category.
+`SpeakerMenuSounds` controls supported menu cues independently of scanner/UI cues. `SpeakerLandVehicle` and `SpeakerLandVehicleVolume` control land-vehicle controller-speaker audio; the volume accepts `0.0` to `1.0`. `SpeakerShipSystems` is the separate ship-system speaker category switch. The `ControllerSpeaker` master switch still disables every speaker category.
+
+**Land vehicle compatibility:** Audio support depends on the vehicle and its in-game events. The Deimog's engine/running and thruster sounds work through the controller speaker, but its mounted-gun audio does not currently play through the controller speaker.
 
 ## Controller Speaker Output Modes
 
