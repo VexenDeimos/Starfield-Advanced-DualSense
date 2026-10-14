@@ -1,3 +1,14 @@
+## 0.7.7 - 2026-10-14
+
+### New Game Plus crash fix
+
+- Fixed a crash during the ending credits to New Game Plus transition, before the NG+ character creator.
+- Suspends player/world-dependent runtime polling when `EndGameCreditsMenu` opens while Starfield tears down and rebuilds the world.
+- Resumes normal runtime polling only after the gameplay HUD is restored and credits, loading, and character-creation menus are no longer open.
+- Preserves existing DualSense input, adaptive triggers, haptics, controller-speaker audio, lightbar, touchpad mappings, and USB behavior outside the transition.
+- Validated on hardware through ending credits, NG+ character creation, return to gameplay, weapon fire, landing feedback, and normal game shutdown.
+- Built DLL version: `0.7.7.0`. Bluetooth regressions should be checked separately; no Bluetooth implementation was changed.
+
 ## 0.7.6 - 2026-10-12
 
 ### USB/Bluetooth controller reliability

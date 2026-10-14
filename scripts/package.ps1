@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repoRoot
-$version = '0.7.6'
+$version = '0.7.7'
 $dist = Join-Path $repoRoot 'dist'
 $pluginDir = Join-Path $repoRoot 'build\windows\x64\release'
 $dll = Join-Path $pluginDir 'StarfieldDualSense.dll'
@@ -30,10 +30,10 @@ if (-not (Test-Path -LiteralPath $toml -PathType Leaf)) {
     throw 'Default TOML is missing.'
 }
 $dllVersion = (Get-Item -LiteralPath $dll).VersionInfo.FileVersion
-if (-not $dllVersion -or $dllVersion -notmatch '^0\.7\.6(\.0)?$') {
-    throw "DLL FileVersion is not 0.7.6.0: $dllVersion. Refusing to package a stale or development DLL."
+if (-not $dllVersion -or $dllVersion -notmatch '^0\.7\.7(\.0)?$') {
+    throw "DLL FileVersion is not 0.7.7.0: $dllVersion. Refusing to package a stale or development DLL."
 }
-if ((Get-Content -LiteralPath $toml -TotalCount 1) -ne '# Starfield DualSense v0.7.6') {
+if ((Get-Content -LiteralPath $toml -TotalCount 1) -ne '# Starfield DualSense v0.7.7') {
     throw 'Default config header is not v0.7.6.'
 }
 

@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.7.6-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.7-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -96,7 +96,7 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 ## Custom / Modded Weapon Profiles
 
-SAD v0.7.6 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
+SAD v0.7.7 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
 
 Open `Data\SFSE\Plugins\StarfieldDualSense.toml` and add a separate array-of-tables entry for each weapon:
 

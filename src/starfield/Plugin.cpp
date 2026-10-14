@@ -88,7 +88,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.7.6";
+    constexpr std::string_view kVersion = "0.7.7";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -594,6 +594,9 @@ namespace
     std::int32_t g_bluetoothParkedHandlerStatus = -1;
 
     std::atomic_bool g_startupWeaponBootstrapComplete{ false };
+    // NG+ replaces the live player/world between the end credits and the new
+    // gameplay HUD. Game-world polling must not run against that transition.
+    std::atomic_bool g_ngPlusTransitionActive{ false };
     bool g_weaponAudioPipelineEnabled = false;
     std::filesystem::path g_weaponAudioPipelineDataPath{};
 
@@ -4650,6 +4653,25 @@ if (connected && g_controller->bluetoothTransport()) {
             return;
         }
 
+        // During NG+ world destruction/recreation, do not poll PlayerCharacter,
+        // PlayerCamera, equipped inventory, health, ship, or vehicle state.
+        // Reopen only after Starfield exposes the new gameplay HUD, with no
+        // loading/credits/character-creation menu still displayed.
+        if (g_ngPlusTransitionActive.load(std::memory_order_acquire)) {
+            auto* ui = RE::UI::GetSingleton();
+            const bool gameplayReady = ui &&
+                ui->IsMenuOpen(RE::BSFixedString("HUDMenu")) &&
+                !ui->IsMenuOpen(RE::BSFixedString("LoadingMenu")) &&
+                !ui->IsMenuOpen(RE::BSFixedString("EndGameCreditsMenu")) &&
+                !ui->IsMenuOpen(RE::BSFixedString("CharGenMenu")) &&
+                !ui->IsMenuOpen(RE::BSFixedString("ChargenMenu"));
+            if (!gameplayReady) {
+                return;
+            }
+            g_ngPlusTransitionActive.store(false, std::memory_order_release);
+            pluginLog("NG+ safety gate: gameplay HUD restored; runtime polling resumed");
+        }
+
         updateBluetoothShadowDelegate();
         updateNativeDualSenseReselection(std::chrono::steady_clock::now());
         updateBluetoothGameplayInputBridge(std::chrono::steady_clock::now());
@@ -5677,6 +5699,11 @@ if (connected && g_controller->bluetoothTransport()) {
             nativeLog);
 
         auto runtimeEmit = [](sds::GameEvent event) {
+            if (event.type == sds::GameEventType::MenuOpened &&
+                std::string_view(event.text.data()) == "EndGameCreditsMenu") {
+                g_ngPlusTransitionActive.store(true, std::memory_order_release);
+                pluginLog("NG+ safety gate: end credits opened; game-world polling suspended");
+            }
             if (g_musicRecon) {
                 try {
                     g_musicRecon->observeGameEvent(event);
