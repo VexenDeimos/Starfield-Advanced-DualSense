@@ -2,6 +2,7 @@
 
 #include <StarfieldDualSense/UiAudioCandidateCatalog.h>
 
+#include <chrono>
 #include <cstdio>
 #include <string_view>
 #include <utility>
@@ -70,14 +71,38 @@ bool sds::UiSpeakerPlayback::observeWwise(const UiAudioWwiseObservation& observa
     // verified in the 2026-10-12 runtime log). Use the native event timing,
     // like every other promoted UI cue, independent of Start or swipe binds.
     // GameEvent menu notifications below no longer submit duplicate sounds.
+    // A successfully queued SAD Quick-menu shortcut can cause Starfield to
+    // post GeneralOK before or after DashboardOpen. Suppress that one native
+    // generic confirmation, not the rest of the game's menu sounds. The
+    // dashboard click below is the single audible opening click.
+    if (observation.eventId == 0x5C8034FCu && // UIMenuGeneralOK
+        observation.gameObjectId == 0x3u &&
+        observation.externalCount == 0u &&
+        !observation.hasExternalSources &&
+        !_shuttingDown.load(std::memory_order_acquire)) {
+        auto until = _shortcutOkSuppressionUntilUs.load(std::memory_order_acquire);
+        const auto at = std::chrono::duration_cast<std::chrono::microseconds>(
+            observation.when.time_since_epoch()).count();
+        constexpr auto kWindowUs = 500000LL;
+        if (until != 0 && at >= until - kWindowUs && at <= until &&
+            _shortcutOkSuppressionUntilUs.compare_exchange_strong(
+                until, 0, std::memory_order_acq_rel)) {
+            _observed.fetch_add(1u, std::memory_order_relaxed);
+            if (_log) {
+                _log("Data Menu speaker: duplicate native Quick-menu GeneralOK suppressed; dashboard click retained");
+            }
+            return false;
+        }
+    }
+
     const bool dashboardOpen = observation.eventId == kDataMenuOpenAudioEvent;
     const bool dashboardClose = observation.eventId == kDataMenuCloseAudioEvent;
     const bool accepted = observeWwiseInternal(observation);
 
     if (accepted && (dashboardOpen || dashboardClose)) {
-        // Pair the existing general UI click with the audible dashboard cue.
-        // Reuse its already-prepared PCM, native object, and category gates.
-        // Do not raise click volume or change other UI event behavior.
+        // Restore the original, audible Data Menu click. These use the
+        // prepared GeneralOK/Cancel clips and the normal Menu sound gate.
+        // Calling the internal path avoids suppressing our own paired click.
         auto click = observation;
         click.eventId = dashboardOpen ? 0x5C8034FCu : 0x7956E9B0u;
         const bool clickAccepted = observeWwiseInternal(click);
@@ -92,6 +117,32 @@ bool sds::UiSpeakerPlayback::observeWwise(const UiAudioWwiseObservation& observa
         }
     }
     return accepted;
+}
+
+void sds::UiSpeakerPlayback::noteQuickMenuShortcut(
+    InputAction action,
+    std::chrono::steady_clock::time_point when) noexcept
+{
+    // Physical Options/Start input never comes through this path. Only a
+    // successfully queued SAD semantic menu shortcut arms this one-shot gate.
+    switch (action) {
+    case InputAction::OpenInventory:
+    case InputAction::OpenMissions:
+    case InputAction::OpenPowers:
+    case InputAction::OpenSkills:
+    case InputAction::OpenMap:
+    case InputAction::OpenDataMenu:
+        break;
+    default:
+        return;
+    }
+    if (_shuttingDown.load(std::memory_order_acquire)) {
+        return;
+    }
+    constexpr auto kWindow = std::chrono::milliseconds(500);
+    const auto untilUs = std::chrono::duration_cast<std::chrono::microseconds>(
+        (when + kWindow).time_since_epoch()).count();
+    _shortcutOkSuppressionUntilUs.store(untilUs, std::memory_order_release);
 }
 
 bool sds::UiSpeakerPlayback::observeWwiseInternal(
@@ -229,6 +280,7 @@ void sds::UiSpeakerPlayback::beginShutdown() noexcept
     _craftingMenuMask.store(0u, std::memory_order_release);
     _securityMenuActive.store(false, std::memory_order_release);
     _dataMenuOpen.store(false, std::memory_order_release);
+    _shortcutOkSuppressionUntilUs.store(0, std::memory_order_release);
 }
 
 bool sds::UiSpeakerPlayback::armed() const noexcept

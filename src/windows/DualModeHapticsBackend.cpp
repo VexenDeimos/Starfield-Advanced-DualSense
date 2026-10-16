@@ -84,6 +84,14 @@ namespace
             return { 185, 210, 95ms, "BoostpackIgnition" };
         case K::OnFootLandingThump:
             return { 180, 195, 90ms, "OnFootLandingThump" };
+        case K::ReloadMagRelease:
+            return { 55, 125, 35ms, "ReloadMagRelease" };
+        case K::ReloadMagInsert:
+            return { 120, 165, 65ms, "ReloadMagInsert" };
+        case K::ReloadMechanism:
+            return { 90, 170, 75ms, "ReloadMechanism" };
+        case K::ReloadHandling:
+            return { 45, 100, 30ms, "ReloadHandling" };
         case K::DigipickRotateTick:
             return { 40, 125, 24ms, "DigipickRotateTick" };
         case K::DigipickSelectClick:

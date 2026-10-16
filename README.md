@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.7.7-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -96,7 +96,7 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 ## Custom / Modded Weapon Profiles
 
-SAD v0.7.7 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio** independently.
+SAD v0.8.0 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio**, and **reload haptics** independently.
 
 Open `Data\SFSE\Plugins\StarfieldDualSense.toml` and add a separate array-of-tables entry for each weapon:
 
@@ -106,15 +106,23 @@ EditorID = "MyModdedRifleEditorID"
 ControllerFeedbackProfile = "Microgun"
 SpeakerAudioProfile = "Maelstrom"
 HandlingSpeakerAudioProfile = "Maelstrom"
+ReloadHapticsProfile = "Eon"
 
 [[CustomWeapons]]
 EditorID = "MyModdedPistolEditorID"
 ControllerFeedbackProfile = "Regulator"
 SpeakerAudioProfile = "Urban Eagle"
 HandlingSpeakerAudioProfile = "Urban Eagle"
+ReloadHapticsProfile = "Eon"
 ```
 
-`EditorID` is the weapon's internal editor ID (not its FormID, display name, or plugin filename). You can find it in the Starfield console using `help "part of weapon name" 4 WEAP`, or inspect the weapon's `EDID` in Creation Kit/xEdit. Any one of the three profile fields can be omitted when you don't need that output category. Handling audio requires compatible native weapon events.
+`EditorID` is the weapon's internal editor ID (not its FormID, display name, or plugin filename). You can find it in the Starfield console using `help "part of weapon name" 4 WEAP`, or inspect the weapon's `EDID` in Creation Kit/xEdit. Any of the four profile fields can be omitted when you don't need that output category. Handling audio and reload haptics require compatible native weapon Wwise events.
+
+Reload vibrations respect the existing **Weapon Haptics** master toggle and per-family
+enable/strength settings (including live SFSE changes). A custom weapon using
+`ReloadHapticsProfile` uses its borrowed profile's weapon family for those settings
+and also respects the independent **Custom Weapon Feedback** switch. Controller
+speaker audio remains independent of reload vibrations.
 
 The corresponding global switches are `CustomWeaponsEnabled`, `CustomWeaponAdaptiveTriggersEnabled`, and `CustomWeaponSpeakerAudioEnabled`, alongside their parent haptics/trigger/speaker switches. For supported profile names and detailed examples, see the custom-weapons guide on the mod's Nexus article page.
 

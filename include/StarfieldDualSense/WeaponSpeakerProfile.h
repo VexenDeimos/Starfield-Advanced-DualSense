@@ -77,6 +77,8 @@ namespace sds
         std::size_t ignored{ 0 };
         std::size_t handlingLoaded{ 0 };
         std::size_t handlingIgnored{ 0 };
+        std::size_t reloadHapticsLoaded{ 0 };
+        std::size_t reloadHapticsIgnored{ 0 };
     };
 
     [[nodiscard]] std::span<const WeaponSpeakerProfile> weaponSpeakerProfiles() noexcept;
@@ -99,6 +101,13 @@ namespace sds
 
     [[nodiscard]]
     const WeaponSpeakerProfile* findCustomWeaponHandlingSpeakerProfile(
+        std::string_view weaponIdentity) noexcept;
+
+    // Independent of controller-speaker audio. Optional TOML
+    // ReloadHapticsProfile = "Maelstrom" borrows ONLY its reload feel.
+    void setCustomWeaponReloadHapticsEnabled(bool enabled) noexcept;
+    [[nodiscard]] std::size_t customWeaponReloadHapticsProfileCount() noexcept;
+    [[nodiscard]] const WeaponSpeakerProfile* findCustomWeaponReloadHapticsProfile(
         std::string_view weaponIdentity) noexcept;
 
     [[nodiscard]] const WeaponSpeakerProfile* findWeaponSpeakerProfile(std::string_view weaponIdentity) noexcept;

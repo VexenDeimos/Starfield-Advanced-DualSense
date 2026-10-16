@@ -1,3 +1,23 @@
+## 0.8.0 - 2026-10-16
+
+### Native weapon reload feedback
+
+- Expanded real Starfield controller-speaker reload sounds for Drum Beat and Eon, including the final bolt/cocking sequences; native Wwise timing and normal game audio remain untouched.
+- Added native-event-driven reload haptics for magazine and mechanism actions, including the final Drum Beat bolt lock and Eon cocking stages. Simultaneous Eon magazine-in events do not produce duplicate haptic feedback.
+- User-tested both weapons' controller-speaker reload sounds and haptics in-game.
+- Integrated reload vibrations with existing Weapon Haptics and per-family enable/strength controls, including live SFSE updates. Custom reload mappings also obey Custom Weapon Feedback while using the borrowed weapon's haptic family.
+
+### Custom and modded weapons
+
+- Added optional `ReloadHapticsProfile` in each `[[CustomWeapons]]` block, independent of controller firing feedback, firing speaker audio, and handling speaker audio.
+- Custom reload feedback borrows a supported SAD weapon profile and follows compatible live Wwise reload events, without synthetic or guessed timing.
+- Added regression coverage for independent custom-weapon profiles and reload haptic stages. The custom-weapon mapping still needs in-game signoff before release.
+
+### Release preparation
+
+- Advanced DLL metadata, source documentation, default TOML header, and release packaging guards to v0.8.0 (`0.8.0.0` DLL FileVersion).
+- The v0.7.x release-contract scripts remain historical; `tests/V080ReleaseCandidateRegression.py` is the new v0.8.0 source contract. No Git tag or published release is created by the version patch.
+
 ## 0.7.7 - 2026-10-14
 
 ### New Game Plus crash fix

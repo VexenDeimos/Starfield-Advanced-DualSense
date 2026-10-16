@@ -1,4 +1,5 @@
 #include <StarfieldDualSense/HapticsEngine.h>
+#include <StarfieldDualSense/WeaponReloadHapticSettings.h>
 #include <StarfieldDualSense/HapticStrength.h>
 #include <StarfieldDualSense/MeleeHaptics.h>
 
@@ -87,6 +88,25 @@ bool sds::HapticsEngine::setWeaponHapticsConfig(const Config& config) noexcept
 
     return changed;
 }
+float sds::HapticsEngine::reloadHapticsFamilyScale(
+    std::string_view borrowedProfileIdentity,
+    bool useCustomReloadProfile) const noexcept
+{
+    // Native/vanilla reloads use the currently equipped firing profile.
+    // A mapped custom reload instead uses the selected ReloadHapticsProfile.
+    // Its family must not be inherited from ControllerFeedbackProfile.
+    const WeaponProfile* borrowedProfile = nullptr;
+    if (useCustomReloadProfile && !borrowedProfileIdentity.empty()) {
+        borrowedProfile = findWeaponProfile(borrowedProfileIdentity);
+    }
+    return sds::weaponReloadHapticsFamilyScale(
+        _weaponHapticsConfig,
+        _equipped,
+        _customWeaponEquipped,
+        borrowedProfile,
+        useCustomReloadProfile);
+}
+
 std::optional<sds::HapticCommand> sds::HapticsEngine::handle(const GameEvent& event) noexcept
 {
     if (event.type == GameEventType::WeaponEquipped) {

@@ -122,6 +122,18 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
     case HapticEffectKind::OnFootLandingThump:
         duration = 0.090F;
         break;
+    case HapticEffectKind::ReloadMagRelease:
+        duration = 0.033F;
+        break;
+    case HapticEffectKind::ReloadMagInsert:
+        duration = 0.065F;
+        break;
+    case HapticEffectKind::ReloadMechanism:
+        duration = 0.075F;
+        break;
+    case HapticEffectKind::ReloadHandling:
+        duration = 0.026F;
+        break;
     case HapticEffectKind::DigipickRotateTick:
         duration = 0.020F;
         break;
@@ -401,6 +413,34 @@ sds::HapticWaveform sds::synthesizeHapticEffect(const HapticCommand& command, st
                 attack(t, 0.0007F) * std::exp(-t / 0.014F);
             const float finalFade = std::clamp((duration - t) / 0.011F, 0.0F, 1.0F);
             sample = (body + edge) * finalFade;
+        } else if (command.kind == HapticEffectKind::ReloadMagRelease) {
+            const float click = 0.47F * oscillator(164.0F, t) *
+                attack(t, 0.0006F) * std::exp(-t / 0.008F);
+            const float latch = 0.23F * oscillator(265.0F, t) *
+                attack(t, 0.0004F) * std::exp(-t / 0.0040F);
+            sample = (click + latch) * std::clamp((duration - t) / 0.005F, 0.0F, 1.0F);
+        } else if (command.kind == HapticEffectKind::ReloadMagInsert) {
+            const float contact = 0.66F * oscillator(80.0F, t) *
+                attack(t, 0.001F) * std::exp(-t / 0.023F);
+            const float lock = 0.39F * oscillator(195.0F, t) *
+                attack(t, 0.0006F) * std::exp(-t / 0.008F);
+            sample = (contact + lock) * std::clamp((duration - t) / 0.009F, 0.0F, 1.0F);
+        } else if (command.kind == HapticEffectKind::ReloadMechanism) {
+            const float rack = 0.43F * oscillator(126.0F, t) *
+                attack(t, 0.0008F) * std::exp(-t / 0.017F);
+            float catchClick = 0.0F;
+            if (t >= 0.024F) {
+                const float local = t - 0.024F;
+                catchClick = 0.48F * oscillator(235.0F, local) *
+                    attack(local, 0.0006F) * std::exp(-local / 0.008F);
+            }
+            sample = (rack + catchClick) * std::clamp((duration - t) / 0.009F, 0.0F, 1.0F);
+        } else if (command.kind == HapticEffectKind::ReloadHandling) {
+            const float contact = 0.34F * oscillator(128.0F, t) *
+                attack(t, 0.0008F) * std::exp(-t / 0.010F);
+            const float texture = 0.17F * oscillator(222.0F, t) *
+                attack(t, 0.0005F) * std::exp(-t / 0.005F);
+            sample = (contact + texture) * std::clamp((duration - t) / 0.005F, 0.0F, 1.0F);
         } else if (command.kind == HapticEffectKind::DigipickRotateTick) {
             const float body = 0.48F * oscillator(170.0F, t) *
                 attack(t, 0.0006F) * std::exp(-t / 0.0065F);

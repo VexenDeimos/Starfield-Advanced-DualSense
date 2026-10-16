@@ -7,6 +7,7 @@
 #include <StarfieldDualSense/Types.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -43,6 +44,11 @@ namespace sds
             LogCallback log = {});
 
         [[nodiscard]] bool observeWwise(const UiAudioWwiseObservation& observation) noexcept;
+        // Marks only a successfully queued native SAD menu shortcut.
+        void noteQuickMenuShortcut(
+            InputAction action,
+            std::chrono::steady_clock::time_point when =
+                std::chrono::steady_clock::now()) noexcept;
         void observeGameEvent(const GameEvent& event) noexcept;
         void beginShutdown() noexcept;
         [[nodiscard]] bool armed() const noexcept;
@@ -59,6 +65,7 @@ namespace sds
         std::atomic<std::uint32_t> _craftingMenuMask{ 0u };
         std::atomic_bool _securityMenuActive{ false };
         std::atomic_bool _dataMenuOpen{ false };
+        std::atomic<std::int64_t> _shortcutOkSuppressionUntilUs{ 0 };
         std::atomic<std::uint64_t> _variantSequence{ 0u };
         std::atomic<std::uint64_t> _observed{ 0u };
         std::atomic<std::uint64_t> _submitted{ 0u };

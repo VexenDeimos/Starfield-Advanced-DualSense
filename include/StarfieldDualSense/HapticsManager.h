@@ -45,6 +45,13 @@ namespace sds
         [[nodiscard]] bool setShipLaunchLandingRumble(
             bool active,
             std::string_view phase) noexcept;
+        // Emitted only after an authored reload speaker stage is accepted.
+        [[nodiscard]] bool emitWeaponReloadCue(
+            std::string_view action,
+            std::chrono::steady_clock::time_point when =
+                std::chrono::steady_clock::now(),
+            std::string_view borrowedReloadProfile = {},
+            bool useCustomReloadProfile = false) noexcept;
         [[nodiscard]] bool emitDigipickWwiseEvent(
             std::uint32_t eventId,
             std::chrono::steady_clock::time_point when = std::chrono::steady_clock::now()) noexcept;
@@ -107,6 +114,8 @@ namespace sds
         std::chrono::steady_clock::time_point _cutterStartDeadline{};
         bool _cutterHeartbeatArmed{ false };
         std::chrono::steady_clock::time_point _cutterHeartbeatDeadline{};
+        std::atomic_bool _reloadPaused{ false };
+        std::atomic<std::uint8_t> _reloadBlockingMenus{ 0u };
         bool _started{ false };
     };
 }

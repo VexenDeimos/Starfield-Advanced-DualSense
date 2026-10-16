@@ -5,9 +5,11 @@
 #include <StarfieldDualSense/WeaponSpeakerPlayback.h>
 #include <StarfieldDualSense/WeaponSpeakerPreparedCache.h>
 #include <StarfieldDualSense/WeaponSpeakerProfile.h>
+#include <StarfieldDualSense/CustomWeaponReloadHapticStage.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -199,6 +201,7 @@ EditorID = "MOD_TestRifle"
 ControllerFeedbackProfile = "Maelstrom"
 SpeakerAudioProfile = "Grendel"
 HandlingSpeakerAudioProfile = "Maelstrom"
+ReloadHapticsProfile = "Eon"
 
 [[CustomWeapons]]
 EditorID = "MOD_FeedbackOnly"
@@ -213,10 +216,15 @@ EditorID = "MOD_HandlingOnly"
 HandlingSpeakerAudioProfile = "Grendel"
 
 [[CustomWeapons]]
+EditorID = "MOD_ReloadOnly"
+ReloadHapticsProfile = "Maelstrom"
+
+[[CustomWeapons]]
 EditorID = "MOD_Invalid"
 ControllerFeedbackProfile = "Definitely Not A SAD Weapon"
 SpeakerAudioProfile = "Definitely Not A Speaker Weapon"
 HandlingSpeakerAudioProfile = "Definitely Not A Reload Weapon"
+ReloadHapticsProfile = "Definitely Not A SAD Reload Profile"
 )";
 
     const auto config =
@@ -267,6 +275,32 @@ HandlingSpeakerAudioProfile = "Definitely Not A Reload Weapon"
     expect(
         speakerLoaded.handlingIgnored == 1,
         "invalid handling speaker target is ignored");
+
+    expect(speakerLoaded.reloadHapticsLoaded == 2,
+           "two independent custom reload-haptics mappings load");
+    expect(speakerLoaded.reloadHapticsIgnored == 1,
+           "invalid reload-haptics profile is ignored");
+    expect(sds::customWeaponReloadHapticsProfileCount() == 2u,
+           "reload-only custom weapon is parsed without speaker mappings");
+    const auto* reloadRifle = sds::findCustomWeaponReloadHapticsProfile(
+        "MOD_TestRifle|Some Fancy Rifle");
+    expect(reloadRifle && reloadRifle->weaponIdentity == "Eon",
+           "reload haptics can borrow a different profile from handling audio");
+    const auto* reloadOnly = sds::findCustomWeaponReloadHapticsProfile(
+        "MOD_ReloadOnly|Modded Gun");
+    expect(reloadOnly && reloadOnly->weaponIdentity == "Maelstrom",
+           "reload-only custom block arms without speaker or firing profiles");
+    if (reloadRifle) {
+        const auto sourceStage = sds::customWeaponReloadHapticStage(*reloadRifle, 0xEBD95A39u);
+        expect(sourceStage && sds::weaponReloadHapticForAction(*sourceStage) &&
+            sds::weaponReloadHapticForAction(*sourceStage)->kind ==
+            sds::HapticEffectKind::ReloadMagRelease,
+            "native Maelstrom mag-out selects an Eon magazine-release haptic");
+        expect(!sds::customWeaponReloadHapticStage(*reloadRifle, 0xFFFFFFFFu),
+            "unrecognized native sound never guesses a reload haptic");
+        expect(!sds::customWeaponReloadHapticStage(*reloadRifle, 0x847E55A3u),
+            "Eon duplicate magazine-in Wwise event stays sound-only");
+    }
 
     const auto* rifle =
         sds::findWeaponProfile(
@@ -610,6 +644,14 @@ HandlingSpeakerAudioProfile = "Definitely Not A Reload Weapon"
     expect(
         !sds::customWeaponSpeakerAudioEnabled(),
         "custom speaker global switch disables custom speaker resolution");
+    expect(sds::findCustomWeaponReloadHapticsProfile(
+        "MOD_ReloadOnly|Modded Gun") != nullptr,
+        "custom reload haptics remain active with controller speaker audio off");
+    sds::setCustomWeaponReloadHapticsEnabled(false);
+    expect(!sds::findCustomWeaponReloadHapticsProfile(
+        "MOD_ReloadOnly|Modded Gun"),
+        "custom vibration switch independently disables reload haptics");
+    sds::setCustomWeaponReloadHapticsEnabled(true);
 
     expect(
         sds::findCustomWeaponSpeakerProfile(
@@ -668,6 +710,50 @@ HandlingSpeakerAudioProfile = "Definitely Not A Reload Weapon"
         vanilla &&
         vanilla->name == "Maelstrom",
         "built-in weapon feedback remains active");
+
+    // v0.8.0 reload haptics use the existing firing-feedback category
+    // settings: native profile for vanilla, borrowed source for custom.
+    sds::Config reloadSettings = sds::Config::defaults();
+    reloadSettings.weaponHapticsBallisticHandgunsStrength = 0.42F;
+    sds::HapticsEngine reloadEngine;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    (void)reloadEngine.handle(makeEvent(sds::GameEventType::WeaponEquipped, "Eon"));
+    expect(std::abs(reloadEngine.reloadHapticsFamilyScale() - 0.42F) < 0.001F,
+           "Eon native reload obeys ballistic-handgun strength");
+    reloadSettings.weaponHapticsBallisticHandguns = false;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    expect(reloadEngine.reloadHapticsFamilyScale() == 0.0F,
+           "Eon native reload obeys live ballistic-handgun OFF");
+    reloadSettings.weaponHapticsBallisticHandguns = true;
+    reloadSettings.weaponHaptics = false;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    expect(reloadEngine.reloadHapticsFamilyScale() == 0.0F,
+           "Eon native reload obeys live global WeaponHaptics OFF");
+    reloadSettings.weaponHaptics = true;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    expect(std::abs(reloadEngine.reloadHapticsFamilyScale() - 0.42F) < 0.001F,
+           "Eon native reload restores without requiring re-equip");
+
+    (void)sds::configureCustomWeaponProfiles(true, toml);
+    (void)reloadEngine.handle(makeEvent(sds::GameEventType::WeaponEquipped,
+                                        "MOD_TestRifle|Some Fancy Rifle"));
+    expect(std::abs(reloadEngine.reloadHapticsFamilyScale("Eon", true) - 0.42F) < 0.001F,
+           "custom reload uses Eon reload family, independent of firing family");
+    reloadSettings.customWeaponsEnabled = false;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    expect(reloadEngine.reloadHapticsFamilyScale("Eon", true) == 0.0F,
+           "custom reload obeys live CustomWeaponsEnabled OFF");
+    reloadSettings.customWeaponsEnabled = true;
+    (void)reloadEngine.setWeaponHapticsConfig(reloadSettings);
+    (void)reloadEngine.handle(makeEvent(sds::GameEventType::WeaponEquipped,
+                                        "MOD_ReloadOnly|Modded Gun"));
+    expect(reloadEngine.reloadHapticsFamilyScale("Maelstrom", true) > 0.0F,
+           "reload-only custom block works without firing feedback profile");
+    expect(reloadEngine.reloadHapticsFamilyScale("UnknownWeapon", true) == 0.0F,
+           "unknown custom reload source fails closed");
+    (void)reloadEngine.handle(makeEvent(sds::GameEventType::Shutdown, ""));
+    expect(reloadEngine.reloadHapticsFamilyScale() == 0.0F,
+           "shutdown clears native reload family context");
 
     return
         failures == 0

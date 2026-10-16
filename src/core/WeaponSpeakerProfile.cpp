@@ -411,12 +411,47 @@ namespace
                 WeaponSpeakerCue{ "mag-out", WeaponSpeakerTrigger::WwisePost,
                     0xAA2B3F43u, 0xAA2B3F43u, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Pistol_Eon_Reload_MagOut_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
+                // Second distinct MagOut cue, ~390 ms after the first.
+                WeaponSpeakerCue{ "reload-sound-mag-out-02", WeaponSpeakerTrigger::WwisePost,
+                    0xAA2B3F40u, 0xAA2B3F40u, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Pistol_Eon_Reload_MagOut_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Pistol_Eon_Reload_MagOut_FirstPerson_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
                 WeaponSpeakerCue{ "mag-in", WeaponSpeakerTrigger::WwisePost,
                     0x847E55A4u, 0x847E55A4u, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Pistol_Eon_Reload_MagIn_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
+                // Native Eon also posts 0x847E55A3 at this same instant.
+                // This supplements speaker audio only (no duplicate haptic).
+                WeaponSpeakerCue{ "reload-sound-mag-in-04", WeaponSpeakerTrigger::WwisePost,
+                    0x847E55A3u, 0x847E55A3u, 0x2u, true, 0.25F, 0u, 0u,
+                    {
+                        { 1u, "WPN_Pistol_Eon_Reload_MagIn_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Pistol_Eon_Reload_MagIn_FirstPerson_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
                 WeaponSpeakerCue{ "mag-slap", WeaponSpeakerTrigger::WwisePost,
                     0xFD0067F9u, 0xFD0067F9u, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Pistol_Eon_Reload_MagSlap_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
+                // Three distinct native Eon bolt-close actions: +0.48/+0.64/+1.06s.
+                // Names intentionally avoid the bolt-* haptic classifier.
+                WeaponSpeakerCue{ "reload-sound-bolt-close-06", WeaponSpeakerTrigger::WwisePost,
+                    0x895228BEu, 0x895228BEu, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
+                WeaponSpeakerCue{ "reload-sound-bolt-close-07", WeaponSpeakerTrigger::WwisePost,
+                    0x895228BFu, 0x895228BFu, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
+                WeaponSpeakerCue{ "reload-sound-bolt-close-08", WeaponSpeakerTrigger::WwisePost,
+                    0x895228B0u, 0x895228B0u, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Pistol_Eon_Reload_BoltClose_FirstPerson_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
                 WeaponSpeakerCue{ "draw", WeaponSpeakerTrigger::WwisePost,
                     0x7D5840F7u, 0x7D5840F7u, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Pistol_Eon_Equip_Up_01.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
@@ -657,9 +692,40 @@ namespace
                         { 7u, "WPN_Hand_Rifle_Combatech_Drumbeat_Fire_PC_Semi_V3_07.wav", WeaponSpeakerArchivePolicy::PreferPatch },
                         { 8u, "WPN_Hand_Rifle_Combatech_Drumbeat_Fire_PC_Semi_V3_08.wav", WeaponSpeakerArchivePolicy::PreferPatch },
                     } },
+                // Observed across six Drum Beat reloads (player Wwise object=0x2).
+                WeaponSpeakerCue{ "reload-sound-mag-out", WeaponSpeakerTrigger::WwisePost,
+                    0x4BECE22Cu, 0x4BECE22Cu, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_MagOut_PC_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_MagOut_PC_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
                 WeaponSpeakerCue{ "mag-in", WeaponSpeakerTrigger::WwisePost,
                     0xC7D6A881u, 0xC7D6A881u, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_MagIn_PC_01_V2.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
+                WeaponSpeakerCue{ "reload-sound-mag-in-02", WeaponSpeakerTrigger::WwisePost,
+                    0xC7D6A882u, 0xC7D6A882u, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_MagIn_PC_01_V2.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_MagIn_PC_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
+                // Player-authored late reload stages: +0.48s and +0.90s after ReloadComplete.
+                // Speaker only; preserve existing reload haptics until separately tuned.
+                WeaponSpeakerCue{ "reload-sound-bolt-open", WeaponSpeakerTrigger::WwisePost,
+                    0xD5A83A79u, 0xD5A83A79u, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 3u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_03.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 4u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_04.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
+                WeaponSpeakerCue{ "reload-sound-bolt-close", WeaponSpeakerTrigger::WwisePost,
+                    0xC05252DFu, 0xC05252DFu, 0x2u, true, kBatchGain, 0u, 0u,
+                    {
+                        { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_01.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 2u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_02.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 3u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_03.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                        { 4u, "WPN_Hand_Rifle_Combatech_Drumbeat_Reload_Bolt_PC_04.wav", WeaponSpeakerArchivePolicy::PreferPatch },
+                    } },
                 WeaponSpeakerCue{ "draw", WeaponSpeakerTrigger::WwisePost,
                     0x2BD8A31Fu, 0x2BD8A31Fu, 0x2u, true, kBatchGain, 0u, 0u,
                     { { 1u, "WPN_Hand_Rifle_Combatech_Drumbeat_Equip_Up_PC_01.wav", WeaponSpeakerArchivePolicy::PreferPatch } } },
@@ -1757,6 +1823,7 @@ namespace
         std::string normalizedEditorId{};
         const WeaponSpeakerProfile* speakerProfile{ nullptr };
         const WeaponSpeakerProfile* handlingProfile{ nullptr };
+        const WeaponSpeakerProfile* reloadHapticsProfile{ nullptr };
     };
 
     using CustomWeaponSpeakerAliasList =
@@ -1765,6 +1832,8 @@ namespace
 
     std::atomic_bool
         g_customWeaponSpeakerAudioEnabled{ true };
+    std::atomic_bool
+        g_customWeaponReloadHapticsEnabled{ true };
 
     std::atomic<
         std::shared_ptr<
@@ -1866,12 +1935,14 @@ sds::CustomWeaponSpeakerConfigResult
         std::string editorId;
         std::string speakerProfileName;
         std::string handlingProfileName;
+        std::string reloadHapticsProfileName;
 
         const auto clearPending =
             [&]() {
                 editorId.clear();
                 speakerProfileName.clear();
                 handlingProfileName.clear();
+                reloadHapticsProfileName.clear();
             };
 
         const auto commitPending =
@@ -1883,7 +1954,8 @@ sds::CustomWeaponSpeakerConfigResult
 
                 if (
                     speakerProfileName.empty() &&
-                    handlingProfileName.empty()) {
+                    handlingProfileName.empty() &&
+                    reloadHapticsProfileName.empty()) {
 
                     clearPending();
                     return;
@@ -1901,6 +1973,9 @@ sds::CustomWeaponSpeakerConfigResult
                     if (!handlingProfileName.empty()) {
                         ++result.handlingIgnored;
                     }
+                    if (!reloadHapticsProfileName.empty()) {
+                        ++result.reloadHapticsIgnored;
+                    }
 
                     clearPending();
                     return;
@@ -1911,6 +1986,8 @@ sds::CustomWeaponSpeakerConfigResult
 
                 const WeaponSpeakerProfile*
                     handlingProfile = nullptr;
+                const WeaponSpeakerProfile*
+                    reloadHapticsProfile = nullptr;
 
                 if (!speakerProfileName.empty()) {
                     speakerProfile =
@@ -1932,9 +2009,16 @@ sds::CustomWeaponSpeakerConfigResult
                     }
                 }
 
+                if (!reloadHapticsProfileName.empty()) {
+                    reloadHapticsProfile =
+                        findBuiltInSpeakerProfileExact(reloadHapticsProfileName);
+                    if (!reloadHapticsProfile) ++result.reloadHapticsIgnored;
+                }
+
                 if (
                     !speakerProfile &&
-                    !handlingProfile) {
+                    !handlingProfile &&
+                    !reloadHapticsProfile) {
 
                     clearPending();
                     return;
@@ -1956,12 +2040,15 @@ sds::CustomWeaponSpeakerConfigResult
 
                     existing->handlingProfile =
                         handlingProfile;
+                    existing->reloadHapticsProfile =
+                        reloadHapticsProfile;
                 } else {
                     aliases.push_back(
                         CustomWeaponSpeakerAlias{
                             normalizedEditorId,
                             speakerProfile,
-                            handlingProfile
+                            handlingProfile,
+                            reloadHapticsProfile
                         });
                 }
 
@@ -2060,6 +2147,8 @@ sds::CustomWeaponSpeakerConfigResult
 
                 handlingProfileName =
                     std::string(value);
+            } else if (key == "ReloadHapticsProfile") {
+                reloadHapticsProfileName = std::string(value);
             }
         }
 
@@ -2072,6 +2161,9 @@ sds::CustomWeaponSpeakerConfigResult
 
             if (alias.handlingProfile) {
                 ++result.handlingLoaded;
+            }
+            if (alias.reloadHapticsProfile) {
+                ++result.reloadHapticsLoaded;
             }
         }
 
@@ -2159,6 +2251,38 @@ const sds::WeaponSpeakerProfile*
 }
 
 
+
+void sds::setCustomWeaponReloadHapticsEnabled(bool enabled) noexcept
+{
+    g_customWeaponReloadHapticsEnabled.store(enabled, std::memory_order_release);
+}
+
+std::size_t sds::customWeaponReloadHapticsProfileCount() noexcept
+{
+    const auto aliases = g_customWeaponSpeakerAliases.load(std::memory_order_acquire);
+    if (!aliases) return 0u;
+    return static_cast<std::size_t>(std::count_if(aliases->begin(), aliases->end(),
+        [](const CustomWeaponSpeakerAlias& alias) {
+            return alias.reloadHapticsProfile != nullptr;
+        }));
+}
+
+const sds::WeaponSpeakerProfile* sds::findCustomWeaponReloadHapticsProfile(
+    std::string_view weaponIdentity) noexcept
+{
+    if (!g_customWeaponReloadHapticsEnabled.load(std::memory_order_acquire))
+        return nullptr;
+    // Unlike speaker lookup, this deliberately ignores the separate
+    // CustomWeaponSpeakerAudioEnabled switch.
+    const auto aliases = g_customWeaponSpeakerAliases.load(std::memory_order_acquire);
+    if (!aliases) return nullptr;
+    for (const auto& alias : *aliases) {
+        if (alias.reloadHapticsProfile &&
+            customSpeakerEditorIdMatches(alias.normalizedEditorId, weaponIdentity))
+            return alias.reloadHapticsProfile;
+    }
+    return nullptr;
+}
 
 const sds::WeaponSpeakerProfile* sds::findWeaponSpeakerAudioFamilyProfile(
     std::string_view logicalWeapon) noexcept

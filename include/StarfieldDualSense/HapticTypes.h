@@ -46,7 +46,11 @@ namespace sds
         LandVehicleBoostKick,
         LandVehicleTouchdownThump,
         LandVehicleGunRecoil,
-        OnFootLandingThump
+        OnFootLandingThump,
+        ReloadMagRelease,
+        ReloadMagInsert,
+        ReloadMechanism,
+        ReloadHandling
     };
 
     [[nodiscard]] constexpr bool isMeleeImpactHapticEffect(HapticEffectKind kind) noexcept
@@ -90,6 +94,10 @@ namespace sds
         case HapticEffectKind::ShipTouchdownThump: return "ShipTouchdownThump";
         case HapticEffectKind::BoostpackIgnition: return "BoostpackIgnition";
         case HapticEffectKind::OnFootLandingThump: return "OnFootLandingThump";
+        case HapticEffectKind::ReloadMagRelease: return "ReloadMagRelease";
+        case HapticEffectKind::ReloadMagInsert: return "ReloadMagInsert";
+        case HapticEffectKind::ReloadMechanism: return "ReloadMechanism";
+        case HapticEffectKind::ReloadHandling: return "ReloadHandling";
         case HapticEffectKind::DigipickRotateTick: return "DigipickRotateTick";
         case HapticEffectKind::DigipickSelectClick: return "DigipickSelectClick";
         case HapticEffectKind::DigipickInsertClunk: return "DigipickInsertClunk";

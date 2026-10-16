@@ -26,6 +26,7 @@
 #include <StarfieldDualSense/WeaponAudioPipeline.h>
 #include <StarfieldDualSense/WeaponProfiles.h>
 #include <StarfieldDualSense/WeaponSpeakerProfile.h>
+#include <StarfieldDualSense/CustomWeaponReloadHapticStage.h>
 #include <StarfieldDualSense/WeaponSfxDiscoveryProbe.h>
 #include <StarfieldDualSense/RemoteVoSpeakerPlayback.h>
 #include <StarfieldDualSense/RemoteVoOutputPolicy.h>
@@ -88,7 +89,7 @@
 
 namespace
 {
-    constexpr std::string_view kVersion = "0.7.7";
+    constexpr std::string_view kVersion = "0.8.0";
     constexpr std::uint32_t kShipWeaponCaptureProbeLimit = 256;
     constexpr std::uint32_t kShipEmReconLogLimit = 512;
     constexpr std::uint32_t kLandVehicleRareWwiseLogLimit = 1024;
@@ -181,6 +182,9 @@ namespace
         std::chrono::milliseconds(5000);
     bool g_runtimeInitialized = false;
     std::optional<sds::Config> g_startupConfig{};
+    // The last equipped EditorID is shared with the Wwise capture worker.
+    // An immutable shared_ptr avoids a race on weapon switches and on reloads.
+    std::atomic<std::shared_ptr<const std::string>> g_customReloadEquippedIdentity{};
     std::atomic<bool> g_autoRivetChargeCaptureEnabled{ false };
     std::atomic<bool> g_autoRivetChargeCaptureArmed{ false };
     std::atomic_bool g_shipPilotActive{ false };
@@ -268,6 +272,7 @@ namespace
             sds::customWeaponSpeakerAudioEnabled() !=
             config.customWeaponSpeakerAudioEnabled;
 
+        sds::setCustomWeaponReloadHapticsEnabled(config.customWeaponsEnabled);
         bool customMappingsReloaded = false;
 
         // Custom mappings are TOML-authored. Re-read the mapping table when
@@ -2344,6 +2349,7 @@ if (connected && g_controller->bluetoothTransport()) {
             (void)sds::configureCustomWeaponSpeakerProfiles(
                 config.customWeaponSpeakerAudioEnabled,
                 {});
+            sds::setCustomWeaponReloadHapticsEnabled(config.customWeaponsEnabled);
 
             return config;
         }
@@ -2354,6 +2360,7 @@ if (connected && g_controller->bluetoothTransport()) {
         const auto config =
             sds::loadConfig(text);
 
+        sds::setCustomWeaponReloadHapticsEnabled(config.customWeaponsEnabled);
         const auto customResult =
             sds::configureCustomWeaponProfiles(
                 true,
@@ -2384,6 +2391,10 @@ if (connected && g_controller->bluetoothTransport()) {
             << customSpeakerResult.handlingLoaded
             << " handlingIgnored="
             << customSpeakerResult.handlingIgnored
+            << " reloadHapticsMappings="
+            << customSpeakerResult.reloadHapticsLoaded
+            << " reloadHapticsIgnored="
+            << customSpeakerResult.reloadHapticsIgnored
             << " source=TOML-array";
 
         pluginLog(customLine.str());
@@ -4693,7 +4704,10 @@ if (connected && g_controller->bluetoothTransport()) {
                 applyBluetoothInputPresentationDevice(
                     sds::InputPresentationDevice::Gamepad);
 
-                (void)g_gameState->queueNativeInputAction(*action);
+                const bool queued = g_gameState->queueNativeInputAction(*action);
+                if (queued && g_uiSpeakerPlayback) {
+                    g_uiSpeakerPlayback->noteQuickMenuShortcut(*action);
+                }
             }
         }
 
@@ -5491,7 +5505,7 @@ if (connected && g_controller->bluetoothTransport()) {
             g_weaponSpeakerPlayback = std::make_unique<sds::WeaponSpeakerPlayback>(
                 [](const sds::PreparedSpeakerPcm& pcm,
                     std::string_view,
-                    std::string_view,
+                    std::string_view action,
                     std::uint32_t eventId,
                     std::uint32_t mediaId,
                     std::uint8_t) {
@@ -5503,11 +5517,26 @@ if (connected && g_controller->bluetoothTransport()) {
                             static_cast<std::uint64_t>(mediaId),
                         .controllerOnlySafe = false,
                     };
-                    return g_speakerManager->submitCaptured(
+                    const bool submitted = g_speakerManager->submitCaptured(
                         pcm,
                         sds::SpeakerCategory::Weapons,
                         identity,
                         false);
+                    // Use the SAME real Wwise-synchronized handling cue
+                    // as controller-speaker audio; never synthesize reload
+                    // feedback from button presses or guessed timing.
+                    // A custom ReloadHapticsProfile runs directly from the
+                    // original player Wwise event. Suppress this audio-driven
+                    // path for that weapon to prevent duplicate vibration.
+                    const auto customIdentity = g_customReloadEquippedIdentity.load(
+                        std::memory_order_acquire);
+                    const bool customReloadMapped = customIdentity &&
+                        sds::findCustomWeaponReloadHapticsProfile(*customIdentity);
+                    if (submitted && g_haptics && !customReloadMapped) {
+                        (void)g_haptics->emitWeaponReloadCue(
+                            action, std::chrono::steady_clock::now());
+                    }
+                    return submitted;
                 },
                 [](sds::PersistentPreparedSpeakerPcm voice,
                     std::string_view,
@@ -5981,6 +6010,13 @@ if (connected && g_controller->bluetoothTransport()) {
                 }
             }
             if (event.type == sds::GameEventType::WeaponEquipped) {
+                try {
+                    g_customReloadEquippedIdentity.store(
+                        std::make_shared<const std::string>(event.text.data()),
+                        std::memory_order_release);
+                } catch (...) {
+                    g_customReloadEquippedIdentity.store({}, std::memory_order_release);
+                }
                 const bool autoRivetEquipped =
                     g_autoRivetChargeCaptureEnabled.load(std::memory_order_acquire) &&
                     std::string_view(event.text.data()) == "Auto-Rivet";
@@ -5988,13 +6024,18 @@ if (connected && g_controller->bluetoothTransport()) {
                     autoRivetEquipped,
                     std::memory_order_release);
             } else if (event.type == sds::GameEventType::Shutdown) {
+                g_customReloadEquippedIdentity.store({}, std::memory_order_release);
                 g_autoRivetChargeCaptureArmed.store(false, std::memory_order_release);
             }
             if (g_audioCapture) {
                 const bool captureArmed =
                     g_autoRivetChargeCaptureArmed.load(std::memory_order_acquire) ||
                     (g_weaponSpeakerPlayback && g_weaponSpeakerPlayback->armed()) ||
-                    (g_weaponSfxDiscovery && g_weaponSfxDiscovery->armed());
+                    (g_weaponSfxDiscovery && g_weaponSfxDiscovery->armed()) ||
+                    ([&] {
+                        const auto equipped = g_customReloadEquippedIdentity.load(std::memory_order_acquire);
+                        return equipped && sds::findCustomWeaponReloadHapticsProfile(*equipped);
+                    }());
                 g_audioCapture->setWeaponSfxDiscoveryArmed(captureArmed);
             }
             return g_eventRouter && g_eventRouter->dispatch(std::move(event));
@@ -6402,6 +6443,7 @@ if (connected && g_controller->bluetoothTransport()) {
             if (autoRivetChargeCaptureEnabled || g_weaponSpeakerPlayback || g_weaponSfxDiscovery || g_shipWeaponSemanticCache ||
                 shipMissileHapticsEnabled || shipEMHapticsEnabled || shipLaunchLandingReconEnabled || landVehicleReconEnabled ||
                 g_boostpackFeedbackAuthority != nullptr || g_boostpackSpeakerPlayback != nullptr ||
+                sds::customWeaponReloadHapticsProfileCount() != 0u ||
                 g_shipEmReconEnabled.load(std::memory_order_acquire)) {
                 weaponSfxObservation = [autoRivetChargeCaptureEnabled](const sds::WeaponSfxWwiseObservation& observation) {
                     observeShipBallisticWwise(observation);
@@ -6418,6 +6460,26 @@ if (connected && g_controller->bluetoothTransport()) {
                     }
                     if (autoRivetChargeCaptureEnabled) {
                         observeAutoRivetChargeSemantic(observation);
+                    }
+                    // Custom reload vibration is independent of whether
+                    // controller-speaker audio is enabled or a clip was queued.
+                    // The real player weapon Wwise post is the sole authority.
+                    if (g_haptics && observation.gameObjectId == 0x2u &&
+                        observation.externalCount == 0u && !observation.hasExternalSources) {
+                        const auto equipped = g_customReloadEquippedIdentity.load(
+                            std::memory_order_acquire);
+                        if (equipped) {
+                            if (const auto* profile =
+                                    sds::findCustomWeaponReloadHapticsProfile(*equipped)) {
+                                const auto action = sds::customWeaponReloadHapticStage(
+                                    *profile, observation.eventId);
+                                if (action) {
+                                    (void)g_haptics->emitWeaponReloadCue(
+                                        *action, observation.when,
+                                        profile->weaponIdentity, true);
+                                }
+                            }
+                        }
                     }
                     if (g_weaponSpeakerPlayback) {
                         (void)g_weaponSpeakerPlayback->observeWwise(observation);
@@ -6592,7 +6654,11 @@ if (connected && g_controller->bluetoothTransport()) {
                 const bool captureArmed =
                     g_autoRivetChargeCaptureArmed.load(std::memory_order_acquire) ||
                     (g_weaponSpeakerPlayback && g_weaponSpeakerPlayback->armed()) ||
-                    (g_weaponSfxDiscovery && g_weaponSfxDiscovery->armed());
+                    (g_weaponSfxDiscovery && g_weaponSfxDiscovery->armed()) ||
+                    ([&] {
+                        const auto equipped = g_customReloadEquippedIdentity.load(std::memory_order_acquire);
+                        return equipped && sds::findCustomWeaponReloadHapticsProfile(*equipped);
+                    }());
                 g_audioCapture->setWeaponSfxDiscoveryArmed(captureArmed);
                 g_audioCapture->setShipWeaponObservationArmed(boostpackProductionCaptureArmed());
                 g_audioCapture->setUiAudioDiscoveryArmed(false);

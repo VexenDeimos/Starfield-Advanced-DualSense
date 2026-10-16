@@ -6,6 +6,7 @@
 #include <StarfieldDualSense/WeaponProfiles.h>
 
 #include <optional>
+#include <string_view>
 
 namespace sds
 {
@@ -15,6 +16,10 @@ namespace sds
         explicit HapticsEngine(float hapticStrength = 1.0F) noexcept;
         void setHapticStrength(float strength) noexcept;
         [[nodiscard]] bool setWeaponHapticsConfig(const Config& config) noexcept;
+        // Read under HapticsManager's existing _engineMutex.
+        [[nodiscard]] float reloadHapticsFamilyScale(
+            std::string_view borrowedProfileIdentity = {},
+            bool useCustomReloadProfile = false) const noexcept;
         [[nodiscard]] std::optional<HapticCommand> handle(const GameEvent& event) noexcept;
         [[nodiscard]] HapticContinuousState handleRightTriggerInput(std::uint8_t r2) noexcept;
 

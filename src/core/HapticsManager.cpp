@@ -1,5 +1,6 @@
 #include <StarfieldDualSense/HapticsManager.h>
 #include <StarfieldDualSense/HapticStrength.h>
+#include <StarfieldDualSense/WeaponReloadHaptics.h>
 #include <StarfieldDualSense/ShipPropulsionHaptics.h>
 #include <StarfieldDualSense/SustainedFireLiveness.h>
 
@@ -26,6 +27,17 @@ namespace
             ++length;
         }
         return { event.text.data(), length };
+    }
+
+    std::uint8_t reloadBlockingMenuBit(std::string_view menu) noexcept
+    {
+        if (menu == "DataMenu") { return 0x01u; }
+        if (menu == "PauseMenu") { return 0x02u; }
+        if (menu == "LoadingMenu") { return 0x04u; }
+        if (menu == "FaderMenu") { return 0x08u; }
+        if (menu == "MainMenu") { return 0x10u; }
+        if (menu == "CharGenMenu" || menu == "ChargenMenu") { return 0x20u; }
+        return 0u;
     }
 
     std::uint8_t shipBlockingMenuBit(std::string_view menu) noexcept
@@ -377,6 +389,22 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
             std::scoped_lock lock(_engineMutex);
             const auto type = event.type;
             const auto marker = eventText(event);
+
+            // Reload stages are player Wwise events, not raw button presses.
+            // These masks prevent delayed speaker cues from vibrating during
+            // paused, nested or transition menus.
+            if (type == GameEventType::GamePaused || type == GameEventType::Shutdown) {
+                _reloadPaused.store(true, std::memory_order_release);
+            } else if (type == GameEventType::GameUnpaused) {
+                _reloadPaused.store(false, std::memory_order_release);
+            }
+            const auto reloadBit = reloadBlockingMenuBit(marker);
+            if (reloadBit != 0u && type == GameEventType::MenuOpened) {
+                _reloadBlockingMenus.fetch_or(reloadBit, std::memory_order_acq_rel);
+            } else if (reloadBit != 0u && type == GameEventType::MenuClosed) {
+                _reloadBlockingMenus.fetch_and(
+                    static_cast<std::uint8_t>(~reloadBit), std::memory_order_acq_rel);
+            }
 
             if (type == GameEventType::ShipPilotEntered ||
                 type == GameEventType::ShipPilotResumed) {
@@ -1198,6 +1226,59 @@ bool sds::HapticsManager::handleRightTriggerInput(
         return true;
     } catch (...) {
         log("Haptics: continuous semantic dispatch failed; HID features unaffected");
+        return false;
+    }
+}
+
+bool sds::HapticsManager::emitWeaponReloadCue(
+    std::string_view action,
+    std::chrono::steady_clock::time_point when,
+    std::string_view borrowedReloadProfile,
+    bool useCustomReloadProfile) noexcept
+{
+    try {
+        // The stage has already been authorized by the native weapon Wwise
+        // post and successfully handed to the controller-speaker queue.
+        const auto cue = weaponReloadHapticForAction(action);
+        if (!cue || !_advancedHapticsEnabled.load(std::memory_order_acquire) ||
+            !_backend ||
+            _reloadPaused.load(std::memory_order_acquire) ||
+            _reloadBlockingMenus.load(std::memory_order_acquire) != 0u) {
+            return true;
+        }
+        float familyStrength = 0.0F;
+        {
+            std::scoped_lock lock(_engineMutex);
+            if (_shipContextSuppressed || _shipPilotActive || _landVehicleContextActive) {
+                return true;
+            }
+            // Same live TOML/SFSE weapon master, family toggle and family
+            // strength used by firing. One locked snapshot per event.
+            familyStrength = _engine.reloadHapticsFamilyScale(
+                borrowedReloadProfile, useCustomReloadProfile);
+        }
+        if (familyStrength <= 0.0F) {
+            return true;
+        }
+
+        const float gain = std::clamp(
+            cue->baseGain * _hapticStrength.load(std::memory_order_acquire) *
+                familyStrength,
+            0.0F, sds::kHapticOverdriveGainMax);
+        if (gain <= 0.0F) {
+            return true;
+        }
+        if (!_backend->enqueue(HapticCommand{
+                .kind = cue->kind,
+                .gain = gain,
+                .when = when,
+            })) {
+            log("Haptics: reload stage enqueue failed; existing weapon feedback unaffected");
+            return false;
+        }
+        return true;
+    } catch (...) {
+        log("Haptics: reload stage dispatch failed; existing weapon feedback unaffected");
         return false;
     }
 }

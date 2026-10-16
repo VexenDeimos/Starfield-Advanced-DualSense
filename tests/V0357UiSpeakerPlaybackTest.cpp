@@ -89,12 +89,71 @@ int main()
     sds::UiSpeakerPlayback playback(submit, cache, config);
     require(playback.armed(), "UI playback arms when at least one cue is ready");
 
+    // Physical Options/DataMenu should retain the original audible OK click,
+    // and closing the menu should retain the paired Cancel click.
+    const auto beforeDashboard = submissions.size();
+    require(playback.observeWwise(makeObservation(0x297426A6u, 0x3u)),
+        "native DataMenu opening speaker cue submits");
+    require(submissions.size() == beforeDashboard + 2u,
+        "DataMenu opening restores one audible GeneralOK click");
+    require(std::get<0>(submissions.at(beforeDashboard)) == 0x297426A6u,
+        "DataMenu opening keeps real Wwise event identity");
+    require(std::get<0>(submissions.back()) == 0x5C8034FCu,
+        "DataMenu opening pairs exact GeneralOK PCM");
+    require(playback.observeWwise(makeObservation(0x42BF2272u, 0x3u)),
+        "native DataMenu closing speaker cue submits");
+    require(submissions.size() == beforeDashboard + 4u,
+        "DataMenu closing restores one audible GeneralCancel click");
+    require(std::get<0>(submissions.at(beforeDashboard + 2u)) == 0x42BF2272u,
+        "DataMenu closing keeps real Wwise event identity");
+    require(std::get<0>(submissions.back()) == 0x7956E9B0u,
+        "DataMenu closing pairs exact GeneralCancel PCM");
+
+    // Native Quick actions can post GeneralOK before DashboardOpen. Drop only
+    // that first native OK; the paired dashboard click must still play.
+    const auto beforeShortcut = submissions.size();
+    playback.noteQuickMenuShortcut(sds::InputAction::OpenInventory);
+    require(!playback.observeWwise(makeObservation(0x5C8034FCu, 0x3u)),
+        "QuickInventory native GeneralOK is suppressed");
+    require(submissions.size() == beforeShortcut,
+        "QuickInventory duplicate click does not reach speaker");
+    require(playback.observeWwise(makeObservation(0x297426A6u, 0x3u)),
+        "QuickInventory DataMenu opening still submits");
+    require(submissions.size() == beforeShortcut + 2u &&
+            std::get<0>(submissions.back()) == 0x5C8034FCu,
+        "QuickInventory produces one paired dashboard click");
+    require(playback.observeWwise(makeObservation(0x5C8034FCu, 0x3u)),
+        "ordinary GeneralOK works after shortcut suppression is consumed");
+
+    // Also cover a GeneralOK arriving after DashboardOpen, not just before.
+    playback.noteQuickMenuShortcut(sds::InputAction::OpenMissions);
+    const auto beforeLateShortcut = submissions.size();
+    require(playback.observeWwise(makeObservation(0x297426A6u, 0x3u)),
+        "QuickMission dashboard opens before the native OK");
+    require(!playback.observeWwise(makeObservation(0x5C8034FCu, 0x3u)),
+        "late native QuickMission GeneralOK is suppressed");
+    require(submissions.size() == beforeLateShortcut + 2u,
+        "late QuickMission OK does not double the dashboard click");
+
+    // Other actions and expired windows must not mute UI confirmations.
+    playback.noteQuickMenuShortcut(sds::InputAction::TogglePOV);
+    require(playback.observeWwise(makeObservation(0x5C8034FCu, 0x3u)),
+        "TogglePOV does not suppress menu OK");
+    playback.noteQuickMenuShortcut(
+        sds::InputAction::OpenSkills,
+        std::chrono::steady_clock::now() - std::chrono::seconds(2));
+    require(playback.observeWwise(makeObservation(0x5C8034FCu, 0x3u)),
+        "expired shortcut suppression leaves menu OK working");
+
+    // Keep the legacy GeneralFocus count assertions independent of the preceding dashboard checks.
+    submissions.clear();
+
     const auto focus = makeObservation(0x05234A32u, 0x3u);
     require(playback.observeWwise(focus), "first GeneralFocus submits");
     require(playback.observeWwise(focus), "second GeneralFocus submits independently");
     require(submissions.size() == 2u, "GeneralFocus has no debounce or deduplication");
-    require(std::get<3>(submissions.back()) == sds::SpeakerCategory::ScannerUI,
-        "GeneralFocus is ScannerUI outside crafting context");
+    require(std::get<3>(submissions.back()) == sds::SpeakerCategory::Menu,
+        "GeneralFocus is Menu outside crafting context");
 
     playback.observeGameEvent(menuEvent(sds::GameEventType::MenuOpened, "FoodCraftingMenu"));
     require(playback.observeWwise(focus), "shared GeneralFocus submits inside cooking station");
@@ -107,8 +166,8 @@ int main()
         "crafting menu mask preserves remaining Research context");
     playback.observeGameEvent(menuEvent(sds::GameEventType::MenuClosed, "ResearchMenu"));
     require(playback.observeWwise(focus), "GeneralFocus submits after crafting context closes");
-    require(std::get<3>(submissions.back()) == sds::SpeakerCategory::ScannerUI,
-        "GeneralFocus returns to ScannerUI after last crafting menu closes");
+    require(std::get<3>(submissions.back()) == sds::SpeakerCategory::Menu,
+        "GeneralFocus returns to Menu after last crafting menu closes");
 
     require(playback.observeWwise(makeObservation(0xFFE19CA3u, 0x3u)),
         "dedicated Digipick Select Shape routes");
