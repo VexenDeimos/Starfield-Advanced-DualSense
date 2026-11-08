@@ -1,6 +1,6 @@
 # Starfield Advanced DualSense (SAD)
 
-[![Version](https://img.shields.io/badge/version-0.8.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.1-blue)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![Controller](https://img.shields.io/badge/controller-DualSense-003087)](#requirements)
 [![Language](https://img.shields.io/badge/C%2B%2B-23-00599C)](xmake.lua)
@@ -40,6 +40,26 @@ SAD is not a generic rumble wrapper or an Xbox-controller emulation layer. It us
 | **ReconnectFixOnly Mode** | Runs only the passive reconnect repair if you want Starfield's native DualSense handling without the rest of SAD's feedback stack. |
 
 Where controller-speaker audio is supported, SAD prefers **real Starfield audio** rather than invented replacement beeps. The same evidence-first approach is used throughout the project: feedback is tied to proven game state or native events instead of guessed timers whenever possible.
+
+## Ship Engine Haptics
+
+The optional `ShipEngineHapticsMode` setting controls **ship engine/propulsion vibration only**.
+It is available live under **Haptics** in the SFSE Menu Framework and in `StarfieldDualSense.toml`.
+
+```toml
+ShipEngineHapticsMode = "Continuous"
+```
+
+| Value | What it does |
+| --- | --- |
+| `"Continuous"` | Original SAD behavior; ongoing engine rumble during normal flight and boost. **Default for existing users.** |
+| `"AcceleratingOnly"` | Engine vibration only during confirmed speed increases under thrust, plus real boost. Steady cruising becomes quiet. |
+| `"BoostOnly"` | Engine vibration only during confirmed ship boosting. |
+| `"Off"` | Disables continuous ship engine/boost rumble. |
+
+These modes do not disable ship weapons, separate launch/landing haptics,
+touchdown impacts, adaptive triggers, controller-speaker audio or land vehicles.
+Live changes take effect without re-equipping or restarting.
 
 ## Weapon Haptics Controls
 
@@ -96,7 +116,7 @@ These shortcuts use Starfield's native input actions rather than simulating keyb
 
 ## Custom / Modded Weapon Profiles
 
-SAD v0.8.0 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio**, and **reload haptics** independently.
+SAD v0.8.1 supports mapping additional weapon EditorIDs to existing SAD profiles. You can choose **haptics/adaptive triggers**, **controller-speaker firing audio**, and **controller-speaker handling audio**, and **reload haptics** independently.
 
 Open `Data\SFSE\Plugins\StarfieldDualSense.toml` and add a separate array-of-tables entry for each weapon:
 

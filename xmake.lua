@@ -1,6 +1,6 @@
 set_xmakever("3.0.0")
 set_project("StarfieldDualSense")
-set_version("0.8.0")
+set_version("0.8.1")
 set_arch("x64")
 set_languages("c++23")
 set_encodings("utf-8")
@@ -1755,7 +1755,7 @@ if os.isfile("external/CommonLibSF/xmake.lua") then
             author = "AD Mixon",
             description = "Native DualSense support for Starfield on PC"
         })
-        set_version("0.8.0")
+        set_version("0.8.1")
         set_license("GPL-3.0-or-later")
         add_includedirs("include")
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
@@ -2387,4 +2387,16 @@ target("sds-v064-custom-weapon-tests", function()
         "src/core/WeaponSpeakerPreparedCache.cpp",
         "src/core/WeaponSpeakerPlayback.cpp",
         "src/core/MaelstromSpeakerFireProof.cpp")
+end)
+
+-- SAD v0.8.1: ship engine mode/filter + TOML/SFSE persistence tests.
+target("sds-v081-ship-engine-haptics-tests", function()
+    set_kind("binary")
+    set_default(false)
+    set_languages("cxx23")
+    add_includedirs("include")
+    add_files(
+        "tests/V081ShipEngineHapticsModeTest.cpp",
+        "src/core/Config.cpp",
+        "src/core/SettingsService.cpp")
 end)

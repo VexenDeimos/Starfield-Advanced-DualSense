@@ -36,6 +36,7 @@ namespace
     {
         std::atomic<bool> active{ false };
         std::atomic<int> continuousSets{ 0 };
+        std::atomic<int> shipWeaponCommands{ 0 };
         std::mutex mutex{};
         sds::HapticContinuousState continuous{};
     };
@@ -46,7 +47,11 @@ namespace
         explicit Backend(std::shared_ptr<State> state) : _state(std::move(state)) {}
         void start() override { _state->active = true; }
         void stop() noexcept override { _state->active = false; }
-        bool enqueue(sds::HapticCommand) noexcept override { return true; }
+        bool enqueue(sds::HapticCommand) noexcept override
+        {
+            ++_state->shipWeaponCommands;
+            return true;
+        }
         bool setContinuous(sds::HapticContinuousState continuous) noexcept override
         {
             {
@@ -185,5 +190,55 @@ int main()
     manager.stop();
     require(continuous(backendState).kind == sds::HapticContinuousKind::None,
         "shutdown leaves propulsion haptics at exact neutral");
+    // v0.8.1: mode changes are live and isolated from ship weapons/landing.
+    {
+        auto modeBackend = std::make_shared<State>();
+        sds::Config modeConfig = sds::Config::defaults();
+        sds::HapticsManager modeManager(
+            modeConfig, [modeBackend] { return std::make_unique<Backend>(modeBackend); });
+        modeManager.start();
+        require(modeManager.handle(event(sds::GameEventType::ShipPilotEntered)),
+            "mode test enters pilot context");
+        require(modeManager.handleShipPropulsionState(normalState()),
+            "mode test starts from normal flight");
+        require(continuous(modeBackend).kind == sds::HapticContinuousKind::ShipPropulsion,
+            "legacy continuous mode preserves normal flight engine vibration");
+
+        auto live = sds::gameplayHapticsLiveSettings(modeConfig);
+        live.weaponHapticsConfig.shipEngineHapticsMode = sds::ShipEngineHapticsMode::BoostOnly;
+        modeManager.applyLiveSettings(live);
+        require(continuous(modeBackend).kind == sds::HapticContinuousKind::None,
+            "live BoostOnly immediately mutes ongoing normal propulsion");
+        require(modeManager.handleShipPropulsionState(boostState()) &&
+            continuous(modeBackend).kind == sds::HapticContinuousKind::ShipBoost,
+            "BoostOnly retains native ship boost feedback");
+
+        live.weaponHapticsConfig.shipEngineHapticsMode = sds::ShipEngineHapticsMode::Off;
+        modeManager.applyLiveSettings(live);
+        require(continuous(modeBackend).kind == sds::HapticContinuousKind::None,
+            "live Off mutes current boost without requiring pilot exit");
+        const int oldCommands = modeBackend->shipWeaponCommands.load();
+        require(modeManager.handle(event(sds::GameEventType::ShipBallisticWeaponFired)) &&
+            modeBackend->shipWeaponCommands.load() > oldCommands,
+            "ship weapon transient remains active with engine haptics Off");
+        require(modeManager.setShipLaunchLandingRumble(true, "takeoff") &&
+            continuous(modeBackend).kind == sds::HapticContinuousKind::ShipBoost,
+            "ship takeoff rumble remains active with engine haptics Off");
+        require(modeManager.setShipLaunchLandingRumble(false, "takeoff-end") &&
+            continuous(modeBackend).kind == sds::HapticContinuousKind::None,
+            "takeoff rumble clears back to engine-Off silence");
+
+        live.weaponHapticsConfig.shipEngineHapticsMode = sds::ShipEngineHapticsMode::Continuous;
+        modeManager.applyLiveSettings(live);
+        require(continuous(modeBackend).kind == sds::HapticContinuousKind::ShipBoost,
+            "live Continuous restores cached native boost instantly");
+        require(modeManager.handleShipPropulsionState(normalState()) &&
+            continuous(modeBackend).kind == sds::HapticContinuousKind::ShipPropulsion,
+            "normal ship propulsion remains functional after mode changes");
+        require(modeManager.handle(event(sds::GameEventType::ShipPilotExited)) &&
+            continuous(modeBackend).kind == sds::HapticContinuousKind::None,
+            "pilot exit resets mode and velocity authority to neutral");
+        modeManager.stop();
+    }
     return EXIT_SUCCESS;
 }

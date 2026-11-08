@@ -23,7 +23,7 @@ namespace sds
         SettingApplyMode applyMode;
     };
 
-    inline constexpr std::array<SettingDescriptor, 69>
+    inline constexpr std::array<SettingDescriptor, 70>
         kSettingDescriptors{{
             { "OperatingMode", "Operating Mode", "Choose the full SAD feature set or the lightweight DualSense reconnect-fix-only mode.", SettingApplyMode::RestartRequired },
             { "DualSenseReconnectFix", "DualSense Reconnect Fix", "Restore native PlayStation controller recognition after reconnecting a DualSense.", SettingApplyMode::Live },
@@ -32,6 +32,7 @@ namespace sds
             { "TriggerStrength", "Trigger Strength", "Controls the overall strength of adaptive-trigger effects.", SettingApplyMode::Live },
             { "CustomWeaponAdaptiveTriggersEnabled", "Custom Weapon Adaptive Triggers", "Enable adaptive-trigger effects for TOML [[CustomWeapons]] ControllerFeedbackProfile mappings independently of custom weapon vibration. Uses the same weapon mapping.", SettingApplyMode::Live },
 
+            { "ShipEngineHapticsMode", "Ship Engine Haptics", "Choose Continuous (original engine vibration), Accelerating Only (speed increases under thrust), Boost Only, or Off. Other ship weapon, launch/landing, trigger and speaker feedback remain active.", SettingApplyMode::Live },
             { "AdvancedHaptics", "Haptic Feedback", "Enable gameplay haptic feedback. USB uses advanced DualSense audio haptics; Bluetooth uses SAD compatible-rumble translation.", SettingApplyMode::Live },
             { "HapticStrength", "Haptic Strength", "Overall haptic strength. 1.0 preserves standard SAD tuning; 2.0 keeps the first overdrive level; values up to 3.0 enter the extreme overdrive range.", SettingApplyMode::Live },
             { "BluetoothHapticStrength", "Bluetooth Haptic Strength", "Additional Bluetooth-only haptic multiplier. USB haptics are unchanged.", SettingApplyMode::Live },

@@ -373,6 +373,10 @@ namespace sds
                 },
 
                 {
+                    "ShipEngineHapticsMode",
+                    quote(shipEngineHapticsModeValue(config.shipEngineHapticsMode))
+                },
+                {
                     "WeaponHaptics",
                     boolText(config.weaponHaptics)
                 },
@@ -711,6 +715,22 @@ namespace sds
                     setting.key,
                     setting.value)) {
                 missing.push_back(setting);
+            }
+        }
+
+        if (const auto entry = std::find_if(missing.begin(), missing.end(),
+                [](const SerializedSetting& item) { return item.key == "ShipEngineHapticsMode"; });
+            entry != missing.end()) {
+            auto firstWeaponBlock = text.find("\n[[CustomWeapons]]");
+            if (firstWeaponBlock != std::string::npos) {
+                ++firstWeaponBlock;
+            } else if (text.starts_with("[[CustomWeapons]]")) {
+                firstWeaponBlock = 0;
+            }
+            if (firstWeaponBlock != std::string::npos) {
+                text.insert(firstWeaponBlock,
+                    std::string(entry->key) + " = " + entry->value + newline + newline);
+                missing.erase(entry);
             }
         }
 
@@ -1152,6 +1172,13 @@ namespace sds
                 current_.dualSenseReconnectFix = true;
             }
 
+            return true;
+        }
+
+        if (key == "ShipEngineHapticsMode") {
+            ShipEngineHapticsMode mode{};
+            if (!parseShipEngineHapticsMode(value, mode)) return false;
+            current_.shipEngineHapticsMode = mode;
             return true;
         }
 

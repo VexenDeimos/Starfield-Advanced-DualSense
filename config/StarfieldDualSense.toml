@@ -1,4 +1,4 @@
-# Starfield DualSense v0.8.0
+# Starfield DualSense v0.8.1
 #
 # =============================================================================
 # SYNTAX NOTES
@@ -48,6 +48,13 @@ HapticStrength = 1.0
 # Effective Bluetooth feedback = normal SAD haptics * this value.
 # USB haptics are unaffected. Valid range: 0.0-1.0
 BluetoothHapticStrength = 1.0
+
+# Ship engine vibration while piloting. Select one of:
+# "Continuous" (original behavior), "AcceleratingOnly", "BoostOnly", "Off".
+# This affects only flight engine/boost rumble, not ship weapons,
+# launch/landing impacts, adaptive triggers or speaker audio.
+# Can be changed live through SFSE Menu Framework.
+ShipEngineHapticsMode = "Continuous"
 
 # =============================================================================
 # WEAPON HAPTICS

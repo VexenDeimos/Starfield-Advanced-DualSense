@@ -146,6 +146,8 @@ sds::Config sds::loadConfig(std::string_view text)
             parseFloat(value, config.hapticStrength, sds::kHapticStrengthSettingMax);
         } else if (key == "BluetoothHapticStrength") {
             parseFloat(value, config.bluetoothHapticStrength);
+        } else if (key == "ShipEngineHapticsMode") {
+            (void)parseShipEngineHapticsMode(value, config.shipEngineHapticsMode);
         } else if (key == "WeaponHaptics") {
             parseBool(value, config.weaponHaptics);
         } else if (key == "CustomWeaponsEnabled") {

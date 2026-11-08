@@ -1,5 +1,6 @@
 #pragma once
 
+#include <StarfieldDualSense/ShipEngineHapticsMode.h>
 #include <StarfieldDualSense/SpeakerTypes.h>
 #include <StarfieldDualSense/TouchpadBindings.h>
 #include <StarfieldDualSense/WeaponProfiles.h>
@@ -39,6 +40,7 @@ namespace sds
         bool advancedHaptics{ true };
         float hapticStrength{ 1.0F };
         float bluetoothHapticStrength{ 1.0F };
+        ShipEngineHapticsMode shipEngineHapticsMode{ ShipEngineHapticsMode::Continuous };
         bool weaponHaptics{ true };
 
         // Independent output switches for the SAME TOML-defined

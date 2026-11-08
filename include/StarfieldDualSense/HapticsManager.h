@@ -6,6 +6,7 @@
 #include <StarfieldDualSense/IHapticsBackend.h>
 #include <StarfieldDualSense/LandVehicleControllerFeel.h>
 #include <StarfieldDualSense/LandVehicleMotionState.h>
+#include <StarfieldDualSense/ShipEngineHapticsMode.h>
 #include <StarfieldDualSense/ShipPropulsionState.h>
 #include <StarfieldDualSense/Types.h>
 
@@ -81,6 +82,7 @@ namespace sds
         std::atomic<float> _hapticStrength{ 1.0F };
         std::atomic_bool _boostpackHapticsEnabled{ true };
         std::atomic<float> _boostpackHapticsStrength{ 1.0F };
+        ShipEngineHapticsMode _shipEngineMode{ ShipEngineHapticsMode::Continuous };
         BackendFactory _backendFactory{};
         LogCallback _log{};
         HapticsEngine _engine;
@@ -94,6 +96,8 @@ namespace sds
         bool _shipContextSuppressed{ false };
         std::uint8_t _shipBlockingMenuMask{ 0 };
         HapticContinuousState _shipPropulsionContinuous{};
+        HapticContinuousState _shipPropulsionRaw{};
+        ShipEngineAccelerationGate _shipEngineAccelerationGate{};
         LandVehicleControllerFeel _landVehicleFeel{};
         LandVehicleMotionState _landVehicleMotion{};
         HapticContinuousState _landVehicleContinuous{};

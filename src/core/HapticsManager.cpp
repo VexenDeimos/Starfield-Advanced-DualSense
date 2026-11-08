@@ -78,6 +78,7 @@ sds::HapticsManager::HapticsManager(Config config, BackendFactory backendFactory
     _hapticStrength(sds::effectiveHapticStrength(config.hapticStrength)),
     _boostpackHapticsEnabled(config.boostpackHaptics),
     _boostpackHapticsStrength(std::clamp(config.boostpackHapticsStrength, 0.0F, 3.0F)),
+    _shipEngineMode(config.shipEngineHapticsMode),
     _backendFactory(std::move(backendFactory)),
     _log(std::move(log)),
     _engine(config.hapticStrength)
@@ -149,12 +150,21 @@ void sds::HapticsManager::applyLiveSettings(
         const bool strengthChanged = previousStrength != effectiveStrength;
 
         bool weaponSettingsChanged = false;
+        bool shipEngineModeChanged = false;
         {
             std::scoped_lock lock(_engineMutex);
             _engine.setHapticStrength(settings.hapticStrength);
             weaponSettingsChanged =
                 _engine.setWeaponHapticsConfig(
                     settings.weaponHapticsConfig);
+            shipEngineModeChanged =
+                _shipEngineMode != settings.weaponHapticsConfig.shipEngineHapticsMode;
+            _shipEngineMode = settings.weaponHapticsConfig.shipEngineHapticsMode;
+            if (shipEngineModeChanged) {
+                _shipPropulsionContinuous = selectShipEngineHaptics(
+                    _shipPropulsionRaw, _shipEngineMode,
+                    _shipEngineAccelerationGate.accelerating(std::chrono::steady_clock::now()));
+            }
         }
 
         if (!settings.advancedHaptics) {
@@ -180,6 +190,7 @@ void sds::HapticsManager::applyLiveSettings(
 
         if (wasEnabled && !strengthChanged && !boostpackEnabledChanged &&
             !boostpackStrengthChanged && !weaponSettingsChanged &&
+            !shipEngineModeChanged &&
             !backendStartedNow) {
             return;
         }
@@ -371,6 +382,8 @@ void sds::HapticsManager::stop() noexcept
         _shipContextSuppressed = false;
         _shipBlockingMenuMask = 0;
         _shipPropulsionContinuous = {};
+        _shipPropulsionRaw = {};
+        _shipEngineAccelerationGate.reset();
         _shipLaunchLandingRumbleActive = false;
         clearShipLaserLocked();
         clearLandVehicleProductionLocked();
@@ -413,6 +426,8 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                 _shipContextSuppressed = true;
                 _shipBlockingMenuMask = 0;
                 _shipPropulsionContinuous = {};
+                _shipPropulsionRaw = {};
+                _shipEngineAccelerationGate.reset();
                 clearShipLaserLocked();
                 clearLandVehicleProductionLocked();
                 clearOnFootContextStateLocked();
@@ -425,6 +440,8 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                 _shipContextSuppressed = true;
                 _shipBlockingMenuMask = 0;
                 _shipPropulsionContinuous = {};
+                _shipPropulsionRaw = {};
+                _shipEngineAccelerationGate.reset();
                 clearShipLaserLocked();
                 clearLandVehicleProductionLocked();
                 clearOnFootContextStateLocked();
@@ -435,6 +452,8 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                     _shipPilotActive = false;
                     _shipBlockingMenuMask = 0;
                     _shipPropulsionContinuous = {};
+                    _shipPropulsionRaw = {};
+                    _shipEngineAccelerationGate.reset();
                     clearShipLaserLocked();
                     clearOnFootContextStateLocked();
                     _shipContextSuppressed = _landVehicleContextActive;
@@ -530,6 +549,8 @@ bool sds::HapticsManager::handle(GameEvent event) noexcept
                 if (type == GameEventType::MenuOpened) {
                     _shipBlockingMenuMask = static_cast<std::uint8_t>(_shipBlockingMenuMask | bit);
                     _shipPropulsionContinuous = {};
+                    _shipPropulsionRaw = {};
+                    _shipEngineAccelerationGate.reset();
                     clearShipLaserLocked();
                 } else {
                     _shipBlockingMenuMask = static_cast<std::uint8_t>(_shipBlockingMenuMask & ~bit);
@@ -1080,7 +1101,11 @@ bool sds::HapticsManager::handleShipPropulsionState(
         {
             std::scoped_lock lock(_engineMutex);
             if (_shipPilotActive && _shipContextSuppressed && _shipBlockingMenuMask == 0) {
-                _shipPropulsionContinuous = mapShipPropulsionHaptics(state, 1.0F);
+                _shipPropulsionRaw = mapShipPropulsionHaptics(state, 1.0F);
+                const bool accelerating = _shipEngineAccelerationGate.observe(
+                    state, std::chrono::steady_clock::now());
+                _shipPropulsionContinuous = selectShipEngineHaptics(
+                    _shipPropulsionRaw, _shipEngineMode, accelerating);
                 continuous = composeShipContinuousLocked();
                 submit = true;
             }

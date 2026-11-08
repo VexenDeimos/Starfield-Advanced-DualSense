@@ -192,6 +192,21 @@ namespace sds
                         saveAfterEdit(control.key);
                     }
                 }
+            } else if (control.kind == SettingsControlKind::ShipEngineHapticsMode) {
+                const auto mode = g_settings->current().shipEngineHapticsMode;
+                int current = static_cast<int>(mode);
+                const char* labels[] = { "Continuous", "Accelerating Only", "Boost Only", "Off" };
+                constexpr ShipEngineHapticsMode modes[] = {
+                    ShipEngineHapticsMode::Continuous, ShipEngineHapticsMode::AcceleratingOnly,
+                    ShipEngineHapticsMode::BoostOnly, ShipEngineHapticsMode::Off
+                };
+                if (ImGuiMCP::Combo(label.c_str(), &current, labels, 4) &&
+                    current >= 0 && current < 4 &&
+                    g_settings->setString("ShipEngineHapticsMode",
+                        shipEngineHapticsModeValue(modes[current]))) {
+                    applyCurrentSettings();
+                    saveAfterEdit(control.key);
+                }
             } else if (control.kind == SettingsControlKind::SpeakerOutputMode) {
                 int current = g_settings->current().speakerOutputMode == SpeakerOutputMode::ControllerOnly ? 1 : 0;
                 const char* items[] = { "Both", "Controller Only" };
